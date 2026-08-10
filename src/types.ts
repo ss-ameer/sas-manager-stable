@@ -80,6 +80,7 @@ export interface SoftDeleteFields {
   created_by_name?: string;
   last_modified_by_uid?: string;
   last_modified_by_name?: string;
+  search_terms?: string[];
 }
 
 export interface Company extends SoftDeleteFields {

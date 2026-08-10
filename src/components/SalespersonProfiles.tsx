@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Salesperson, Enquiry, Company, getInitials, Workspace, UserProfile } from '../types';
+import { Salesperson, Enquiry, Company, getInitials, Workspace, UserProfile, CallLogEntry } from '../types';
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc, db } from '../firebase';
 import { writeBatch, doc } from 'firebase/firestore';
 import { recordAuditLog } from '../utils/auditLogger';
+import ReassignOpenRecordsModal, { TargetTeamMember } from './ReassignOpenRecordsModal';
 import {
   Users2,
   TrendingUp,
@@ -33,6 +34,8 @@ interface SalespersonProfilesProps {
   onSelectEnquiry: (id: string) => void;
   setSalespersons?: React.Dispatch<React.SetStateAction<Salesperson[]>>;
   setEnquiries?: React.Dispatch<React.SetStateAction<Enquiry[]>>;
+  callLogs?: CallLogEntry[];
+  setCallLogs?: React.Dispatch<React.SetStateAction<CallLogEntry[]>>;
   activeWorkspace?: Workspace;
   currentUser?: UserProfile;
 }
@@ -44,6 +47,8 @@ export default function SalespersonProfiles({
   onSelectEnquiry,
   setSalespersons,
   setEnquiries,
+  callLogs = [],
+  setCallLogs,
   activeWorkspace,
   currentUser
 }: SalespersonProfilesProps) {
@@ -309,6 +314,185 @@ export default function SalespersonProfiles({
     }
   };
 
+  // Reassign Modal State
+  const [reassignModalState, setReassignModalState] = useState<{
+    isOpen: boolean;
+    salespersonToDelete: Salesperson | null;
+    openEnquiryCount: number;
+    pendingActivityCount: number;
+    openEnquiries: Enquiry[];
+    pendingLogs: CallLogEntry[];
+  }>({
+    isOpen: false,
+    salespersonToDelete: null,
+    openEnquiryCount: 0,
+    pendingActivityCount: 0,
+    openEnquiries: [],
+    pendingLogs: [],
+  });
+  const [isReassignSubmitting, setIsReassignSubmitting] = useState(false);
+
+  const performActualSalespersonDelete = async (spToDelete: Salesperson) => {
+    const targetId = spToDelete.id || (spToDelete as any)._id;
+    if (!targetId) return;
+
+    if (setSalespersons) {
+      setSalespersons((prev) => prev.filter((sp) => sp.id !== targetId));
+    }
+    if (selectedSalespersonId === targetId || selectedSalespersonId === spToDelete.initials) {
+      const nextSp = salespersons.find(x => x.id !== targetId && x.initials !== targetId);
+      setSelectedSalespersonId(nextSp ? (nextSp.id || nextSp.initials || null) : null);
+    }
+
+    await safeDeleteDoc('salespersons', targetId);
+    if (currentUser) {
+      try {
+        await recordAuditLog({
+          document_id: targetId,
+          entity_type: 'salesperson',
+          entity_title: spToDelete.full_name,
+          action: 'delete',
+          user: currentUser,
+          before: spToDelete,
+          details: `Removed sales representative ${spToDelete.full_name} (${spToDelete.initials})`
+        });
+      } catch (e) {}
+    }
+  };
+
+  const handleReassignAndDeleteSalesperson = async (reassignToSalespersonId: string) => {
+    const sp = reassignModalState.salespersonToDelete;
+    if (!sp) return;
+
+    const targetSp = salespersons.find(s => s.id === reassignToSalespersonId || s.initials === reassignToSalespersonId);
+    const targetInitials = targetSp?.initials || (targetSp ? getInitials(targetSp.full_name) : 'UN');
+    const targetId = targetSp?.id || reassignToSalespersonId;
+    const targetName = targetSp?.full_name || 'Team Member';
+
+    setIsReassignSubmitting(true);
+    try {
+      // 1. Reassign open enquiries
+      const openEnqIds = new Set(reassignModalState.openEnquiries.map(e => e.id).filter(Boolean));
+      for (const eq of reassignModalState.openEnquiries) {
+        if (eq.id) {
+          await safeUpdateDoc('enquiries', eq.id, {
+            sales_person: targetInitials,
+            sales_person_id: targetId,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+      if (setEnquiries) {
+        setEnquiries(prev => prev.map(eq => {
+          if (eq.id && openEnqIds.has(eq.id)) {
+            return { ...eq, sales_person: targetInitials, sales_person_id: targetId };
+          }
+          return eq;
+        }));
+      }
+
+      // 2. Reassign pending call logs / activity logs
+      const pendingLogIds = new Set(reassignModalState.pendingLogs.map(l => l.id).filter(Boolean));
+      for (const cl of reassignModalState.pendingLogs) {
+        if (cl.id) {
+          await safeUpdateDoc('call_logs', cl.id, {
+            sales_person: targetInitials,
+            sales_person_id: targetId,
+            handled_by_salesperson_id: targetId,
+            handled_by_team_member_name: targetName,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+      if (setCallLogs) {
+        setCallLogs(prev => prev.map(cl => {
+          if (cl.id && pendingLogIds.has(cl.id)) {
+            return {
+              ...cl,
+              sales_person: targetInitials,
+              sales_person_id: targetId,
+              handled_by_salesperson_id: targetId,
+              handled_by_team_member_name: targetName
+            };
+          }
+          return cl;
+        }));
+      }
+
+      // 3. Perform final deletion
+      await performActualSalespersonDelete(sp);
+      setReassignModalState(prev => ({ ...prev, isOpen: false }));
+    } catch (err: any) {
+      alert('Failed to reassign records and delete salesperson: ' + (err?.message || err));
+    } finally {
+      setIsReassignSubmitting(false);
+    }
+  };
+
+  const handleDirectDeleteSalesperson = async () => {
+    const sp = reassignModalState.salespersonToDelete;
+    if (!sp) return;
+
+    setIsReassignSubmitting(true);
+    try {
+      // 1. Unassign open enquiries
+      const openEnqIds = new Set(reassignModalState.openEnquiries.map(e => e.id).filter(Boolean));
+      for (const eq of reassignModalState.openEnquiries) {
+        if (eq.id) {
+          await safeUpdateDoc('enquiries', eq.id, {
+            sales_person: '',
+            sales_person_id: '',
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+      if (setEnquiries) {
+        setEnquiries(prev => prev.map(eq => {
+          if (eq.id && openEnqIds.has(eq.id)) {
+            return { ...eq, sales_person: '', sales_person_id: '' };
+          }
+          return eq;
+        }));
+      }
+
+      // 2. Unassign pending call logs / activity logs
+      const pendingLogIds = new Set(reassignModalState.pendingLogs.map(l => l.id).filter(Boolean));
+      for (const cl of reassignModalState.pendingLogs) {
+        if (cl.id) {
+          await safeUpdateDoc('call_logs', cl.id, {
+            sales_person: '',
+            sales_person_id: '',
+            handled_by_salesperson_id: '',
+            handled_by_team_member_name: '',
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+      if (setCallLogs) {
+        setCallLogs(prev => prev.map(cl => {
+          if (cl.id && pendingLogIds.has(cl.id)) {
+            return {
+              ...cl,
+              sales_person: '',
+              sales_person_id: '',
+              handled_by_salesperson_id: '',
+              handled_by_team_member_name: ''
+            };
+          }
+          return cl;
+        }));
+      }
+
+      // 3. Perform final deletion
+      await performActualSalespersonDelete(sp);
+      setReassignModalState(prev => ({ ...prev, isOpen: false }));
+    } catch (err: any) {
+      alert('Failed to unassign records and delete salesperson: ' + (err?.message || err));
+    } finally {
+      setIsReassignSubmitting(false);
+    }
+  };
+
   const handleDeleteSalesperson = async (s: Salesperson) => {
     const targetId = s.id || (s as any)._id;
     if (!targetId) {
@@ -316,12 +500,40 @@ export default function SalespersonProfiles({
       return;
     }
     
-    // Check if salesperson has linked enquiries
-    const linkedEnqsCount = enquiries.filter(e => e.sales_person === targetId || e.sales_person === s.initials).length;
-    let message = `Are you sure you want to remove ${s.full_name}?`;
-    if (linkedEnqsCount > 0) {
-      message += ` Warning: This salesperson has ${linkedEnqsCount} linked enquiries. Deleting them will orphan these enquiries.`;
+    // Check open enquiries (status === 'Active') and pending activity logs assigned to this salesperson
+    const openEnquiries = enquiries.filter(
+      (e) =>
+        e.status === 'Active' &&
+        (e.sales_person === targetId ||
+          (s.initials && e.sales_person?.toUpperCase() === s.initials.toUpperCase()) ||
+          (e as any).sales_person_id === targetId)
+    );
+
+    const pendingLogs = (callLogs || []).filter(
+      (c) =>
+        (c.status === 'Scheduled' ||
+          c.status === 'Follow-Up Required' ||
+          Boolean(c.next_followup_date)) &&
+        ((c as any).sales_person_id === targetId ||
+          (s.initials && c.sales_person?.toUpperCase() === s.initials.toUpperCase()) ||
+          (c.sales_person && c.sales_person.toLowerCase() === s.full_name.toLowerCase()) ||
+          c.handled_by_salesperson_id === targetId)
+    );
+
+    if (openEnquiries.length > 0 || pendingLogs.length > 0) {
+      setReassignModalState({
+        isOpen: true,
+        salespersonToDelete: s,
+        openEnquiryCount: openEnquiries.length,
+        pendingActivityCount: pendingLogs.length,
+        openEnquiries,
+        pendingLogs,
+      });
+      return;
     }
+
+    // Fallback standard delete confirm if no open records
+    let message = `Are you sure you want to remove ${s.full_name}?`;
 
     setConfirmDialog({
       isOpen: true,
@@ -332,28 +544,7 @@ export default function SalespersonProfiles({
       isDestructive: true,
       onConfirm: async () => {
         try {
-          if (setSalespersons) {
-            setSalespersons((prev) => prev.filter((sp) => sp.id !== targetId));
-          }
-          if (selectedSalespersonId === targetId || selectedSalespersonId === s.initials) {
-            const nextSp = salespersons.find(x => x.id !== targetId && x.initials !== targetId);
-            setSelectedSalespersonId(nextSp ? (nextSp.id || nextSp.initials || null) : null);
-          }
-
-          await safeDeleteDoc('salespersons', targetId);
-          if (currentUser) {
-            try {
-              await recordAuditLog({
-                document_id: targetId,
-                entity_type: 'salesperson',
-                entity_title: s.full_name,
-                action: 'delete',
-                user: currentUser,
-                before: s,
-                details: `Removed sales representative ${s.full_name} (${s.initials})`
-              });
-            } catch (e) {}
-          }
+          await performActualSalespersonDelete(s);
         } catch (err: any) {
           alert('Failed to delete representative: ' + err.message);
         }
@@ -841,6 +1032,26 @@ export default function SalespersonProfiles({
           </form>
         </div>
       )}
+
+      {/* Reassign Open Records Before Deletion Modal */}
+      <ReassignOpenRecordsModal
+        isOpen={reassignModalState.isOpen}
+        onClose={() => setReassignModalState(prev => ({ ...prev, isOpen: false }))}
+        representativeName={reassignModalState.salespersonToDelete?.full_name || 'Sales Representative'}
+        openEnquiryCount={reassignModalState.openEnquiryCount}
+        pendingActivityCount={reassignModalState.pendingActivityCount}
+        availableTeamMembers={salespersons
+          .filter(sp => sp.id !== reassignModalState.salespersonToDelete?.id && sp.initials !== reassignModalState.salespersonToDelete?.initials)
+          .map(sp => ({
+            id: sp.id || sp.initials || '',
+            name: sp.full_name,
+            initials: sp.initials,
+            role: sp.role
+          }))}
+        onReassignAndDelete={handleReassignAndDeleteSalesperson}
+        onDirectDelete={handleDirectDeleteSalesperson}
+        isSubmitting={isReassignSubmitting}
+      />
 
       {/* Reusable Confirmation Dialog Overlay */}
       {confirmDialog.isOpen && (

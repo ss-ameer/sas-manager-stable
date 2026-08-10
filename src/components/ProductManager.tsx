@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Product, ProductType, UnitType, ProductAttribute, CATEGORY_SUGGESTED_ATTRIBUTES, Workspace } from '../types';
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc } from '../firebase';
+import { generateProductSearchTerms } from '../utils/defaults';
 import {
   Package,
   Plus,
@@ -169,6 +170,9 @@ export default function ProductManager({ products, productCategories: propCatego
       .map(a => ({ key: a.key.trim(), value: a.value.trim() }))
       .filter(a => a.key !== '' || a.value !== '');
 
+    const brandAttr = cleanAttributes.find(a => a.key.toLowerCase() === 'brand')?.value;
+    const searchTerms = generateProductSearchTerms(formName.trim(), formProductType, formSku.trim(), brandAttr);
+
     const data: Partial<Product> = {
       workspace_id: activeWorkspace?.id,
       name: formName.trim() || undefined,
@@ -178,6 +182,7 @@ export default function ProductManager({ products, productCategories: propCatego
       unit_price: formUnitPrice !== undefined && formUnitPrice > 0 ? formUnitPrice : undefined,
       sku: formSku.trim() || undefined,
       attributes: cleanAttributes,
+      search_terms: searchTerms,
     };
 
     try {

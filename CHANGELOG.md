@@ -2,6 +2,45 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.54.0] - 2026-08-10
+
+### Added & Enhanced
+- **Reassign Open Records Before Deletion Workflow (`src/components/ReassignOpenRecordsModal.tsx`)**:
+  - Created reusable modal component displaying active workload summaries ("X open quotes and Y scheduled follow-ups").
+  - Dropdown selector to choose active target representative for seamless data handover.
+  - Action buttons for "Reassign & Delete Profile" and "Direct Delete (Unassign)".
+- **Sales Representative Handover (`src/components/SalespersonProfiles.tsx`)**:
+  - Intercepted representative deletion to check for active enquiries (`status === 'Active'`) and pending activity logs.
+  - Reassigns open quotes and call logs to target salesperson before executing `safeDeleteDoc`.
+  - Supports direct unassign option clearing sales representative assignments before deletion.
+- **User Account Handover (`src/components/UserManagementHub.tsx`, `src/components/SettingsHub.tsx`)**:
+  - Intercepted user profile deletion in User Roster & Access Control hub.
+  - Automatically matches active enquiries and scheduled follow-ups linked to user UID, email, or linked salesperson profile.
+  - Reassigns or unassigns open records prior to permanently deleting the user account document.
+
+## [0.53.0] - 2026-08-10
+
+### Added & Enhanced
+- **Search Term Generators (`src/utils/defaults.ts`)**:
+  - Exported `generateContactSearchTerms(fullName, email, phones)` helper tokenizing names, emails, and phone digits into lowercase search terms.
+  - Exported `generateProductSearchTerms(name, category, sku, brand)` helper tokenizing titles, categories, SKUs, and brands into search terms.
+  - Updated `normalizeContact` to automatically backfill missing `search_terms` on contact startup normalization.
+- **Search Term Attachment in Modals (`src/components/ContactModal.tsx`, `src/components/ProductManager.tsx`, `src/types.ts`)**:
+  - Attached `search_terms` to `SoftDeleteFields` in `src/types.ts`.
+  - Automatically compute and attach `search_terms` to contact payloads in `ContactModal.tsx` on save.
+  - Automatically compute and attach `search_terms` to product payloads in `ProductManager.tsx` on save.
+
+## [0.52.0] - 2026-08-10
+
+### Added & Enhanced
+- **S/N Quote Resequencing Automation (`src/App.tsx`)**:
+  - Integrated `syncSNNumbersInFirestore()` directly into `handleDeleteEnquiry` and `handleBulkDeleteEnquiries`.
+  - Automatically re-sequences remaining quote S/N numbers sequentially (`1001`, `1002`, `1003`...) in Firestore and local state after any deletion to eliminate sequence gaps.
+- **Duplicate Company Match Dialog Component (`src/components/DuplicateMatchModal.tsx`)**:
+  - Implemented `DuplicateMatchModal` as a clean, dark-slate modal with high-contrast warning banner showing matching existing company details (Canonical Name, Phone, Contact Email/Location).
+  - Provided dual action buttons ("Merge & Use Existing" vs. "Save as Separate Record") with backwards-compatible support for `ResolutionManagerModal` properties.
+
+
 ## [0.51.0] - 2026-08-10
 
 ### Added & Enhanced

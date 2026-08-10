@@ -1,5 +1,66 @@
 # Development Ledger
 
+## Session: 2026-08-10 (Step 3 Gap Remediation: Reassign Open Data Handover Workflow)
+
+### Goals
+- Implement "Reassign Open Records Before Deletion" workflow when deleting sales representatives or user profiles.
+- Create `src/components/ReassignOpenRecordsModal.tsx` displaying workload summary counts ("X open quotes and Y scheduled follow-ups") and a target team member selector.
+- Intercept deletion in `SalespersonProfiles.tsx` and `UserManagementHub.tsx` to detect open enquiries (`status === 'Active'`) and pending activity logs.
+- Provide "Reassign & Delete Profile" button to update open enquiries and logs to new representative before deleting via `safeDeleteDoc`.
+- Provide "Direct Delete (Unassign)" button to clear salesperson assignments before deleting via `safeDeleteDoc`.
+- Bump version to `0.54.0` and verify zero errors with `tsc --noEmit`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/ReassignOpenRecordsModal.tsx` | Created modal component for data handover before representative/user deletion. |
+| `/src/components/SalespersonProfiles.tsx` | Integrated open records check and reassignment/unassign workflow before deleting salespersons. |
+| `/src/components/UserManagementHub.tsx` | Integrated open records check and reassignment/unassign workflow before deleting users. |
+| `/src/components/SettingsHub.tsx` | Passed `enquiries`, `salespersons`, `callLogs`, `setEnquiries`, `setCallLogs` to `UserManagementHub`. |
+| `/src/App.tsx` | Passed `callLogs={workspaceCallLogs}` and `setCallLogs={setCallLogs}` to `SalespersonProfiles`. |
+| `/package.json` | Bumped version to `0.54.0`. |
+| `/CHANGELOG.md` | Documented version `0.54.0` changes. |
+| `/development_ledger.md` | Updated session log and modifications table. |
+
+## Session: 2026-08-10 (Step 2 Gap Remediation: Search Term Generators & Payload Attachment)
+
+### Goals
+- Export `generateContactSearchTerms` and `generateProductSearchTerms` helpers in `src/utils/defaults.ts`.
+- Update `normalizeContact` in `defaults.ts` to backfill missing `search_terms` on startup.
+- Attach `search_terms` array to payloads in `ContactModal.tsx` and `ProductManager.tsx`.
+- Add `search_terms?: string[]` to `SoftDeleteFields` in `src/types.ts`.
+- Bump version to `0.53.0` and verify zero errors with `tsc --noEmit`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/utils/defaults.ts` | Added `generateContactSearchTerms` and `generateProductSearchTerms` helper functions, and updated `normalizeContact` to generate search terms when missing. |
+| `/src/types.ts` | Added `search_terms?: string[]` to `SoftDeleteFields` interface. |
+| `/src/components/ContactModal.tsx` | Imported `generateContactSearchTerms` and attached `search_terms` to contact save payload. |
+| `/src/components/ProductManager.tsx` | Imported `generateProductSearchTerms` and attached `search_terms` to product save payload. |
+| `/package.json` | Bumped version to `0.53.0`. |
+| `/CHANGELOG.md` | Documented version `0.53.0` changes. |
+| `/development_ledger.md` | Updated session log and modifications table. |
+
+## Session: 2026-08-10 (Step 1 Gap Remediation: S/N Resequencing & DuplicateMatchModal)
+
+### Goals
+- Wire S/N resequencing in `src/App.tsx` after individual or bulk enquiry deletion.
+- Implement `DuplicateMatchModal` in `src/components/DuplicateMatchModal.tsx` as a clean dark-slate dialog component with high-contrast warning banner and dual action buttons.
+- Bump version to `0.52.0` and verify with `tsc --noEmit` and build.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/App.tsx` | Wired `syncSNNumbersInFirestore()` in `handleDeleteEnquiry` and `handleBulkDeleteEnquiries` to automatically resequence quote S/N numbers without gaps after deletions. |
+| `/src/components/DuplicateMatchModal.tsx` | Implemented dark-slate duplicate match modal with warning banner, existing company details (Canonical Name, Phone, Contact), and dual action buttons ("Merge & Use Existing" vs "Save as Separate Record"). |
+| `/package.json` | Bumped version to `0.52.0`. |
+| `/CHANGELOG.md` | Documented version `0.52.0` changes. |
+| `/development_ledger.md` | Recorded session goals and modifications table. |
+
 ## Session: 2026-08-10 (Creator & Modifier Audit Metadata Fields)
 
 ### Goals

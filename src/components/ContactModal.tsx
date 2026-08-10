@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, User, Building2, Phone, Mail, Plus, Trash2, ShieldAlert, Check, ArrowRightLeft, Sparkles } from 'lucide-react';
 import { Company, Contact, LabeledPhone, LabeledEmail, LabeledHandle, PhoneCategory, UserProfile, getContactPhones, getContactEmails, getContactHandles, getCompanyPhones, getCompanyEmails } from '../types';
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc } from '../firebase';
+import { generateContactSearchTerms } from '../utils/defaults';
 import { recordAuditLog } from '../utils/auditLogger';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -240,6 +241,7 @@ export default function ContactModal({
       is_primary: isPrimary,
       is_dnc: isDnc,
       dnc_reason: isDnc ? dncReason.trim() : '',
+      search_terms: generateContactSearchTerms(fullName.trim(), primaryEmail, validPhones),
       created_by_uid: contact?.created_by_uid || userUid,
       created_by_name: contact?.created_by_name || userName,
       last_modified_by_uid: userUid,

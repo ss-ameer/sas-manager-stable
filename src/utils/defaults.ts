@@ -206,6 +206,77 @@ export function generateCompanySearchTerms(displayName: string, city: string, ph
   return Array.from(terms);
 }
 
+export function generateContactSearchTerms(fullName: string, email?: string, phones?: any[]): string[] {
+  const terms = new Set<string>();
+
+  if (fullName) {
+    const lowerName = fullName.toLowerCase().trim();
+    if (lowerName) terms.add(lowerName);
+    const words = lowerName.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean);
+    words.forEach(w => terms.add(w));
+  }
+
+  if (email) {
+    const lowerEmail = email.toLowerCase().trim();
+    if (lowerEmail) {
+      terms.add(lowerEmail);
+      const emailParts = lowerEmail.split(/[@._-]+/).filter(Boolean);
+      emailParts.forEach(p => terms.add(p));
+    }
+  }
+
+  if (Array.isArray(phones)) {
+    phones.forEach(p => {
+      const numStr = typeof p === 'string' ? p : p?.number;
+      if (numStr) {
+        const cleanNum = numStr.replace(/[^\d+]/g, '').toLowerCase();
+        if (cleanNum) terms.add(cleanNum);
+        const digitsOnly = numStr.replace(/\D/g, '');
+        if (digitsOnly) terms.add(digitsOnly);
+      }
+    });
+  }
+
+  return Array.from(terms);
+}
+
+export function generateProductSearchTerms(name?: string, category?: string, sku?: string, brand?: string): string[] {
+  const terms = new Set<string>();
+
+  if (name) {
+    const lowerName = name.toLowerCase().trim();
+    if (lowerName) terms.add(lowerName);
+    const words = lowerName.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean);
+    words.forEach(w => terms.add(w));
+  }
+
+  if (category) {
+    const lowerCat = category.toLowerCase().trim();
+    if (lowerCat) {
+      terms.add(lowerCat);
+      lowerCat.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean).forEach(w => terms.add(w));
+    }
+  }
+
+  if (sku) {
+    const lowerSku = sku.toLowerCase().trim();
+    if (lowerSku) {
+      terms.add(lowerSku);
+      lowerSku.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean).forEach(w => terms.add(w));
+    }
+  }
+
+  if (brand) {
+    const lowerBrand = brand.toLowerCase().trim();
+    if (lowerBrand) {
+      terms.add(lowerBrand);
+      lowerBrand.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean).forEach(w => terms.add(w));
+    }
+  }
+
+  return Array.from(terms);
+}
+
 export function normalizeCompany(raw: any, activeWsId?: string): Company {
   const now = new Date().toISOString();
   const wsId = raw?.workspace_id || raw?.workspaceId || activeWsId || 'ws_default';
@@ -235,6 +306,16 @@ export function normalizeCompany(raw: any, activeWsId?: string): Company {
 export function normalizeContact(raw: any, activeWsId?: string): Contact {
   const now = new Date().toISOString();
   const wsId = raw?.workspace_id || raw?.workspaceId || activeWsId || 'ws_default';
+  const fullName = raw?.full_name || 'Unnamed Contact';
+  const phones = raw?.phones || [
+    raw?.mobile ? { label: 'Mobile', number: raw.mobile } : null,
+    raw?.landline ? { label: 'Telephone', number: raw.landline } : null,
+  ].filter(Boolean);
+  const email = raw?.email || raw?.primary_email || '';
+  const searchTerms = Array.isArray(raw?.search_terms) && raw.search_terms.length > 0
+    ? raw.search_terms
+    : generateContactSearchTerms(fullName, email, phones);
+
   return {
     ...raw,
     workspace_id: wsId,
@@ -242,7 +323,8 @@ export function normalizeContact(raw: any, activeWsId?: string): Contact {
     updatedAt: raw?.updatedAt || raw?.createdAt || now,
     is_deleted: Boolean(raw?.is_deleted),
     company_id: raw?.company_id || '',
-    full_name: raw?.full_name || 'Unnamed Contact',
+    full_name: fullName,
+    search_terms: searchTerms,
   };
 }
 

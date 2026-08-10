@@ -539,6 +539,11 @@ export default function SettingsHub({
               currentUser={user}
               workspaces={workspaces}
               activeWorkspace={activeWorkspace}
+              enquiries={enquiries}
+              salespersons={salespersons}
+              callLogs={callLogs}
+              setEnquiries={setEnquiries}
+              setCallLogs={setCallLogs}
               triggerToast={triggerToast}
             />
 

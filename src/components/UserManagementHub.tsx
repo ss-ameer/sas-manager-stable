@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, UserRole, Workspace, WorkspaceMember } from '../types';
+import { UserProfile, UserRole, Workspace, WorkspaceMember, Enquiry, Salesperson, CallLogEntry, getInitials } from '../types';
 import { db, safeUpdateDoc, safeDeleteDoc, safeSetDoc } from '../firebase';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { recordAuditLog } from '../utils/auditLogger';
 import { getUserRoleInWorkspace } from '../utils/permissions';
+import ReassignOpenRecordsModal, { TargetTeamMember } from './ReassignOpenRecordsModal';
 import {
   Users,
   Shield,
@@ -27,6 +28,11 @@ interface UserManagementHubProps {
   currentUser: UserProfile;
   workspaces: Workspace[];
   activeWorkspace?: Workspace;
+  enquiries?: Enquiry[];
+  salespersons?: Salesperson[];
+  callLogs?: CallLogEntry[];
+  setEnquiries?: React.Dispatch<React.SetStateAction<Enquiry[]>>;
+  setCallLogs?: React.Dispatch<React.SetStateAction<CallLogEntry[]>>;
   triggerToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -34,6 +40,11 @@ export default function UserManagementHub({
   currentUser,
   workspaces,
   activeWorkspace,
+  enquiries = [],
+  salespersons = [],
+  callLogs = [],
+  setEnquiries,
+  setCallLogs,
   triggerToast
 }: UserManagementHubProps) {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -235,6 +246,256 @@ export default function UserManagementHub({
     await executeSaveUser(editRole);
   };
 
+  // Reassign Modal State for User Deletion
+  const [reassignModalState, setReassignModalState] = useState<{
+    isOpen: boolean;
+    userToDelete: UserProfile | null;
+    openEnquiryCount: number;
+    pendingActivityCount: number;
+    openEnquiries: Enquiry[];
+    pendingLogs: CallLogEntry[];
+  }>({
+    isOpen: false,
+    userToDelete: null,
+    openEnquiryCount: 0,
+    pendingActivityCount: 0,
+    openEnquiries: [],
+    pendingLogs: [],
+  });
+  const [isReassignSubmitting, setIsReassignSubmitting] = useState(false);
+
+  const performActualUserDelete = async (u: UserProfile) => {
+    await safeDeleteDoc('users', u.uid);
+
+    await recordAuditLog({
+      document_id: u.uid,
+      entity_type: 'user',
+      entity_title: u.username || u.email,
+      action: 'delete',
+      user: currentUser,
+      before: u,
+      after: null,
+      details: `Deleted user account permanently (${u.email}, role: ${u.role})`
+    });
+
+    if (triggerToast) {
+      triggerToast(`User account ${u.email} has been permanently deleted.`, 'success');
+    }
+
+    if (editingUser?.uid === u.uid) {
+      setEditingUser(null);
+    }
+    setDeletingUser(null);
+  };
+
+  const handleInitiateDeleteUser = (u: UserProfile) => {
+    if (u.uid === currentUser.uid) {
+      if (triggerToast) {
+        triggerToast('You cannot delete your own active administrator account.', 'error');
+      }
+      return;
+    }
+
+    // Match sales representative document for this user (if any)
+    const userSp = (salespersons || []).find(
+      (s) =>
+        s.linked_user_id === u.uid ||
+        (u.email && s.email && u.email.toLowerCase() === s.email.toLowerCase()) ||
+        (u.initials && s.initials && u.initials.toUpperCase() === s.initials.toUpperCase()) ||
+        (u.full_name && s.full_name && u.full_name.toLowerCase() === s.full_name.toLowerCase())
+    );
+
+    // Identify open enquiries (status === 'Active')
+    const openEnquiries = (enquiries || []).filter(
+      (e) =>
+        e.status === 'Active' &&
+        (e.sales_person === u.uid ||
+          e.createdByUid === u.uid ||
+          (u.initials && e.sales_person?.toUpperCase() === u.initials.toUpperCase()) ||
+          (u.full_name && e.sales_person?.toLowerCase() === u.full_name.toLowerCase()) ||
+          (userSp &&
+            (e.sales_person === userSp.id ||
+              (userSp.initials && e.sales_person?.toUpperCase() === userSp.initials.toUpperCase()))))
+    );
+
+    // Identify pending activity logs
+    const pendingLogs = (callLogs || []).filter(
+      (c) =>
+        (c.status === 'Scheduled' ||
+          c.status === 'Follow-Up Required' ||
+          Boolean(c.next_followup_date)) &&
+        ((c as any).sales_person_id === u.uid ||
+          c.logged_by === u.uid ||
+          (u.initials && c.sales_person?.toUpperCase() === u.initials.toUpperCase()) ||
+          (u.full_name && c.sales_person?.toLowerCase() === u.full_name.toLowerCase()) ||
+          (userSp &&
+            ((c as any).sales_person_id === userSp.id ||
+              (userSp.initials && c.sales_person?.toUpperCase() === userSp.initials.toUpperCase()))))
+    );
+
+    if (openEnquiries.length > 0 || pendingLogs.length > 0) {
+      setReassignModalState({
+        isOpen: true,
+        userToDelete: u,
+        openEnquiryCount: openEnquiries.length,
+        pendingActivityCount: pendingLogs.length,
+        openEnquiries,
+        pendingLogs,
+      });
+      return;
+    }
+
+    // No open records -> show standard deletion confirmation
+    setDeletingUser(u);
+  };
+
+  const handleReassignAndDeleteUser = async (reassignToSalespersonId: string) => {
+    const u = reassignModalState.userToDelete;
+    if (!u) return;
+
+    const targetSp = (salespersons || []).find(
+      (s) => s.id === reassignToSalespersonId || s.initials === reassignToSalespersonId
+    );
+    const targetInitials = targetSp?.initials || (targetSp ? getInitials(targetSp.full_name) : 'UN');
+    const targetId = targetSp?.id || reassignToSalespersonId;
+    const targetName = targetSp?.full_name || 'Team Member';
+
+    setIsReassignSubmitting(true);
+    try {
+      // 1. Reassign open enquiries
+      const openEnqIds = new Set(reassignModalState.openEnquiries.map((e) => e.id).filter(Boolean));
+      for (const eq of reassignModalState.openEnquiries) {
+        if (eq.id) {
+          await safeUpdateDoc('enquiries', eq.id, {
+            sales_person: targetInitials,
+            sales_person_id: targetId,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
+      if (setEnquiries) {
+        setEnquiries((prev) =>
+          prev.map((eq) => {
+            if (eq.id && openEnqIds.has(eq.id)) {
+              return { ...eq, sales_person: targetInitials, sales_person_id: targetId };
+            }
+            return eq;
+          })
+        );
+      }
+
+      // 2. Reassign pending call logs / activity logs
+      const pendingLogIds = new Set(reassignModalState.pendingLogs.map((l) => l.id).filter(Boolean));
+      for (const cl of reassignModalState.pendingLogs) {
+        if (cl.id) {
+          await safeUpdateDoc('call_logs', cl.id, {
+            sales_person: targetInitials,
+            sales_person_id: targetId,
+            handled_by_salesperson_id: targetId,
+            handled_by_team_member_name: targetName,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
+      if (setCallLogs) {
+        setCallLogs((prev) =>
+          prev.map((cl) => {
+            if (cl.id && pendingLogIds.has(cl.id)) {
+              return {
+                ...cl,
+                sales_person: targetInitials,
+                sales_person_id: targetId,
+                handled_by_salesperson_id: targetId,
+                handled_by_team_member_name: targetName,
+              };
+            }
+            return cl;
+          })
+        );
+      }
+
+      // 3. Delete user document
+      await performActualUserDelete(u);
+      setReassignModalState((prev) => ({ ...prev, isOpen: false }));
+    } catch (err: any) {
+      if (triggerToast) {
+        triggerToast('Failed to reassign records and delete user: ' + (err?.message || err), 'error');
+      }
+    } finally {
+      setIsReassignSubmitting(false);
+    }
+  };
+
+  const handleDirectDeleteUser = async () => {
+    const u = reassignModalState.userToDelete;
+    if (!u) return;
+
+    setIsReassignSubmitting(true);
+    try {
+      // 1. Unassign open enquiries
+      const openEnqIds = new Set(reassignModalState.openEnquiries.map((e) => e.id).filter(Boolean));
+      for (const eq of reassignModalState.openEnquiries) {
+        if (eq.id) {
+          await safeUpdateDoc('enquiries', eq.id, {
+            sales_person: '',
+            sales_person_id: '',
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
+      if (setEnquiries) {
+        setEnquiries((prev) =>
+          prev.map((eq) => {
+            if (eq.id && openEnqIds.has(eq.id)) {
+              return { ...eq, sales_person: '', sales_person_id: '' };
+            }
+            return eq;
+          })
+        );
+      }
+
+      // 2. Unassign pending call logs
+      const pendingLogIds = new Set(reassignModalState.pendingLogs.map((l) => l.id).filter(Boolean));
+      for (const cl of reassignModalState.pendingLogs) {
+        if (cl.id) {
+          await safeUpdateDoc('call_logs', cl.id, {
+            sales_person: '',
+            sales_person_id: '',
+            handled_by_salesperson_id: '',
+            handled_by_team_member_name: '',
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
+      if (setCallLogs) {
+        setCallLogs((prev) =>
+          prev.map((cl) => {
+            if (cl.id && pendingLogIds.has(cl.id)) {
+              return {
+                ...cl,
+                sales_person: '',
+                sales_person_id: '',
+                handled_by_salesperson_id: '',
+                handled_by_team_member_name: '',
+              };
+            }
+            return cl;
+          })
+        );
+      }
+
+      // 3. Delete user document
+      await performActualUserDelete(u);
+      setReassignModalState((prev) => ({ ...prev, isOpen: false }));
+    } catch (err: any) {
+      if (triggerToast) {
+        triggerToast('Failed to unassign records and delete user: ' + (err?.message || err), 'error');
+      }
+    } finally {
+      setIsReassignSubmitting(false);
+    }
+  };
+
   const handleConfirmDeleteUser = async () => {
     if (!deletingUser) return;
     if (deletingUser.uid === currentUser.uid) {
@@ -247,27 +508,7 @@ export default function UserManagementHub({
 
     setDeleting(true);
     try {
-      await safeDeleteDoc('users', deletingUser.uid);
-
-      await recordAuditLog({
-        document_id: deletingUser.uid,
-        entity_type: 'user',
-        entity_title: deletingUser.username || deletingUser.email,
-        action: 'delete',
-        user: currentUser,
-        before: deletingUser,
-        after: null,
-        details: `Deleted user account permanently (${deletingUser.email}, role: ${deletingUser.role})`
-      });
-
-      if (triggerToast) {
-        triggerToast(`User account ${deletingUser.email} has been permanently deleted.`, 'success');
-      }
-
-      if (editingUser?.uid === deletingUser.uid) {
-        setEditingUser(null);
-      }
-      setDeletingUser(null);
+      await performActualUserDelete(deletingUser);
     } catch (err: any) {
       console.error('Failed to delete user:', err);
       if (triggerToast) {
@@ -490,9 +731,9 @@ export default function UserManagementHub({
 
                           {currentUser.role === 'Admin' && !isSelf && (
                             <button
-                              onClick={() => setDeletingUser(u)}
+                              onClick={() => handleInitiateDeleteUser(u)}
                               title="Delete user account"
-                              className="p-1.5 bg-slate-100 hover:bg-red-50 hover:text-red-700 hover:border-red-200 border border-slate-200 rounded-xl font-semibold text-xs transition inline-flex items-center"
+                              className="p-1.5 bg-slate-100 hover:bg-red-50 hover:text-red-700 hover:border-red-200 border border-slate-200 rounded-xl font-semibold text-xs transition inline-flex items-center cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5 text-slate-500 hover:text-red-600" />
                             </button>
@@ -702,9 +943,9 @@ export default function UserManagementHub({
                     onClick={() => {
                       const target = editingUser;
                       setEditingUser(null);
-                      setDeletingUser(target);
+                      handleInitiateDeleteUser(target);
                     }}
-                    className="py-2.5 px-3 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl text-xs transition flex items-center space-x-1 shrink-0"
+                    className="py-2.5 px-3 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl text-xs transition flex items-center space-x-1 shrink-0 cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Delete Account</span>
@@ -785,6 +1026,47 @@ export default function UserManagementHub({
           </div>
         </div>
       )}
+
+      {/* REASSIGN OPEN RECORDS BEFORE DELETION MODAL */}
+      <ReassignOpenRecordsModal
+        isOpen={reassignModalState.isOpen}
+        onClose={() => setReassignModalState((prev) => ({ ...prev, isOpen: false }))}
+        representativeName={
+          reassignModalState.userToDelete?.full_name ||
+          reassignModalState.userToDelete?.username ||
+          reassignModalState.userToDelete?.email ||
+          'User'
+        }
+        openEnquiryCount={reassignModalState.openEnquiryCount}
+        pendingActivityCount={reassignModalState.pendingActivityCount}
+        availableTeamMembers={salespersons && salespersons.length > 0
+          ? salespersons
+              .filter((sp) => {
+                const u = reassignModalState.userToDelete;
+                if (!u) return true;
+                return (
+                  sp.linked_user_id !== u.uid &&
+                  (!u.email || !sp.email || sp.email.toLowerCase() !== u.email.toLowerCase())
+                );
+              })
+              .map((sp) => ({
+                id: sp.id || sp.initials || '',
+                name: sp.full_name,
+                initials: sp.initials,
+                role: sp.role,
+              }))
+          : effectiveUsers
+              .filter((u) => u.uid !== reassignModalState.userToDelete?.uid)
+              .map((u) => ({
+                id: u.uid,
+                name: u.full_name || u.username || u.email,
+                initials: u.initials || (u.full_name ? getInitials(u.full_name) : 'UM'),
+                role: u.role,
+              }))}
+        onReassignAndDelete={handleReassignAndDeleteUser}
+        onDirectDelete={handleDirectDeleteUser}
+        isSubmitting={isReassignSubmitting}
+      />
 
       {/* DELETE USER CONFIRMATION MODAL */}
       {deletingUser && (
