@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@keyframes marquee-slide-back-forth {
+  0%, 15% {
+    transform: translateX(0px);
+  }
+  50%, 65% {
+    transform: translateX(var(--scroll-dist, 0px));
+  }
+  100% {
+    transform: translateX(0px);
+  }
+}
+
+.animate-marquee-hover {
+  animation: marquee-slide-back-forth var(--marquee-duration, 3s) ease-in-out infinite;
+}
