@@ -2,6 +2,14 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.56.0] - 2026-08-10
+
+### Added & Enhanced
+- **Log Activity Header CTA Button in Company Views (`Company360Modal.tsx` & `CompanyModal.tsx`)**:
+  - Added primary high-visibility `⚡ Log Activity` CTA button in top modal header action bar in `Company360Modal.tsx`.
+  - Added primary `⚡ Log Activity` CTA button in top header action bar of the company inspector panel in `CompanyModal.tsx`.
+  - Configured click handlers to invoke `onOpenActivityDrawer` with the active company context (`companyId` and `companyName`).
+
 ## [0.55.0] - 2026-08-10
 
 ### Added & Enhanced

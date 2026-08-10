@@ -210,6 +210,24 @@ export default function Company360Modal({
           </div>
 
           <div className="flex items-center space-x-2 flex-shrink-0">
+            {(onOpenActivityDrawer || onLogCallForCompany) && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenActivityDrawer) {
+                    onOpenActivityDrawer({
+                      companyId: company.id,
+                      companyName: company.display_name
+                    });
+                  } else if (onLogCallForCompany) {
+                    onLogCallForCompany(company);
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <span>⚡ Log Activity</span>
+              </button>
+            )}
             {onEditCompany && (
               <button
                 onClick={() => {

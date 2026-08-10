@@ -1532,6 +1532,20 @@ export default function CompanyModal({
                   </div>
 
               <div className="flex items-center space-x-2 shrink-0">
+                {onOpenActivityDrawer && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenActivityDrawer({
+                        companyId: selectedCompany.id,
+                        companyName: selectedCompany.display_name
+                      });
+                    }}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <span>⚡ Log Activity</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsHistorySidePanelExpanded(!isHistorySidePanelExpanded)}
