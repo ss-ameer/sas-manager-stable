@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
   Mic,
@@ -20,11 +20,13 @@ import {
   Copy,
   ExternalLink,
   KeyRound,
-  AlertCircle
+  AlertCircle,
+  Search,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { safeAddDoc, safeUpdateDoc } from '../firebase';
-import { CallLogEntry, CallStatus } from '../types';
+import { Company, Contact, Enquiry, CallLogEntry, CallStatus, getContactPhones } from '../types';
 import GeminiKeyModal from './GeminiKeyModal';
 
 export interface QuickActivityDrawerProps {
@@ -45,6 +47,9 @@ export interface QuickActivityDrawerProps {
   currentUserName?: string;
   user?: any;
   onSaveSuccess: () => void;
+  companies?: Company[];
+  contacts?: Contact[];
+  enquiries?: Enquiry[];
 }
 
 type ActivityChannel = 'Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Site Visit';
@@ -126,7 +131,10 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   currentUserUid,
   currentUserName,
   user,
-  onSaveSuccess
+  onSaveSuccess,
+  companies = [],
+  contacts = [],
+  enquiries = []
 }) => {
   const [channel, setChannel] = useState<ActivityChannel>(initialChannel || 'Call');
   const [outcome, setOutcome] = useState<string>('Connected');
@@ -138,16 +146,177 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [activeChipId, setActiveChipId] = useState<string | null>(null);
 
-  // Sync channel & status whenever drawer opens
+  // Target Context State
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companyId || '');
+  const [selectedCompanyName, setSelectedCompanyName] = useState<string>(companyName || '');
+  const [selectedContactId, setSelectedContactId] = useState<string>(contactId || '');
+  const [selectedContactName, setSelectedContactName] = useState<string>(contactName || '');
+  const [selectedContactPhone, setSelectedContactPhone] = useState<string>(contactPhone || '');
+  const [selectedEnquiryId, setSelectedEnquiryId] = useState<string>(enquiryId || '');
+  const [selectedEnquiryQuoteRef, setSelectedEnquiryQuoteRef] = useState<string>('');
+  const [companySearchQuery, setCompanySearchQuery] = useState<string>('');
+  const [isComboboxOpen, setIsComboboxOpen] = useState<boolean>(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Context Cleanup & Initialization on Open or Prop Change
   useEffect(() => {
     if (isOpen) {
       setChannel(initialChannel || 'Call');
       setStatus(initialStatus || 'Completed');
+      setOutcome('Connected');
+      setPurpose('Prospecting / Intro');
+      setNotes('');
+      setFollowupDate('');
+      setIsDnc(false);
       setActiveChipId(null);
       setWhatsappDraft('');
       setAiError(null);
+      setValidationError(null);
+      setCompanySearchQuery('');
+      setIsComboboxOpen(false);
+
+      setSelectedCompanyId(companyId || '');
+      setSelectedCompanyName(companyName || '');
+      setSelectedContactId(contactId || '');
+      setSelectedContactName(contactName || '');
+      setSelectedContactPhone(contactPhone || '');
+      setSelectedEnquiryId(enquiryId || '');
+      setSelectedEnquiryQuoteRef('');
     }
-  }, [isOpen, initialChannel, initialStatus]);
+  }, [
+    isOpen,
+    companyId,
+    companyName,
+    contactId,
+    contactName,
+    contactPhone,
+    enquiryId,
+    initialChannel,
+    initialStatus
+  ]);
+
+  // Resolve Company Name if companyId is set
+  useEffect(() => {
+    if (!isOpen || !selectedCompanyId) return;
+    const matchComp = (companies || []).find((c) => c.id === selectedCompanyId);
+    if (matchComp) {
+      setSelectedCompanyName(matchComp.display_name || matchComp.canonical_name);
+    }
+  }, [isOpen, selectedCompanyId, companies]);
+
+  // Automatic Primary Contact & Phone Lookup
+  useEffect(() => {
+    if (!isOpen || !selectedCompanyId) {
+      if (!companyId) {
+        setSelectedContactId('');
+        setSelectedContactName('');
+        setSelectedContactPhone('');
+      }
+      return;
+    }
+
+    const companyContacts = (contacts || []).filter(
+      (c) => c.company_id === selectedCompanyId
+    );
+
+    if (companyContacts.length > 0) {
+      const currentCt = companyContacts.find((c) => c.id === selectedContactId);
+      if (currentCt) {
+        setSelectedContactName(currentCt.full_name || '');
+        const phones = getContactPhones(currentCt);
+        setSelectedContactPhone(currentCt.mobile || currentCt.landline || phones[0]?.number || '');
+      } else {
+        const primary = companyContacts.find((c) => c.is_primary) || companyContacts[0];
+        if (primary) {
+          setSelectedContactId(primary.id || '');
+          setSelectedContactName(primary.full_name || '');
+          const phones = getContactPhones(primary);
+          setSelectedContactPhone(primary.mobile || primary.landline || phones[0]?.number || '');
+        }
+      }
+    } else if (!contactName && !contactPhone) {
+      setSelectedContactId('');
+      setSelectedContactName('');
+      setSelectedContactPhone('');
+    }
+  }, [isOpen, selectedCompanyId, contacts]);
+
+  // Automatic Quote Reference Resolution
+  useEffect(() => {
+    if (!isOpen) return;
+    if (selectedEnquiryId) {
+      const enq = (enquiries || []).find((e) => e.id === selectedEnquiryId);
+      if (enq) {
+        setSelectedEnquiryQuoteRef(enq.quote_ref_no || '');
+        if (!selectedCompanyId && enq.company_id) {
+          setSelectedCompanyId(enq.company_id);
+        }
+      }
+    } else {
+      setSelectedEnquiryQuoteRef('');
+    }
+  }, [isOpen, selectedEnquiryId, enquiries, selectedCompanyId]);
+
+  // Filtered companies for uncontextualized global flow
+  const filteredCompanies = useMemo(() => {
+    if (!companySearchQuery.trim()) return (companies || []).slice(0, 8);
+    const q = companySearchQuery.toLowerCase().trim();
+    return (companies || [])
+      .filter((c) => {
+        const name = (c.display_name || c.canonical_name || '').toLowerCase();
+        const aliases = (c.aliases || []).join(' ').toLowerCase();
+        return name.includes(q) || aliases.includes(q);
+      })
+      .slice(0, 10);
+  }, [companies, companySearchQuery]);
+
+  const handleSelectCompany = (comp: Company) => {
+    setSelectedCompanyId(comp.id || '');
+    setSelectedCompanyName(comp.display_name || comp.canonical_name);
+    setCompanySearchQuery('');
+    setIsComboboxOpen(false);
+    setValidationError(null);
+
+    // Reset contact & enquiry selections to trigger fresh lookups
+    setSelectedContactId('');
+    setSelectedContactName('');
+    setSelectedContactPhone('');
+    setSelectedEnquiryId('');
+    setSelectedEnquiryQuoteRef('');
+  };
+
+  const availableCompanyContacts = useMemo(() => {
+    if (!selectedCompanyId) return [];
+    return (contacts || []).filter((c) => c.company_id === selectedCompanyId);
+  }, [contacts, selectedCompanyId]);
+
+  const handleSelectContact = (cId: string) => {
+    setSelectedContactId(cId);
+    const found = availableCompanyContacts.find((c) => c.id === cId);
+    if (found) {
+      setSelectedContactName(found.full_name || '');
+      const phones = getContactPhones(found);
+      setSelectedContactPhone(found.mobile || found.landline || phones[0]?.number || '');
+    } else {
+      setSelectedContactName('');
+      setSelectedContactPhone('');
+    }
+  };
+
+  const availableCompanyEnquiries = useMemo(() => {
+    if (!selectedCompanyId) return [];
+    return (enquiries || []).filter((e) => e.company_id === selectedCompanyId);
+  }, [enquiries, selectedCompanyId]);
+
+  const handleSelectEnquiry = (eId: string) => {
+    setSelectedEnquiryId(eId);
+    const enq = availableCompanyEnquiries.find((e) => e.id === eId);
+    if (enq) {
+      setSelectedEnquiryQuoteRef(enq.quote_ref_no || '');
+    } else {
+      setSelectedEnquiryQuoteRef('');
+    }
+  };
 
   // AI Assist State
   const [isSummarizing, setIsSummarizing] = useState<boolean>(false);
@@ -181,7 +350,6 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
           setNotes((prev) => {
             const cleanPrev = prev.trim();
             if (!cleanPrev) return transcript;
-            // Append if transcript isn't already at the end
             if (cleanPrev.endsWith(transcript)) return cleanPrev;
             return `${cleanPrev} ${transcript}`;
           });
@@ -233,8 +401,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         body: JSON.stringify({
           action,
           notes,
-          companyName,
-          contactName,
+          companyName: selectedCompanyName,
+          contactName: selectedContactName,
           followupDate
         })
       });
@@ -274,7 +442,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setCopiedWhatsapp(true);
     setTimeout(() => setCopiedWhatsapp(false), 2500);
 
-    const targetPhone = (contactPhone || '').replace(/[^0-9]/g, '');
+    const targetPhone = (selectedContactPhone || '').replace(/[^0-9]/g, '');
     const encodedText = encodeURIComponent(whatsappDraft);
     const targetUrl = targetPhone ? `https://wa.me/${targetPhone}?text=${encodedText}` : `https://wa.me/?text=${encodedText}`;
     window.open(targetUrl, '_blank');
@@ -325,6 +493,18 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setActiveChipId(null);
     setWhatsappDraft('');
     setAiError(null);
+    setValidationError(null);
+    setCompanySearchQuery('');
+    setIsComboboxOpen(false);
+
+    setSelectedCompanyId(companyId || '');
+    setSelectedCompanyName(companyName || '');
+    setSelectedContactId(contactId || '');
+    setSelectedContactName(contactName || '');
+    setSelectedContactPhone(contactPhone || '');
+    setSelectedEnquiryId(enquiryId || '');
+    setSelectedEnquiryQuoteRef('');
+
     if (isListening && recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
@@ -334,6 +514,12 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    if (!selectedCompanyId) {
+      setValidationError('Please select a company before saving an activity.');
+      return;
+    }
+    setValidationError(null);
 
     setIsSubmitting(true);
     try {
@@ -364,10 +550,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         outcome: outcome || channel,
         requirement_notes: notes.trim(),
         next_followup_date: followupDate || undefined,
-        company_id: companyId || undefined,
-        company_name: companyName || undefined,
-        contact_id: contactId || undefined,
-        enquiry_id: enquiryId || undefined,
+        company_id: selectedCompanyId || undefined,
+        company_name: selectedCompanyName || undefined,
+        contact_id: selectedContactId || undefined,
+        contact_name: selectedContactName || undefined,
+        contact_phone: selectedContactPhone || undefined,
+        enquiry_id: selectedEnquiryId || undefined,
+        enquiry_quote_ref: selectedEnquiryQuoteRef || undefined,
         logged_by: currentUserInitials || 'System',
         sales_person_id: currentSalespersonId || undefined,
         sales_person: currentUserInitials || undefined,
@@ -388,8 +577,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
       // Auto-DNC Suppression Trigger
       if (isDncOptOut) {
-        if (contactId) {
-          await safeUpdateDoc('contacts', contactId, {
+        if (selectedContactId) {
+          await safeUpdateDoc('contacts', selectedContactId, {
             is_dnc: true,
             dnc_reason: 'Opt-Out from Activity Log',
             last_modified_by_uid: userUid,
@@ -397,8 +586,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
             updatedAt: nowIso
           });
         }
-        if (companyId) {
-          await safeUpdateDoc('companies', companyId, {
+        if (selectedCompanyId) {
+          await safeUpdateDoc('companies', selectedCompanyId, {
             is_dnc: true,
             last_modified_by_uid: userUid,
             last_modified_by_name: userName,
@@ -449,13 +638,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 <div>
                   <h3 className="text-base font-semibold text-slate-100">Log Quick Activity</h3>
                   <p className="text-xs text-slate-400">
-                    {companyName ? `Target: ${companyName}` : 'Record customer interaction'}
+                    {selectedCompanyName ? `Target: ${selectedCompanyName}` : 'Record customer interaction'}
                   </p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -463,21 +652,186 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
             {/* Form Content */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              {/* Context Badge if provided */}
-              {(companyName || enquiryId) && (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-800/60 p-3 border border-slate-700/50 text-xs text-slate-300">
-                  {companyName && (
-                    <span className="flex items-center gap-1.5 font-medium text-slate-200">
-                      <Building2 className="h-3.5 w-3.5 text-blue-400" />
-                      {companyName}
-                    </span>
+              {/* Validation Guardrail Banner */}
+              {validationError && (
+                <div className="flex items-center gap-2 rounded-xl bg-rose-950/80 border border-rose-800 p-3 text-xs font-semibold text-rose-200 animate-in fade-in duration-150">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+                  <span>{validationError}</span>
+                </div>
+              )}
+
+              {/* Target Company Selector / Context Header */}
+              {companyId ? (
+                <div className="rounded-xl bg-slate-800/80 p-3.5 border border-slate-700/80 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    <span>Target Account</span>
+                    <span className="text-[10px] text-blue-400 font-mono">Fixed Context</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
+                      <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
+                      <span>{selectedCompanyName || companyName || 'Company Account'}</span>
+                    </div>
+                    {selectedEnquiryQuoteRef && (
+                      <div className="flex items-center gap-1.5 text-xs text-purple-300 bg-purple-950/60 px-2.5 py-1 rounded-md border border-purple-800/60 font-mono">
+                        <FileText className="h-3.5 w-3.5 text-purple-400" />
+                        <span>Quote Ref: <strong>{selectedEnquiryQuoteRef}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 relative">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Target Company <span className="text-rose-400">*</span>
+                  </label>
+
+                  {selectedCompanyId ? (
+                    <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-blue-500/50 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
+                        <div>
+                          <span className="font-bold text-slate-100">{selectedCompanyName}</span>
+                          <p className="text-[10px] text-slate-400 font-mono">Selected Account</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCompanyId('');
+                          setSelectedCompanyName('');
+                          setSelectedContactId('');
+                          setSelectedContactName('');
+                          setSelectedContactPhone('');
+                          setSelectedEnquiryId('');
+                          setSelectedEnquiryQuoteRef('');
+                          setIsComboboxOpen(true);
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors cursor-pointer"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="relative flex items-center">
+                        <Search className="absolute left-3 h-4 w-4 text-slate-500 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={companySearchQuery}
+                          onChange={(e) => {
+                            setCompanySearchQuery(e.target.value);
+                            setIsComboboxOpen(true);
+                            setValidationError(null);
+                          }}
+                          onFocus={() => setIsComboboxOpen(true)}
+                          placeholder="Search company by name or alias..."
+                          className="w-full rounded-xl bg-slate-950 border border-slate-800 pl-9 pr-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      {isComboboxOpen && (
+                        <div className="absolute z-30 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-xl p-1 space-y-0.5">
+                          {filteredCompanies.length > 0 ? (
+                            filteredCompanies.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => handleSelectCompany(c)}
+                                className="w-full text-left p-2 rounded-lg hover:bg-blue-600/20 hover:border-blue-500/30 border border-transparent transition-colors flex items-center justify-between cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                                  <div>
+                                    <span className="text-xs font-semibold text-slate-100 block">
+                                      {c.display_name || c.canonical_name}
+                                    </span>
+                                    {(c.city || c.country) && (
+                                      <span className="text-[10px] text-slate-400 block font-mono">
+                                        {[c.city, c.country].filter(Boolean).join(', ')}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <Check className="h-3.5 w-3.5 text-slate-600" />
+                              </button>
+                            ))
+                          ) : (
+                            <div className="p-3 text-center text-xs text-slate-500 italic">
+                              No matching companies found
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {enquiryId && (
-                    <span className="flex items-center gap-1.5 text-slate-400 border-l border-slate-700 pl-2">
-                      <FileText className="h-3.5 w-3.5 text-slate-400" />
-                      Enquiry ID: {enquiryId}
-                    </span>
-                  )}
+                </div>
+              )}
+
+              {/* Contact & Phone Selector (Auto-Populated) */}
+              {selectedCompanyId && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                      Contact Representative
+                    </label>
+                    {availableCompanyContacts.length > 0 ? (
+                      <select
+                        value={selectedContactId}
+                        onChange={(e) => handleSelectContact(e.target.value)}
+                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">-- Select Contact --</option>
+                        {availableCompanyContacts.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.full_name} {c.is_primary ? '(Primary)' : ''} {c.designation ? `- ${c.designation}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={selectedContactName}
+                        onChange={(e) => setSelectedContactName(e.target.value)}
+                        placeholder="Contact Name..."
+                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                      Phone / Mobile
+                    </label>
+                    <input
+                      type="text"
+                      value={selectedContactPhone}
+                      onChange={(e) => setSelectedContactPhone(e.target.value)}
+                      placeholder="+971..."
+                      className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Linked Enquiry / Quote Reference Selector */}
+              {selectedCompanyId && availableCompanyEnquiries.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    Linked Proposal / Quote Reference
+                  </label>
+                  <select
+                    value={selectedEnquiryId}
+                    onChange={(e) => handleSelectEnquiry(e.target.value)}
+                    className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">-- No Specific Proposal Link --</option>
+                    {availableCompanyEnquiries.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.quote_ref_no || `Enquiry #${e.sn}`} ({e.status}) {e.value_aed ? `- AED ${e.value_aed.toLocaleString()}` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 
@@ -567,7 +921,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                         key={chip.id}
                         type="button"
                         onClick={() => handleApplyPreset(chip)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border cursor-pointer ${
                           isActive
                             ? 'bg-blue-600/20 text-blue-300 border-blue-500/50 ring-1 ring-blue-500/30'
                             : 'bg-slate-800/80 text-slate-300 border-slate-700/60 hover:bg-slate-700 hover:border-slate-600'
@@ -841,7 +1195,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       key={item.label}
                       type="button"
                       onClick={() => setFollowupDate(getOffsetDateString(item.days))}
-                      className="px-2.5 py-1 rounded-md bg-slate-800/60 hover:bg-slate-800 text-[11px] font-medium text-slate-400 hover:text-slate-200 border border-slate-700/50 transition-colors"
+                      className="px-2.5 py-1 rounded-md bg-slate-800/60 hover:bg-slate-800 text-[11px] font-medium text-slate-400 hover:text-slate-200 border border-slate-700/50 transition-colors cursor-pointer"
                     >
                       {item.label}
                     </button>
@@ -876,7 +1230,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
               <button
                 type="button"
                 onClick={handleReset}
-                className="text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
+                className="text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
               >
                 Reset Form
               </button>
@@ -884,7 +1238,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-lg px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 transition-colors"
+                  className="rounded-lg px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -892,7 +1246,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   type="button"
                   onClick={handleSubmit}
                   disabled={isSubmitting}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500 focus:outline-hidden disabled:opacity-50 transition-all"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500 focus:outline-hidden disabled:opacity-50 transition-all cursor-pointer"
                 >
                   {isSubmitting ? (
                     <span>Saving...</span>

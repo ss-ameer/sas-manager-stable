@@ -2,6 +2,17 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.55.0] - 2026-08-10
+
+### Added & Enhanced
+- **Full Activity Drawer Context & Dataset Lookup Fix (`src/components/QuickActivityDrawer.tsx`)**:
+  - Wired full dataset props (`companies`, `contacts`, `enquiries`) from `src/App.tsx` into `<QuickActivityDrawer />`.
+  - Added strict context state cleanup on drawer open or context shift to prevent data bleed between companies.
+  - Implemented automatic primary contact and mobile number resolution when a `companyId` is active.
+  - Implemented automatic proposal quote reference (`quote_ref_no`) lookup when an `enquiryId` is active.
+  - Created a searchable Company Autocomplete Combobox for uncontextualized global activity logging.
+  - Added submission validation guardrail requiring a selected company before saving an activity log.
+
 ## [0.54.0] - 2026-08-10
 
 ### Added & Enhanced

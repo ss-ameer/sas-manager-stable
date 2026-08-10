@@ -1454,6 +1454,9 @@ export default function App() {
         user={user}
         currentUserUid={user?.uid}
         currentUserName={user?.full_name || user?.username || user?.email}
+        companies={visibleCompanies}
+        contacts={contacts}
+        enquiries={visibleEnquiries}
         onSaveSuccess={() => {
           setIsActivityDrawerOpen(false);
           triggerToast('Activity logged successfully!', 'success');
