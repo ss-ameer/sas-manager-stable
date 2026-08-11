@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, UserRole, Salesperson } from '../types';
-import { safeUpdateDoc, safeSetDoc, safeAddDoc } from '../firebase';
+import { safeUpdateDoc, safeSetDoc, safeAddDoc, db, auth } from '../firebase';
+import { writeBatch, collection, query, where, getDocs, doc, arrayRemove } from 'firebase/firestore';
+import { deleteUser, signOut } from 'firebase/auth';
 import { recordAuditLog } from '../utils/auditLogger';
-import { User, Check, X, Shield, Users2, AlertCircle } from 'lucide-react';
+import { User, Check, X, Shield, Users2, AlertCircle, Trash2 } from 'lucide-react';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -36,7 +38,109 @@ export default function UserProfileModal({
   const [initials, setInitials] = useState(effectiveUser.initials || '');
   const [addToTeamRoster, setAddToTeamRoster] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const handleDeleteAccount = async () => {
+    const currentUserAuth = auth.currentUser;
+    if (!currentUserAuth && !currentUser.uid) {
+      setErrorMsg('No active authenticated user found.');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setErrorMsg('');
+
+    try {
+      const userEmail = currentUser.email || currentUserAuth?.email;
+      const userUid = currentUser.uid || currentUserAuth?.uid;
+
+      if (userUid && !userUid.startsWith('local_')) {
+        const batch = writeBatch(db);
+
+        // 1. Query workspace_members where email == currentUser.email OR user_id == currentUser.uid
+        if (userEmail) {
+          const wmSnap1 = await getDocs(query(collection(db, 'workspace_members'), where('email', '==', userEmail)));
+          wmSnap1.forEach((d) => batch.delete(d.ref));
+        }
+        if (userUid) {
+          const wmSnap2 = await getDocs(query(collection(db, 'workspace_members'), where('user_id', '==', userUid)));
+          wmSnap2.forEach((d) => batch.delete(d.ref));
+        }
+
+        // 2. Query salespersons where email == currentUser.email OR uid == currentUser.uid
+        if (userEmail) {
+          const spSnap1 = await getDocs(query(collection(db, 'salespersons'), where('email', '==', userEmail)));
+          spSnap1.forEach((d) => batch.delete(d.ref));
+        }
+        if (userUid) {
+          const spSnap2 = await getDocs(query(collection(db, 'salespersons'), where('uid', '==', userUid)));
+          spSnap2.forEach((d) => batch.delete(d.ref));
+        }
+
+        // 3. Query workspaces where members or member_emails array contains currentUser.email
+        const wsSnap = await getDocs(collection(db, 'workspaces'));
+        wsSnap.forEach((docSnap) => {
+          const wsData = docSnap.data();
+          const ref = docSnap.ref;
+          let needsUpdate = false;
+          const updatePayload: any = {};
+
+          if (userEmail) {
+            if (Array.isArray(wsData.member_emails) && wsData.member_emails.includes(userEmail)) {
+              updatePayload.member_emails = arrayRemove(userEmail);
+              needsUpdate = true;
+            }
+            if (Array.isArray(wsData.members)) {
+              const filteredMembers = wsData.members.filter(
+                (m: any) => m.uid !== userUid && (!m.email || m.email.toLowerCase() !== userEmail.toLowerCase())
+              );
+              if (filteredMembers.length !== wsData.members.length) {
+                updatePayload.members = filteredMembers;
+                needsUpdate = true;
+              }
+            }
+          }
+
+          if (needsUpdate) {
+            batch.update(ref, updatePayload);
+          }
+        });
+
+        // 4. Delete the user document: batch.delete(doc(db, 'users', currentUser.uid))
+        if (userUid) {
+          batch.delete(doc(db, 'users', userUid));
+        }
+
+        // 5. Commit the batch
+        await batch.commit();
+      }
+
+      // 6. Delete from Firebase Authentication
+      if (currentUserAuth) {
+        await deleteUser(currentUserAuth);
+      }
+
+      // 7. Clear local cache
+      try {
+        localStorage.clear();
+      } catch (e) {}
+
+      // 8. Sign out and redirect
+      await signOut(auth).catch(() => {});
+      window.location.href = '/';
+    } catch (err: any) {
+      console.error('Failed to delete account:', err);
+      if (err.code === 'auth/requires-recent-login') {
+        setErrorMsg('Security Lock: Firebase requires a fresh login to delete an account. Please sign out, sign back in, and click delete again.');
+      } else {
+        setErrorMsg('Failed to delete account: ' + (err.message || String(err)));
+      }
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
 
   useEffect(() => {
     const userToEdit = targetUser || currentUser;
@@ -304,25 +408,74 @@ export default function UserProfileModal({
             </label>
           </div>
 
+          {/* Delete Account Confirmation Dialog */}
+          {showDeleteConfirm && (
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-3 mt-2">
+              <div className="flex items-start space-x-2 text-rose-900">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-bold">Permanently Delete Account</h4>
+                  <p className="text-[11px] text-rose-700 mt-0.5">
+                    This will permanently scrub your profile, workspace memberships, and team roster listings. This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-end space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={isDeletingAccount}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingAccount ? 'Scrubbing...' : 'Confirm Account Deletion'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Footer */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
-            {!isMandatoryOnboarding && (
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+            {!isMandatoryOnboarding && (!targetUser || targetUser.uid === currentUser.uid) ? (
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
+                onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+                disabled={isSaving || isDeletingAccount}
+                className="px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
               >
-                Cancel
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Account</span>
               </button>
+            ) : (
+              <div />
             )}
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>{isSaving ? 'Saving Profile...' : 'Save Profile'}</span>
-            </button>
+
+            <div className="flex items-center space-x-3">
+              {!isMandatoryOnboarding && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={isSaving || isDeletingAccount}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>{isSaving ? 'Saving Profile...' : 'Save Profile'}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

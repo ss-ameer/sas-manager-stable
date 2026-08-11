@@ -32,7 +32,8 @@ import {
 import UserManagementHub from './UserManagementHub';
 import GeminiKeyModal from './GeminiKeyModal';
 import { signOut, deleteUser } from 'firebase/auth';
-import { auth, safeDeleteDoc, safeGetDocs, safeUpdateDoc } from '../firebase';
+import { writeBatch, collection, query, where, getDocs, doc, arrayRemove } from 'firebase/firestore';
+import { auth, db, safeDeleteDoc, safeGetDocs, safeUpdateDoc } from '../firebase';
 import { isWorkspaceAdmin, getUserRoleInWorkspace } from '../utils/permissions';
 import { clearAllLocalStores } from '../services/db';
 import {
@@ -356,34 +357,73 @@ export default function SettingsHub({
       const currentUserAuth = auth.currentUser;
 
       if (userUid && !userUid.startsWith('local_')) {
-        // 1. Remove user from all workspaces member rosters in Firestore
-        const wsSnap = await safeGetDocs('workspaces');
-        if (wsSnap && !wsSnap.empty) {
-          for (const docSnap of wsSnap.docs) {
-            const wsData = docSnap.data();
-            const members = Array.isArray(wsData.members) ? wsData.members : [];
-            const updatedMembers = members.filter(
-              (m: any) => m.uid !== userUid && (!m.email || m.email.toLowerCase() !== userEmail?.toLowerCase())
-            );
-            if (updatedMembers.length !== members.length) {
-              await safeUpdateDoc('workspaces', docSnap.id, { members: updatedMembers });
-            }
-          }
+        const batch = writeBatch(db);
+
+        // 1. Query workspace_members where email == currentUser.email OR user_id == currentUser.uid
+        if (userEmail) {
+          const wmSnap1 = await getDocs(query(collection(db, 'workspace_members'), where('email', '==', userEmail)));
+          wmSnap1.forEach((d) => batch.delete(d.ref));
+        }
+        if (userUid) {
+          const wmSnap2 = await getDocs(query(collection(db, 'workspace_members'), where('user_id', '==', userUid)));
+          wmSnap2.forEach((d) => batch.delete(d.ref));
         }
 
-        // 2. Delete user's document from users collection
-        await safeDeleteDoc('users', userUid);
+        // 2. Query salespersons where email == currentUser.email OR uid == currentUser.uid
+        if (userEmail) {
+          const spSnap1 = await getDocs(query(collection(db, 'salespersons'), where('email', '==', userEmail)));
+          spSnap1.forEach((d) => batch.delete(d.ref));
+        }
+        if (userUid) {
+          const spSnap2 = await getDocs(query(collection(db, 'salespersons'), where('uid', '==', userUid)));
+          spSnap2.forEach((d) => batch.delete(d.ref));
+        }
+
+        // 3. Query workspaces where members or member_emails array contains currentUser.email
+        const wsSnap = await getDocs(collection(db, 'workspaces'));
+        wsSnap.forEach((docSnap) => {
+          const wsData = docSnap.data();
+          const ref = docSnap.ref;
+          let needsUpdate = false;
+          const updatePayload: any = {};
+
+          if (userEmail) {
+            if (Array.isArray(wsData.member_emails) && wsData.member_emails.includes(userEmail)) {
+              updatePayload.member_emails = arrayRemove(userEmail);
+              needsUpdate = true;
+            }
+            if (Array.isArray(wsData.members)) {
+              const filteredMembers = wsData.members.filter(
+                (m: any) => m.uid !== userUid && (!m.email || m.email.toLowerCase() !== userEmail.toLowerCase())
+              );
+              if (filteredMembers.length !== wsData.members.length) {
+                updatePayload.members = filteredMembers;
+                needsUpdate = true;
+              }
+            }
+          }
+
+          if (needsUpdate) {
+            batch.update(ref, updatePayload);
+          }
+        });
+
+        // 4. Delete the user document: batch.delete(doc(db, 'users', userUid))
+        batch.delete(doc(db, 'users', userUid));
+
+        // 5. Commit the batch
+        await batch.commit();
       }
 
-      // 3. Delete the user from Firebase Authentication
+      // 6. Delete the user from Firebase Authentication
       if (currentUserAuth) {
         await deleteUser(currentUserAuth);
       }
 
-      // 4. Clear IndexedDB and LocalStorage caches
+      // 7. Clear IndexedDB and LocalStorage caches
       await clearAllLocalStores();
 
-      // 5. Sign out from Firebase Auth and redirect to root
+      // 8. Sign out from Firebase Auth and redirect to root
       await signOut(auth).catch(() => {});
       window.location.href = '/'; 
     } catch (err: any) {

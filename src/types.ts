@@ -50,6 +50,7 @@ export interface Workspace {
   };
   geography_options?: string[];
   members?: WorkspaceMember[];
+  member_emails?: string[];
 }
 
 export type LegalSuffix = 'None / To Be Added Later' | 'LLC' | 'FZE' | 'FZC' | 'Co. LLC' | 'Ltd' | 'W.L.L.' | 'Est.' | 'None / Other';

@@ -280,24 +280,52 @@ export default function App() {
     }
   }, []);
 
+  // Compute valid user-accessible workspaces, strictly ignoring orphaned records
+  const userWorkspaces = useMemo(() => {
+    if (!user) return [];
+    const userEmail = (user.email || '').toLowerCase().trim();
+    const userUid = user.uid;
+    const allowedIds = new Set(user.workspaceIds || []);
+
+    return (workspaces || []).filter((w) => {
+      if (!w || !w.id) return false;
+      // Global admin role or workspace-level admin
+      if (isAdmin(user, w.id, w)) return true;
+      // Explicit allowed workspaceIds on user profile
+      if (allowedIds.has(w.id)) return true;
+      // Workspace members array matching uid or email
+      if (Array.isArray(w.members)) {
+        const isMember = w.members.some((m: any) =>
+          (m.uid && m.uid === userUid) ||
+          (m.email && m.email.toLowerCase().trim() === userEmail)
+        );
+        if (isMember) return true;
+      }
+      // member_emails array matching email
+      if (Array.isArray(w.member_emails)) {
+        const isEmailMember = w.member_emails.some((e: string) =>
+          typeof e === 'string' && e.toLowerCase().trim() === userEmail
+        );
+        if (isEmailMember) return true;
+      }
+      return false;
+    });
+  }, [workspaces, user]);
+
   // Filter & deduplicate visible workspaces
   const visibleWorkspaces = useMemo(() => {
-    let baseList = workspaces || [];
-    if (user && !isAdmin(user)) {
-      const allowedIds = user.workspaceIds && user.workspaceIds.length > 0 ? user.workspaceIds : ['ws_default'];
-      baseList = baseList.filter((w) => allowedIds.includes(w.id));
-    }
+    const baseList = userWorkspaces;
 
     // Map-based deduplication by workspace ID
     const seenIds = new Set<string>();
-    const deduplicated = (baseList.length > 0 ? baseList : [DEFAULT_WORKSPACE]).filter((w) => {
+    const deduplicated = baseList.filter((w) => {
       if (!w || !w.id || seenIds.has(w.id)) return false;
       seenIds.add(w.id);
       return true;
     });
 
     return deduplicated.length > 0 ? deduplicated : [DEFAULT_WORKSPACE];
-  }, [workspaces, user]);
+  }, [userWorkspaces]);
 
   // Auto-sync workspace collections to local storage cache whenever updated
   const activeWorkspace = useMemo(() => {
@@ -1470,11 +1498,25 @@ export default function App() {
       {/* Fresh Account Onboarding Wizard */}
       {user && (
         <FreshAccountOnboardingModal
-          isOpen={workspaces.length === 0}
+          isOpen={userWorkspaces.length === 0}
           currentUser={user}
           onWorkspaceCreated={(newWs) => {
-            setWorkspaces([newWs]);
+            setWorkspaces((prev) => [newWs, ...prev.filter((w) => w.id !== newWs.id)]);
             setActiveWorkspaceId(newWs.id);
+
+            // Update local user state with the newly provisioned workspace
+            const updatedUser: UserProfile = {
+              ...user,
+              workspaceIds: Array.from(new Set([...(user.workspaceIds || []), newWs.id])),
+              defaultWorkspaceId: newWs.id,
+              workspace_roles: {
+                ...(user.workspace_roles || {}),
+                [newWs.id]: 'Admin'
+              }
+            };
+            setUser(updatedUser);
+            setLocalCache(`omni_user_${user.uid}`, updatedUser);
+            localStorage.setItem('omni_local_user', JSON.stringify(updatedUser));
           }}
           triggerToast={triggerToast}
         />

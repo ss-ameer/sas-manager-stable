@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, UserRole, Workspace, WorkspaceMember, Enquiry, Salesperson, CallLogEntry, getInitials } from '../types';
 import { db, safeUpdateDoc, safeDeleteDoc, safeSetDoc } from '../firebase';
-import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, writeBatch, query, where, getDocs, arrayRemove } from 'firebase/firestore';
 import { recordAuditLog } from '../utils/auditLogger';
 import { getUserRoleInWorkspace } from '../utils/permissions';
 import ReassignOpenRecordsModal, { TargetTeamMember } from './ReassignOpenRecordsModal';
@@ -265,7 +265,69 @@ export default function UserManagementHub({
   const [isReassignSubmitting, setIsReassignSubmitting] = useState(false);
 
   const performActualUserDelete = async (u: UserProfile) => {
-    await safeDeleteDoc('users', u.uid);
+    const userEmail = u.email;
+    const userUid = u.uid;
+
+    if (userUid && !userUid.startsWith('local_')) {
+      const batch = writeBatch(db);
+
+      // 1. Query workspace_members where email == u.email OR user_id == u.uid
+      if (userEmail) {
+        const wmSnap1 = await getDocs(query(collection(db, 'workspace_members'), where('email', '==', userEmail)));
+        wmSnap1.forEach((d) => batch.delete(d.ref));
+      }
+      if (userUid) {
+        const wmSnap2 = await getDocs(query(collection(db, 'workspace_members'), where('user_id', '==', userUid)));
+        wmSnap2.forEach((d) => batch.delete(d.ref));
+      }
+
+      // 2. Query salespersons where email == u.email OR uid == u.uid
+      if (userEmail) {
+        const spSnap1 = await getDocs(query(collection(db, 'salespersons'), where('email', '==', userEmail)));
+        spSnap1.forEach((d) => batch.delete(d.ref));
+      }
+      if (userUid) {
+        const spSnap2 = await getDocs(query(collection(db, 'salespersons'), where('uid', '==', userUid)));
+        spSnap2.forEach((d) => batch.delete(d.ref));
+      }
+
+      // 3. Query workspaces where members or member_emails array contains u.email
+      const wsSnap = await getDocs(collection(db, 'workspaces'));
+      wsSnap.forEach((docSnap) => {
+        const wsData = docSnap.data();
+        const ref = docSnap.ref;
+        let needsUpdate = false;
+        const updatePayload: any = {};
+
+        if (userEmail) {
+          if (Array.isArray(wsData.member_emails) && wsData.member_emails.includes(userEmail)) {
+            updatePayload.member_emails = arrayRemove(userEmail);
+            needsUpdate = true;
+          }
+          if (Array.isArray(wsData.members)) {
+            const filteredMembers = wsData.members.filter(
+              (m: any) => m.uid !== userUid && (!m.email || m.email.toLowerCase() !== userEmail.toLowerCase())
+            );
+            if (filteredMembers.length !== wsData.members.length) {
+              updatePayload.members = filteredMembers;
+              needsUpdate = true;
+            }
+          }
+        }
+
+        if (needsUpdate) {
+          batch.update(ref, updatePayload);
+        }
+      });
+
+      // 4. Delete user document
+      batch.delete(doc(db, 'users', userUid));
+
+      // 5. Commit batch
+      await batch.commit();
+    } else if (userUid) {
+      await safeDeleteDoc('users', userUid);
+    }
 
     await recordAuditLog({
       document_id: u.uid,

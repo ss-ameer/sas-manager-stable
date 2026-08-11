@@ -53,7 +53,8 @@ export default function FreshAccountOnboardingModal({
             role: 'Admin',
             joined_at: new Date().toISOString()
           }
-        ]
+        ],
+        member_emails: currentUser.email ? [currentUser.email] : []
       };
 
       await safeSetDoc('workspaces', wsId, quickWorkspace);
@@ -101,7 +102,8 @@ export default function FreshAccountOnboardingModal({
             role: 'Admin',
             joined_at: new Date().toISOString()
           }
-        ]
+        ],
+        member_emails: currentUser.email ? [currentUser.email] : []
       };
 
       await safeSetDoc('workspaces', wsId, customWorkspace);
