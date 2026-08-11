@@ -506,6 +506,7 @@ export default function SettingsHub({
         subtitle="Centralized hub for dropdown option registries, user invite access control, environment fault simulation, and database persistence."
         icon={Settings}
         badge={{ text: `Role: ${effectiveRole}`, variant: isAdmin ? 'blue' : 'amber' }}
+        currentUser={user}
       />
 
       <PageBody maxWidth="max-w-7xl">

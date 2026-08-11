@@ -24,6 +24,7 @@ export interface UserProfile {
   dataVisibilityScope?: 'ALL_DATA' | 'OWN_DATA_ONLY';
   dataVisibilityTier?: 'ADVANCED' | 'BASIC';
   allowSalespersonSelection?: boolean;
+  is_super_admin?: boolean;
 }
 
 export type User = UserProfile;
@@ -97,7 +98,7 @@ export interface SoftDeleteFields {
 
 export interface Company extends SoftDeleteFields {
   id?: string;
-  workspace_id?: string;
+  workspace_id?: string | 'unassigned';
   canonical_name: string;
   legal_suffix: LegalSuffix;
   display_name: string;
@@ -120,7 +121,7 @@ export interface Company extends SoftDeleteFields {
 
 export interface Contact extends SoftDeleteFields {
   id?: string;
-  workspace_id?: string;
+  workspace_id?: string | 'unassigned';
   company_id: string;
   full_name: string;
   designation?: string;
@@ -230,7 +231,7 @@ export type EnquiryStatus =
 
 export interface Enquiry extends SoftDeleteFields {
   id?: string;
-  workspace_id?: string;
+  workspace_id?: string | 'unassigned';
   sn: number;
   enquiry_date: string;
   sales_person_id?: string;
@@ -330,7 +331,7 @@ export interface Salesperson {
 
 export interface Product extends SoftDeleteFields {
   id?: string;
-  workspace_id?: string;
+  workspace_id?: string | 'unassigned';
   name?: string;
   product_type: ProductType;
   description: string;
@@ -384,7 +385,7 @@ export type CallOutcome =
 
 export interface CallLogEntry extends SoftDeleteFields {
   id?: string;
-  workspace_id: string;
+  workspace_id?: string | 'unassigned';
   date: string; // ISO or YYYY-MM-DD
   status: CallStatus;
   outcome?: CallOutcome | string;

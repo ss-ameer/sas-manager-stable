@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { LucideIcon } from 'lucide-react';
+import { UserProfile } from '../../types';
+import { isSuperAdmin } from '../../utils/permissions';
 
 export interface PageHeaderBadge {
   text: string;
@@ -26,6 +28,8 @@ export interface PageHeaderProps {
   secondaryActions?: Array<PageHeaderAction>;
   className?: string;
   children?: React.ReactNode;
+  currentUser?: UserProfile | null;
+  onOpenSuperAdminConsole?: () => void;
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
@@ -36,8 +40,45 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   primaryAction,
   secondaryActions,
   className = '',
-  children
+  children,
+  currentUser,
+  onOpenSuperAdminConsole
 }) => {
+  const clicksRef = useRef<number[]>([]);
+
+  const checkAndOpenGodMode = () => {
+    if (isSuperAdmin(currentUser)) {
+      if (onOpenSuperAdminConsole) {
+        onOpenSuperAdminConsole();
+      }
+      window.dispatchEvent(new CustomEvent('open-super-admin-console'));
+    } else {
+      console.warn('Super Admin trigger activated, but user lacks Super Admin privileges.');
+      alert('Access Denied: Super Admin privileges required for God Mode Console.');
+    }
+  };
+
+  const handleTitleClick = () => {
+    const now = Date.now();
+    const recent = [...clicksRef.current.filter((t) => now - t <= 3000), now];
+    clicksRef.current = recent;
+    if (recent.length >= 5) {
+      clicksRef.current = [];
+      checkAndOpenGodMode();
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.altKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        checkAndOpenGodMode();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentUser, onOpenSuperAdminConsole]);
+
   const badgeClasses = {
     blue: 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
     green: 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
@@ -47,16 +88,20 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   return (
     <div className={`px-6 py-5 lg:px-8 border-b border-slate-200/80 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm ${className}`}>
       <div className="max-w-7xl mx-auto w-full flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Left Info Column */}
-        <div className="flex items-start sm:items-center space-x-3.5 min-w-0">
+        {/* Left Info Column (Secret 5-click trigger) */}
+        <div
+          onClick={handleTitleClick}
+          title="Secret Trigger: Click 5 times or press Ctrl+Shift+Alt+G for God Mode Console"
+          className="flex items-start sm:items-center space-x-3.5 min-w-0 cursor-pointer select-none group"
+        >
           {Icon && (
-            <div className="p-2.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800/60 rounded-xl text-blue-600 dark:text-blue-400 shrink-0 shadow-2xs">
+            <div className="p-2.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800/60 rounded-xl text-blue-600 dark:text-blue-400 shrink-0 shadow-2xs group-hover:border-purple-500/50 transition">
               <Icon className="w-6 h-6" />
             </div>
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white dark:font-extrabold tracking-tight truncate">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white dark:font-extrabold tracking-tight truncate group-hover:text-purple-400 transition">
                 {title}
               </h1>
               {badge && (

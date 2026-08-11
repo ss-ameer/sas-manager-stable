@@ -1,5 +1,47 @@
 # Development Ledger
 
+## Session: 2026-08-11 (God Mode Direct Workspace Lifecycle Management & Global Users Management)
+
+### Goals
+- Implement Direct Workspace Lifecycle Management in God Mode (`SuperAdminConsoleModal.tsx`, `SuperAdminEngine.ts`) with inline Rename, Change Owner, and Hard Delete/Cascade Wipe controls.
+- Create Dedicated `👥 Global Users` tab in God Mode displaying all registered user accounts with real-time search, Super Admin toggle, and Profile Delete & Scrub actions.
+- Expand Raw Collection Browser coverage to include all system collections (`users`, `workspaces`, `workspace_members`) alongside domain collections.
+- Bump package version to `0.60.0` and verify clean build with `tsc --noEmit` and `compile_applet`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/services/SuperAdminEngine.ts` | Added `renameWorkspace`, `changeWorkspaceOwner`, `cascadeDeleteWorkspace`, `getAllGlobalUsers`, `toggleUserSuperAdmin`, `deleteUserAndScrub`, and exported `ALL_BROWSER_COLLECTIONS`. |
+| `/src/components/SuperAdminConsoleModal.tsx` | Added Workspace Lifecycle Action buttons (Rename, Owner, Cascade Wipe) on workspace cards, dedicated `👥 Global Users` management tab with search table and action buttons, and expanded Raw Collection Browser dropdown. |
+| `/package.json` | Bumped version to `0.60.0`. |
+| `/CHANGELOG.md` | Documented 0.60.0 release notes for God Mode Workspace Lifecycle & Global Users Management. |
+| `/development_ledger.md` | Logged development goals and modifications table for session 2026-08-11. |
+
+## Session: 2026-08-11 (SaaS Workspace Ownership Handover & Intelligent Cascade Deletion Architecture)
+
+### Goals
+- Implement Intelligent Account Deletion Logic categorizing workspaces into Category 1 (Sole Member) vs Category 2 (Multi-Member).
+- Execute Single-Member Workspace Cascade Wipe using atomic `writeBatch` across all workspace records.
+- Create `WorkspaceHandoverWizardModal.tsx` for multi-member workspace handover/nuke with 1-click JSON backup download and owner promotion.
+- Enforce strict `workspace_members` membership resolution in `App.tsx` and real-time subscription.
+- Ensure workspace creation in `FreshAccountOnboardingModal.tsx` and `WorkspaceManagerModal.tsx` provisions `workspace_members` records.
+- Bump package version to `0.59.0` and verify zero errors with `tsc --noEmit` and `compile_applet`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/utils/download.ts` | Created utility function `downloadJsonFile` for 1-click JSON export downloads. |
+| `/src/components/WorkspaceHandoverWizardModal.tsx` | Built multi-member workspace handover wizard with Option A (Transfer Ownership) and Option B (Delete Workspace with Backup Download). |
+| `/src/components/UserProfileModal.tsx` | Implemented intelligent workspace categorization (Category 1 vs Category 2), cascade wipe, and rendered handover wizard. |
+| `/src/components/FreshAccountOnboardingModal.tsx` | Added `workspace_members` record creation during Quick Start and Custom workspace creation. |
+| `/src/components/WorkspaceManagerModal.tsx` | Added `workspace_members` record creation when joining workspaces via invite codes. |
+| `/src/App.tsx` | Added `workspaceMembers` state & snapshot listener, strictly filtering `userWorkspaces` to active `workspace_members` documents. |
+| `/package.json` | Bumped version to `0.59.0`. |
+| `/CHANGELOG.md` | Documented 0.59.0 release notes for SaaS Workspace Ownership Handover & Intelligent Cascade Deletion. |
+| `/development_ledger.md` | Logged development goals and modifications table for session 2026-08-11. |
+
 ## Session: 2026-08-10 (Per-Workspace Role & Permission Architecture & Import Wipe Upgrade)
 
 ### Goals

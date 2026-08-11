@@ -245,6 +245,7 @@ export default function ProductManager({ products, productCategories: propCatego
         subtitle="Manage quotation template products with pre-defined spec sheets and pricing."
         icon={Package}
         badge={{ text: `${products.length} Products`, variant: 'blue' }}
+        currentUser={user}
         primaryAction={
           isEditable
             ? {

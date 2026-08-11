@@ -436,15 +436,12 @@ export default function WorkspaceManagerModal({
       // Keep user's primary defaultWorkspaceId if set, otherwise set to wsId
       const targetDefaultWorkspaceId = currentUser?.defaultWorkspaceId || wsId;
 
-      // Keep user's default role or set to assignedRole if no global role yet
-      const baseRole = currentUser?.role || assignedRole;
-
       const userUpdatePayload = {
         ...currentUser,
         workspaceIds: updatedWsIds,
         defaultWorkspaceId: targetDefaultWorkspaceId,
         workspace_roles: updatedWorkspaceRoles,
-        role: baseRole
+        ...(currentUser?.role ? { role: currentUser.role } : {})
       };
 
       const updatedUserProfile: UserProfile = {
@@ -452,7 +449,7 @@ export default function WorkspaceManagerModal({
         workspaceIds: updatedWsIds,
         defaultWorkspaceId: targetDefaultWorkspaceId,
         workspace_roles: updatedWorkspaceRoles,
-        role: baseRole
+        ...(currentUser?.role ? { role: currentUser.role } : {})
       };
 
       // 3. Prepare Workspace Members Update Payload
@@ -525,6 +522,24 @@ export default function WorkspaceManagerModal({
       if (wsId) {
         try {
           await safeSetDoc('workspaces', wsId, workspaceUpdatePayload, { merge: true });
+
+          // Also create workspace_members doc for currentUser
+          if (currentUser?.uid) {
+            const wmDocId = `wm_${wsId}_${currentUser.uid}`;
+            const wmDoc = {
+              id: wmDocId,
+              workspace_id: wsId,
+              workspaceId: wsId,
+              user_id: currentUser.uid,
+              uid: currentUser.uid,
+              email: currentUser.email || '',
+              name: currentUser.full_name || currentUser.username || currentUser.email,
+              role: assignedRole,
+              status: 'active',
+              created_at: nowIso
+            };
+            await safeSetDoc('workspace_members', wmDocId, wmDoc);
+          }
         } catch (wErr) {
           console.warn("Safe write to workspaces collection warning:", wErr);
         }
@@ -671,10 +686,10 @@ export default function WorkspaceManagerModal({
 
           const updatedUserProfile: UserProfile = {
             ...currentUser,
-            role: currentUser?.role === 'Member' || !currentUser?.role ? 'Admin' : currentUser.role,
             workspaceIds: updatedWsIds,
             defaultWorkspaceId: currentUser?.defaultWorkspaceId || finalId,
-            workspace_roles: updatedWorkspaceRoles
+            workspace_roles: updatedWorkspaceRoles,
+            ...(currentUser?.role ? { role: currentUser.role } : {})
           };
 
           await safeSetDoc('users', currentUser.uid, updatedUserProfile, { merge: true });

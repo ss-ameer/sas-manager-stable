@@ -58,6 +58,23 @@ export default function FreshAccountOnboardingModal({
       };
 
       await safeSetDoc('workspaces', wsId, quickWorkspace);
+
+      // Create workspace_members document for currentUser
+      const wmDocId = `wm_${wsId}_${currentUser.uid}`;
+      const wmDoc = {
+        id: wmDocId,
+        workspace_id: wsId,
+        workspaceId: wsId,
+        user_id: currentUser.uid,
+        uid: currentUser.uid,
+        email: currentUser.email || '',
+        name: currentUser.full_name || currentUser.username || currentUser.email,
+        role: 'Admin',
+        status: 'active',
+        created_at: new Date().toISOString()
+      };
+      await safeSetDoc('workspace_members', wmDocId, wmDoc);
+
       if (triggerToast) triggerToast('Default workspace provisioned successfully!', 'success');
       onWorkspaceCreated(quickWorkspace);
     } catch (err: any) {
@@ -107,6 +124,23 @@ export default function FreshAccountOnboardingModal({
       };
 
       await safeSetDoc('workspaces', wsId, customWorkspace);
+
+      // Create workspace_members document for currentUser
+      const wmDocId = `wm_${wsId}_${currentUser.uid}`;
+      const wmDoc = {
+        id: wmDocId,
+        workspace_id: wsId,
+        workspaceId: wsId,
+        user_id: currentUser.uid,
+        uid: currentUser.uid,
+        email: currentUser.email || '',
+        name: currentUser.full_name || currentUser.username || currentUser.email,
+        role: 'Admin',
+        status: 'active',
+        created_at: new Date().toISOString()
+      };
+      await safeSetDoc('workspace_members', wmDocId, wmDoc);
+
       if (triggerToast) triggerToast(`Workspace "${customWorkspace.name}" created!`, 'success');
       onWorkspaceCreated(customWorkspace);
     } catch (err: any) {

@@ -594,6 +594,7 @@ export default function SalespersonProfiles({
         subtitle="Monitor sales representative proposal pipelines, conversion rates, and team assignment rosters."
         icon={Users2}
         badge={{ text: `${deduplicatedSalespersons.length} Reps Active`, variant: 'blue' }}
+        currentUser={currentUser}
         primaryAction={{
           label: 'Add Team Member',
           icon: Plus,

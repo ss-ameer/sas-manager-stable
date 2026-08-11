@@ -1092,6 +1092,7 @@ export default function CallLogManager({
         subtitle="Operator queue, phone-number resolution flow, DNC suppression, and history tracking."
         icon={PhoneCall}
         badge={{ text: activeWorkspace.name, variant: 'blue' }}
+        currentUser={user}
         primaryAction={{
           label: '+ Log / Schedule New Call',
           icon: Plus,

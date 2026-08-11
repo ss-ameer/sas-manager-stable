@@ -2,6 +2,35 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.60.0] - 2026-08-11
+
+### Added & Enhanced
+- **Direct Workspace Lifecycle Management in God Mode (`SuperAdminConsoleModal.tsx`, `SuperAdminEngine.ts`)**:
+  - **Rename Workspace Control**: Added direct inline modal control on workspace cards under the `🟢 Workspaces` tab to modify `workspaces/{wsId}` document name across Firestore.
+  - **Change Workspace Owner Control**: Added owner re-assignment dropdown listing registered users to update `created_by`, `created_by_email`, and `created_by_uid` fields for `workspaces/{wsId}`.
+  - **Hard Delete / Cascade Wipe Control**: Implemented a red modal confirmation requiring exact workspace name input. On execution, performs a chunked `writeBatch` that permanently erases the `workspaces/{wsId}` document AND all associated records across `companies`, `contacts`, `enquiries`, `call_logs`, `products`, `salespersons`, `dropdown_configs`, `dropdown_enquiry_sources`, and `workspace_members`.
+- **Dedicated "👥 Global Users" Tab (`SuperAdminConsoleModal.tsx`, `SuperAdminEngine.ts`)**:
+  - Added a top-level tab in God Mode displaying all registered user accounts from the `users` collection in a high-density management table.
+  - Features real-time search filtering by name, email, or UID with columns for Full Name, Email Address, Default Workspace ID, and Super Admin Status.
+  - **Toggle Super Admin Action**: Allows granting or revoking `is_super_admin` privilege in Firestore for any user account (preserving permanent Super Admin status for the master account `sibuma.syedameer@gmail.com`).
+  - **Delete Profile & Scrub Action**: Permanently deletes `users/{userId}` document and scrubs all matching entries across `workspace_members` and `salespersons` collections.
+- **Complete Raw Collection Browser Coverage (`SuperAdminConsoleModal.tsx`, `SuperAdminEngine.ts`)**:
+  - Updated `ALL_BROWSER_COLLECTIONS` dropdown to include all system collections (`users`, `workspaces`, `workspace_members`) alongside domain collections (`companies`, `contacts`, `enquiries`, `call_logs`, `products`, `salespersons`, `dropdown_configs`, `dropdown_enquiry_sources`).
+
+## [0.59.0] - 2026-08-11
+
+### Added & Enhanced
+- **SaaS Workspace Ownership Handover & Intelligent Cascade Deletion Architecture (`UserProfileModal.tsx`, `WorkspaceHandoverWizardModal.tsx`, `download.ts`)**:
+  - **Category-Based Workspace Analysis**: On account deletion request, analyzes all workspaces associated with the user and separates them into Category 1 (Sole Member/Admin) vs Category 2 (Multi-Member).
+  - **Single-Member Workspace Cascade Wipe**: Automatically executes an atomic, batch-resilient (`writeBatch`) cascade wipe for Category 1 workspaces, permanently purging workspace documents and all matching records across `companies`, `contacts`, `enquiries`, `call_logs`, `products`, `salespersons`, `dropdown_configs`, `dropdown_enquiry_sources`, and `workspace_members`.
+  - **Multi-Member Workspace Handover Wizard (`WorkspaceHandoverWizardModal.tsx`)**: Prompts the user to resolve multi-member workspace management before account deletion with two explicit paths per workspace:
+    - *Option A (Transfer Ownership)*: Promotes an active team member to Admin/Owner role, updates `workspace_roles`, updates `workspace_members`, and removes the deleting user.
+    - *Option B (Delete Workspace & Contents)*: Provides 1-click **Download Backup JSON** button (`exportWorkspaceData`) and schedules full workspace cascade wipe.
+  - **Deep Identity & Membership Scrub**: Removes user document from `users` and `salespersons`, scrubs `workspace_members`, deletes Firebase Auth user (`deleteUser`), clears local caches, and performs clean sign out and redirect.
+- **Strict Membership Resolution & Workspace Lifecycle Hooks (`App.tsx`, `FreshAccountOnboardingModal.tsx`, `WorkspaceManagerModal.tsx`)**:
+  - Updated `userWorkspaces` memoized selector in `App.tsx` to subscribe to `workspace_members` real-time snapshot and strictly filter workspaces to only those where `currentUser.uid` holds an active membership document.
+  - Ensured `FreshAccountOnboardingModal.tsx` and `WorkspaceManagerModal.tsx` immediately provision `workspace_members` records during workspace creation, quick start, custom setup, or invite redemptions.
+
 ## [0.58.0] - 2026-08-10
 
 ### Added & Enhanced

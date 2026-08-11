@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { auth, db, safeDeleteDoc, safeAddDoc, safeUpdateDoc, safeSetDoc } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, onSnapshot, query, orderBy, doc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, writeBatch, updateDoc, where, or, documentId } from 'firebase/firestore';
 import { Company, Contact, Enquiry, Invite, AuditLog, Salesperson, UserProfile, Product, DropdownOption, Workspace, CallLogEntry, CallStatus } from './types';
 import { INITIAL_COMPANIES, INITIAL_CONTACTS, INITIAL_ENQUIRIES, INITIAL_SALESPERSONS } from './seed';
 import Login from './components/Login';
@@ -23,6 +23,7 @@ import TrashBinModal from './components/TrashBinModal';
 import Company360Modal from './components/Company360Modal';
 import WorkspaceMemberCheckInModal from './components/WorkspaceMemberCheckInModal';
 import FreshAccountOnboardingModal from './components/FreshAccountOnboardingModal';
+import { SuperAdminConsoleModal } from './components/SuperAdminConsoleModal';
 import { QuickActivityDrawer } from './components/QuickActivityDrawer';
 import { EnquiryRepository } from './services/repositories/EnquiryRepository';
 import { CompanyRepository } from './services/repositories/CompanyRepository';
@@ -161,6 +162,13 @@ export default function App() {
   };
 
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
+  const [isSuperAdminConsoleOpen, setIsSuperAdminConsoleOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenSuperAdmin = () => setIsSuperAdminConsoleOpen(true);
+    window.addEventListener('open-super-admin-console', handleOpenSuperAdmin);
+    return () => window.removeEventListener('open-super-admin-console', handleOpenSuperAdmin);
+  }, []);
 
   // Call Logs State
   const [callLogs, setCallLogs] = useState<CallLogEntry[]>(() =>
@@ -280,37 +288,62 @@ export default function App() {
     }
   }, []);
 
+  // Workspace Members State
+  const [workspaceMembers, setWorkspaceMembers] = useState<any[]>(() =>
+    getLocalCache('omni_workspace_members', [])
+  );
+
   // Compute valid user-accessible workspaces, strictly ignoring orphaned records
   const userWorkspaces = useMemo(() => {
     if (!user) return [];
     const userEmail = (user.email || '').toLowerCase().trim();
     const userUid = user.uid;
-    const allowedIds = new Set(user.workspaceIds || []);
 
     return (workspaces || []).filter((w) => {
       if (!w || !w.id) return false;
-      // Global admin role or workspace-level admin
+
+      // Check workspace_members collection first if available
+      if (workspaceMembers && workspaceMembers.length > 0) {
+        const activeMemberDocs = workspaceMembers.filter(
+          (m: any) =>
+            (m.workspace_id === w.id || m.workspaceId === w.id) &&
+            m.status !== 'inactive'
+        );
+
+        const hasMemberDoc = activeMemberDocs.some((m: any) => {
+          const mUid = m.user_id || m.uid;
+          const mEmail = (m.email || '').toLowerCase().trim();
+          return (
+            (mUid && mUid === userUid) ||
+            (mEmail && userEmail && mEmail === userEmail)
+          );
+        });
+
+        if (hasMemberDoc) return true;
+      }
+
+      // Fallback checks (for offline mode or freshly created local workspaces)
       if (isAdmin(user, w.id, w)) return true;
-      // Explicit allowed workspaceIds on user profile
-      if (allowedIds.has(w.id)) return true;
-      // Workspace members array matching uid or email
+
       if (Array.isArray(w.members)) {
-        const isMember = w.members.some((m: any) =>
-          (m.uid && m.uid === userUid) ||
-          (m.email && m.email.toLowerCase().trim() === userEmail)
+        const isMember = w.members.some(
+          (m: any) =>
+            (m.uid && m.uid === userUid) ||
+            (m.email && m.email.toLowerCase().trim() === userEmail)
         );
         if (isMember) return true;
       }
-      // member_emails array matching email
+
       if (Array.isArray(w.member_emails)) {
-        const isEmailMember = w.member_emails.some((e: string) =>
-          typeof e === 'string' && e.toLowerCase().trim() === userEmail
+        const isEmailMember = w.member_emails.some(
+          (e: string) => typeof e === 'string' && e.toLowerCase().trim() === userEmail
         );
         if (isEmailMember) return true;
       }
+
       return false;
     });
-  }, [workspaces, user]);
+  }, [workspaces, user, workspaceMembers]);
 
   // Filter & deduplicate visible workspaces
   const visibleWorkspaces = useMemo(() => {
@@ -492,6 +525,17 @@ export default function App() {
       backfillMissingWorkspaceIds();
     }
   }, [user?.uid]);
+
+  useEffect(() => {
+    if (user?.uid) {
+      const email = (user.email || '').toLowerCase().trim();
+      if (email === 'sibuma.syedameer@gmail.com' && user.is_super_admin !== true) {
+        updateDoc(doc(db, 'users', user.uid), { is_super_admin: true })
+          .catch((err) => console.warn('Auto-promote master account effect error:', err));
+        setUser((prev) => (prev ? { ...prev, is_super_admin: true } : prev));
+      }
+    }
+  }, [user?.uid, user?.email, user?.is_super_admin]);
   useEffect(() => {
     const savedWs = localStorage.getItem('last_active_workspace_id') || localStorage.getItem('omni_active_workspace_id');
     if (savedWs && savedWs !== activeWorkspaceId) {
@@ -624,6 +668,17 @@ export default function App() {
                 profileCompleted: hasCompleted,
                 full_name: uData.full_name || (parsedLocal?.uid === uData.uid ? parsedLocal?.full_name : undefined) || uData.username
               };
+
+              // Auto-Promote Master Account in Firestore
+              const userEmailClean = (mergedUser.email || firebaseUser.email || '').toLowerCase().trim();
+              if (userEmailClean === 'sibuma.syedameer@gmail.com') {
+                mergedUser.is_super_admin = true;
+                if (uData.is_super_admin !== true) {
+                  updateDoc(doc(db, 'users', firebaseUser.uid), { is_super_admin: true })
+                    .catch((err) => console.warn('Auto-promote master account error:', err));
+                }
+              }
+
               setUser(mergedUser);
               setLocalCache(`omni_user_${firebaseUser.uid}`, mergedUser);
               localStorage.setItem('omni_local_user', JSON.stringify(mergedUser));
@@ -638,19 +693,31 @@ export default function App() {
               const validCache = cachedLocal || (parsedLocal && parsedLocal.uid === firebaseUser.uid ? parsedLocal : null);
 
               if (validCache) {
+                const emailClean = (validCache.email || firebaseUser.email || '').toLowerCase().trim();
+                if (emailClean === 'sibuma.syedameer@gmail.com') {
+                  validCache.is_super_admin = true;
+                  updateDoc(doc(db, 'users', firebaseUser.uid), { is_super_admin: true })
+                    .catch((err) => console.warn('Auto-promote master account error:', err));
+                }
                 setUser(validCache);
               } else {
                 const isEmailAdmin = firebaseUser.email?.toLowerCase().startsWith('admin@');
+                const isMasterAccount = (firebaseUser.email || '').toLowerCase().trim() === 'sibuma.syedameer@gmail.com';
                 const defaultProf: UserProfile = {
                   uid: firebaseUser.uid,
                   email: firebaseUser.email || 'user@omnisuite.com',
                   username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Member',
                   full_name: firebaseUser.displayName || undefined,
-                  role: isEmailAdmin ? 'Admin' : 'Member',
+                  role: isEmailAdmin || isMasterAccount ? 'Admin' : 'Member',
+                  is_super_admin: isMasterAccount ? true : undefined,
                   workspaceIds: ['ws_default'],
                   defaultWorkspaceId: 'ws_default',
                   createdAt: new Date().toISOString()
                 };
+                if (isMasterAccount) {
+                  updateDoc(doc(db, 'users', firebaseUser.uid), { is_super_admin: true })
+                    .catch((err) => console.warn('Auto-promote master account error:', err));
+                }
                 setUser(defaultProf);
                 setLocalCache(`omni_user_${firebaseUser.uid}`, defaultProf);
                 localStorage.setItem('omni_local_user', JSON.stringify(defaultProf));
@@ -698,21 +765,88 @@ export default function App() {
 
     const refs = activeUnsubscribersRef.current;
 
-    // Workspaces
-    if (!refs.workspaces) {
-      refs.workspaces = onSnapshot(collection(db, 'workspaces'), (snap) => {
-        if (snap.empty) {
-          setWorkspaces([DEFAULT_WORKSPACE]);
-          setLocalCache('omni_workspaces', [DEFAULT_WORKSPACE]);
-        } else {
-          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Workspace));
-          setWorkspaces(list);
-          setLocalCache('omni_workspaces', list);
+    // Strict Single-User Workspace Querying (Step 1 -> Step 2 -> Step 3)
+    if (!refs.workspaceMembers) {
+      const userEmail = (user.email || '').toLowerCase().trim();
+      const userUid = user.uid;
+
+      // Step 1: Subscribe ONLY to workspace_members for current user
+      const wmQuery = query(
+        collection(db, 'workspace_members'),
+        or(
+          where('user_id', '==', userUid),
+          where('uid', '==', userUid),
+          where('email', '==', userEmail),
+          where('email', '==', user.email || '')
+        )
+      );
+
+      refs.workspaceMembers = onSnapshot(
+        wmQuery,
+        (snap) => {
+          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setWorkspaceMembers(list);
+          setLocalCache('omni_workspace_members', list);
+
+          // Step 2: Extract array of workspace_id strings from user member docs
+          const allowedWsIds = new Set<string>();
+          list.forEach((m: any) => {
+            const wsId = m.workspace_id || m.workspaceId;
+            if (wsId && m.status !== 'inactive') {
+              allowedWsIds.add(wsId);
+            }
+          });
+
+          if (Array.isArray(user.workspaceIds)) {
+            user.workspaceIds.forEach((id) => { if (id) allowedWsIds.add(id); });
+          }
+          if (user.defaultWorkspaceId) {
+            allowedWsIds.add(user.defaultWorkspaceId);
+          }
+          if (allowedWsIds.size === 0) {
+            allowedWsIds.add('ws_default');
+          }
+
+          const allowedWsArray = Array.from(allowedWsIds);
+
+          // Step 3: Fetch/filter workspaces ONLY where workspace.id is explicitly included
+          if (allowedWsArray.length > 0) {
+            if (refs.workspaces) {
+              refs.workspaces();
+              refs.workspaces = null;
+            }
+
+            const wsQuery = query(
+              collection(db, 'workspaces'),
+              where(documentId(), 'in', allowedWsArray.slice(0, 30))
+            );
+
+            refs.workspaces = onSnapshot(
+              wsQuery,
+              (wsSnap) => {
+                const fetchedList = wsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Workspace));
+                if (allowedWsIds.has('ws_default') && !fetchedList.some((w) => w.id === 'ws_default')) {
+                  fetchedList.unshift(DEFAULT_WORKSPACE);
+                }
+                const finalWorkspaces = fetchedList.length > 0 ? fetchedList : [DEFAULT_WORKSPACE];
+                setWorkspaces(finalWorkspaces);
+                setLocalCache('omni_workspaces', finalWorkspaces);
+              },
+              (error) => {
+                console.warn("Workspaces listener error (Quota/Offline):", error);
+                setWorkspaces(getLocalCache('omni_workspaces', [DEFAULT_WORKSPACE]));
+              }
+            );
+          } else {
+            setWorkspaces([DEFAULT_WORKSPACE]);
+          }
+        },
+        (error) => {
+          console.warn("Workspace members listener error (Quota/Offline):", error);
+          setWorkspaceMembers(getLocalCache('omni_workspace_members', []));
+          setWorkspaces(getLocalCache('omni_workspaces', [DEFAULT_WORKSPACE]));
         }
-      }, (error) => {
-        console.warn("Workspaces listener error (Quota/Offline):", error);
-        setWorkspaces(getLocalCache('omni_workspaces', [DEFAULT_WORKSPACE]));
-      });
+      );
     }
 
     // Call Logs
@@ -1163,6 +1297,7 @@ export default function App() {
             companies={workspaceCompanies}
             salespersons={workspaceSalespersons}
             onSelectEnquiry={setSelectedEnquiryId}
+            user={user}
           />
         )}
 
@@ -1544,6 +1679,13 @@ export default function App() {
           triggerToast={triggerToast}
         />
       )}
+
+      {/* Super Admin God Mode Database Studio Console */}
+      <SuperAdminConsoleModal
+        isOpen={isSuperAdminConsoleOpen}
+        onClose={() => setIsSuperAdminConsoleOpen(false)}
+        workspaces={workspaces}
+      />
     </div>
   );
 }

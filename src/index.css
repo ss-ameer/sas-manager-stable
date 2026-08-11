@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* Prevent browser dark-mode auto-inversion from rendering dark text on dark backgrounds */
+input, select, textarea {
+  color-scheme: dark light;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  color: #f8fafc;
+  background-color: #0f172a;
+  border-color: #334155;
+}
+
+.dark table th,
+.dark table td {
+  color: #f1f5f9;
+}
+
 @keyframes marquee-slide-back-forth {
   0%, 15% {
     transform: translateX(0px);

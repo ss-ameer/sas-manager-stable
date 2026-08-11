@@ -456,6 +456,7 @@ export default function EnquiryList({
         subtitle={`Maintain ${BRAND_CONFIG.shortName} sales proposals, track delivery lead times, and update customer status.`}
         icon={FileText}
         badge={{ text: `${enquiries.length} Proposals`, variant: 'blue' }}
+        currentUser={user}
         primaryAction={
           isEditable
             ? {

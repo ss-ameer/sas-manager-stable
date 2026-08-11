@@ -9,47 +9,36 @@ export function getUserWorkspaceRole(
 
   const targetWsId = workspaceId || user.defaultWorkspaceId || 'ws_default';
 
-  // 1. Global Admin ALWAYS retains Admin privileges
-  if (user.role === 'Admin' || user.role === 'admin') {
-    return 'Admin';
-  }
-
-  // 2. Workspace Creator ALWAYS gets Admin privileges
+  // 1. Workspace Creator ALWAYS gets Admin privileges
   if (
     activeWorkspace &&
     (activeWorkspace.created_by === user.uid ||
       activeWorkspace.created_by === user.email ||
-      activeWorkspace.created_by === user.username)
+      activeWorkspace.created_by === user.username ||
+      activeWorkspace.created_by_uid === user.uid)
   ) {
     return 'Admin';
   }
 
-  // 3. Explicit workspace_roles mapping for joined workspaces
+  // 2. Explicit workspace_roles mapping for target workspace
   if (user.workspace_roles && user.workspace_roles[targetWsId]) {
     const raw = user.workspace_roles[targetWsId];
-    if (raw === 'admin') return 'Admin';
-    if (raw === 'sales_rep') return 'Member';
-    if (raw === 'viewer') return 'Viewer';
+    if (raw === 'admin' || raw === 'Admin') return 'Admin';
+    if (raw === 'sales_rep' || raw === 'member' || raw === 'Member') return 'Member';
+    if (raw === 'viewer' || raw === 'Viewer') return 'Viewer';
     return raw as UserRole;
   }
 
-  // 4. Explicit workspace_profiles mapping
+  // 3. Explicit workspace_profiles mapping
   if (user.workspace_profiles && user.workspace_profiles[targetWsId]?.role) {
     const raw = user.workspace_profiles[targetWsId].role;
-    if (raw === 'admin') return 'Admin';
-    if (raw === 'sales_rep') return 'Member';
-    if (raw === 'viewer') return 'Viewer';
+    if (raw === 'admin' || raw === 'Admin') return 'Admin';
+    if (raw === 'sales_rep' || raw === 'member' || raw === 'Member') return 'Member';
+    if (raw === 'viewer' || raw === 'Viewer') return 'Viewer';
     return raw as UserRole;
   }
 
-  // 5. Default fallback
-  if (user.role) {
-    if (user.role === 'admin') return 'Admin';
-    if (user.role === 'sales_rep') return 'Member';
-    if (user.role === 'viewer') return 'Viewer';
-    return user.role;
-  }
-
+  // 4. Default strictly to 'Member'
   return 'Member';
 }
 
@@ -266,4 +255,12 @@ export function getSalespersonFullName(spVal: string | undefined | null, salespe
     (s.full_name && s.full_name.toLowerCase() === clean.toLowerCase())
   );
   return found?.full_name || clean;
+}
+
+export function isSuperAdmin(user: UserProfile | undefined | null): boolean {
+  if (!user) return false;
+  const email = (user.email || '').toLowerCase().trim();
+  if (email === 'sibuma.syedameer@gmail.com') return true;
+  if (user.is_super_admin === true) return true;
+  return false;
 }

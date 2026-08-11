@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Enquiry, Company, Salesperson, CallLogEntry, Contact } from '../types';
+import { Enquiry, Company, Salesperson, CallLogEntry, Contact, UserProfile } from '../types';
 import {
   BarChart,
   Bar,
@@ -54,6 +54,7 @@ interface DashboardProps {
   onSelectEnquiry: (id: string) => void;
   callLogs?: CallLogEntry[];
   contacts?: Contact[];
+  user?: UserProfile | null;
   onOpenActivityDrawer?: (context: {
     companyId?: string;
     companyName?: string;
@@ -69,6 +70,7 @@ export default function Dashboard({
   onSelectEnquiry,
   callLogs = [],
   contacts = [],
+  user,
   onOpenActivityDrawer
 }: DashboardProps) {
   // 1. Pipeline value totals
@@ -492,6 +494,7 @@ export default function Dashboard({
         subtitle="Real-time pipeline analysis, win ratios, and client engagement logs."
         icon={BarChart3}
         badge={{ text: 'Active Workspace', variant: 'blue' }}
+        currentUser={user}
       >
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 flex items-center space-x-2.5 shadow-2xs shrink-0">
           <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
