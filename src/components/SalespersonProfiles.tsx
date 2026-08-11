@@ -93,6 +93,20 @@ export default function SalespersonProfiles({
     return new Map(companies.map((c) => [c.id, c.display_name]));
   }, [companies]);
 
+  // Deduplicated Team Roster by ID / Email / Initials / Name
+  const deduplicatedSalespersons = React.useMemo(() => {
+    const seenKeys = new Set<string>();
+    const list: Salesperson[] = [];
+    for (const sp of salespersons) {
+      const key = sp.id || (sp.email ? sp.email.toLowerCase() : '') || (sp.initials ? sp.initials.toUpperCase() : '') || sp.full_name?.toLowerCase();
+      if (key && !seenKeys.has(key)) {
+        seenKeys.add(key);
+        list.push(sp);
+      }
+    }
+    return list;
+  }, [salespersons]);
+
   // Check if current user is listed on team roster
   const currentUserInRoster = React.useMemo(() => {
     if (!currentUser) return null;
@@ -579,7 +593,7 @@ export default function SalespersonProfiles({
         title="Sales Team & Performance Roster"
         subtitle="Monitor sales representative proposal pipelines, conversion rates, and team assignment rosters."
         icon={Users2}
-        badge={{ text: `${salespersons.length} Reps Active`, variant: 'blue' }}
+        badge={{ text: `${deduplicatedSalespersons.length} Reps Active`, variant: 'blue' }}
         primaryAction={{
           label: 'Add Team Member',
           icon: Plus,
@@ -635,7 +649,7 @@ export default function SalespersonProfiles({
         </div>
 
         <div className="space-y-3">
-          {salespersons.map((s, idx) => {
+          {deduplicatedSalespersons.map((s, idx) => {
             const m = getSalespersonMetrics(s);
             const isSelected = selectedSalespersonId === s.id || selectedSalespersonId === s.initials;
             return (
@@ -1040,7 +1054,7 @@ export default function SalespersonProfiles({
         representativeName={reassignModalState.salespersonToDelete?.full_name || 'Sales Representative'}
         openEnquiryCount={reassignModalState.openEnquiryCount}
         pendingActivityCount={reassignModalState.pendingActivityCount}
-        availableTeamMembers={salespersons
+        availableTeamMembers={deduplicatedSalespersons
           .filter(sp => sp.id !== reassignModalState.salespersonToDelete?.id && sp.initials !== reassignModalState.salespersonToDelete?.initials)
           .map(sp => ({
             id: sp.id || sp.initials || '',

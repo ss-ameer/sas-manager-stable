@@ -9,8 +9,13 @@ All notable changes to the Enquiry Manager will be documented in this file.
   - Fixed Date Overwrite bug by separating `activityDate` (datetime-local picker) from `next_followup_date`.
   - Implemented `handleOutboundInteraction` helper on outbound contact action links in `Company360Modal.tsx` to automatically pop open the Quick Activity Drawer with pre-filled channel and contact details.
   - Built high-contrast dark slate `CallLogDetailModal.tsx` for full activity log inspection.
-- **Dark Mode High-Contrast List & Table Cell Audit (`EnquiryList.tsx`, `Company360Modal.tsx`, `CallLogManager.tsx`)**:
-  - Audited list items, table text, and badges across views to ensure high-contrast legibility in dark slate mode (`text-slate-100`, `text-slate-200`, `text-slate-400`).
+- **Visual Contrast, Scoping & Diagnostic Remediation (`CompanyModal.tsx`, `SalespersonProfiles.tsx`, `WorkspaceMemberCheckInModal.tsx`, `CloudSyncHub.tsx`, `WorkspaceManagerModal.tsx`)**:
+  - Replaced low-contrast text classes in Companies Registry table view (`CompanyModal.tsx`) with high-contrast `text-slate-200 font-mono text-xs` for phones/emails and `text-slate-400 text-xs` for location labels.
+  - Deduplicated team roster list in `SalespersonProfiles.tsx` by ID / email / initials to ensure each sales rep appears exactly once in the sidebar.
+  - Formatted workspace name rendering in `WorkspaceMemberCheckInModal.tsx` using `activeWorkspace?.name || activeWorkspace?.display_name || 'Active Workspace'`.
+  - Updated System Health & Connectivity version badge in `CloudSyncHub.tsx` from `v0.40.0` to `v0.57.0`.
+  - Workspace-scoped all 6 entity metrics in `CloudSyncHub.tsx` by `activeWorkspace.id` and added a 7th metric card for "Activity Logs".
+  - Standardized system health labels, export dialogs, and workspace module settings to consistently reference "Activity Logs" (covering Calls, WhatsApp, Emails, Meetings, Site Visits).
 - **Full Call Log JSON Backup Export & Import (`SyncEngine.ts`, `WorkspaceManagerModal.tsx`)**:
   - Extended `exportWorkspaceData` and workspace export routines to query and bundle all `call_logs` Firestore records.
   - Created `importWorkspaceData` to parse and restore `call_logs` attached to target workspace IDs upon JSON backup upload.

@@ -27,6 +27,11 @@
 | `/src/components/WorkspaceMemberCheckInModal.tsx` | Created modal prompting for Rep Initials, Job Title, and Direct Phone upon entering a workspace. |
 | `/src/components/FreshAccountOnboardingModal.tsx` | Created un-dismissable onboarding modal for 1-Click Quick Start vs. Custom Workspace setups when 0 workspaces exist. |
 | `/src/App.tsx` | Mounted `WorkspaceMemberCheckInModal` and `FreshAccountOnboardingModal`. |
+| `/src/components/CompanyModal.tsx` | Replaced low-contrast text with `text-slate-200 font-mono text-xs` for phones/emails and `text-slate-400 text-xs` for location sub-labels in Companies table view. |
+| `/src/components/SalespersonProfiles.tsx` | Added `deduplicatedSalespersons` memoization to ensure team members appear exactly once in sidebar roster. |
+| `/src/components/WorkspaceMemberCheckInModal.tsx` | Formatted workspace name subtitle using `activeWorkspace?.name || activeWorkspace?.display_name || 'Active Workspace'`. |
+| `/src/components/CloudSyncHub.tsx` | Updated version badge pill in System Health header to `v0.57.0`, workspace-scoped local memory cache metrics, and added 7th "Activity Logs" metric card. |
+| `/src/components/WorkspaceManagerModal.tsx` | Standardized terminology across dialogs and badges to "Activity Logs". |
 | `/package.json` | Bumped version to `0.57.0`. |
 | `/CHANGELOG.md` | Documented version `0.57.0` changes. |
 | `/development_ledger.md` | Updated session log and modifications table. |

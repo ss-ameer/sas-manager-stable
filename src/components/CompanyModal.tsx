@@ -1192,7 +1192,7 @@ export default function CompanyModal({
 
       {/* VIEW 1: COMPANIES REGISTRY */}
       {viewMode === 'companies' && (
-        <div id="companies-tab" className="text-slate-800 flex flex-col gap-6 w-full">
+        <div id="companies-tab" className="text-slate-200 flex flex-col gap-6 w-full">
           {/* Company List Registry Card (Full Row, Extendable & Retractable) */}
           {isRegistryCollapsed ? (
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
@@ -1383,15 +1383,15 @@ export default function CompanyModal({
                                 {getReferenceId('CMP', c, companies)}
                               </td>
                               <td className="p-3">
-                                <div className="font-bold text-slate-900 font-sans">{c.display_name}</div>
-                                <div className="text-[10px] text-slate-500 flex items-center space-x-1">
+                                <div className="font-bold text-slate-100 font-sans">{c.display_name}</div>
+                                <div className="text-slate-400 text-xs flex items-center space-x-1">
                                   <MapPin className="w-3 h-3 text-slate-400" />
-                                  <span>{c.city}, {c.country}</span>
+                                  <span className="text-slate-400 text-xs">{c.city}, {c.country}</span>
                                 </div>
                               </td>
                               <td className="p-3 whitespace-nowrap space-y-1">
                                 <div>
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700">
                                     {relVal}
                                   </span>
                                 </div>
@@ -1405,14 +1405,14 @@ export default function CompanyModal({
                                   </span>
                                 </div>
                               </td>
-                              <td className="p-3 text-[11px] font-mono text-slate-600">
+                              <td className="p-3 text-xs font-mono text-slate-200">
                                 {phones.length > 0 && (
-                                  <div className="truncate max-w-[180px]" title={phones[0].number}>
+                                  <div className="truncate max-w-[180px] text-slate-200 font-mono text-xs" title={phones[0].number}>
                                     {phones[0].number}
                                   </div>
                                 )}
                                 {emails.length > 0 && (
-                                  <div className="truncate max-w-[180px] text-slate-500 text-[10px]" title={emails[0].email}>
+                                  <div className="truncate max-w-[180px] text-slate-400 text-xs font-mono" title={emails[0].email}>
                                     {emails[0].email}
                                   </div>
                                 )}

@@ -94,10 +94,10 @@ export default function WorkspaceManagerModal({
         const parsed = JSON.parse(event.target?.result as string);
         const targetWsId = activeWorkspaceId || 'ws_default';
 
-        triggerToast('Restoring workspace data & call logs from backup...', 'info');
+        triggerToast('Restoring workspace data & activity logs from backup...', 'info');
         const result = await importWorkspaceData(targetWsId, parsed);
         triggerToast(
-          `Workspace JSON imported! (${result.importedCounts.call_logs || 0} call logs & ${result.importedCounts.enquiries || 0} enquiries restored)`,
+          `Workspace JSON imported! (${result.importedCounts.call_logs || 0} activity logs & ${result.importedCounts.enquiries || 0} enquiries restored)`,
           'success'
         );
       } catch (err: any) {
@@ -849,7 +849,7 @@ export default function WorkspaceManagerModal({
                                   : 'Call/Service Only (No Quotes)'}
                               </span>
                               <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                                Call Log Enabled
+                                Activity Logs Enabled
                               </span>
                             </div>
                           </div>
@@ -864,7 +864,7 @@ export default function WorkspaceManagerModal({
                                 const sanitized = wsName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
                                 const fileName = `workspace_export_${sanitized}_${new Date().toISOString().slice(0, 10)}.json`;
                                 downloadJsonFile(fileName, exportData);
-                                triggerToast(`Exported ${wsName} JSON backup with ${exportData.counts.call_logs || 0} call logs!`, 'success');
+                                triggerToast(`Exported ${wsName} JSON backup with ${exportData.counts.call_logs || 0} activity logs!`, 'success');
                               } catch (err: any) {
                                 triggerToast(`Export failed: ${err.message}`, 'error');
                               }
@@ -951,7 +951,7 @@ export default function WorkspaceManagerModal({
                                     <span className="font-bold text-rose-700">{deleteCounts?.enquiries ?? 0}</span> Enquiries
                                   </div>
                                   <div className="px-2.5 py-1.5 bg-rose-50 border border-rose-100 rounded text-slate-800">
-                                    <span className="font-bold text-rose-700">{deleteCounts?.call_logs ?? 0}</span> Call Logs
+                                    <span className="font-bold text-rose-700">{deleteCounts?.call_logs ?? 0}</span> Activity Logs
                                   </div>
                                   <div className="px-2.5 py-1.5 bg-rose-50 border border-rose-100 rounded text-slate-800">
                                     <span className="font-bold text-rose-700">{deleteCounts?.products ?? 0}</span> Products
@@ -1104,9 +1104,9 @@ export default function WorkspaceManagerModal({
 
                   <label className="flex items-center justify-between p-3 rounded-lg bg-white border border-slate-200 cursor-pointer">
                     <div>
-                      <span className="text-xs font-bold text-slate-900 block">Call Log & Today Queue Engine</span>
+                      <span className="text-xs font-bold text-slate-900 block">Activity Log & Operator Queue Engine</span>
                       <span className="text-[11px] text-slate-500 block">
-                        Top-level call scheduling, phone resolution flow, DNC suppression, and fast operator queue.
+                        Top-level interaction scheduling, contact resolution flow, DNC suppression, and fast operator queue across all 5 activity channels.
                       </span>
                     </div>
                     <input

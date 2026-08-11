@@ -255,6 +255,15 @@ export default function CloudSyncHub({
     showToast('Sync queue processing cycle finished', 'success');
   };
 
+  // Filter metrics strictly by active workspace ID
+  const wsId = activeWorkspace?.id;
+  const filteredCompanies = wsId ? companies.filter((c) => (c.workspace_id || (c as any).workspaceId) === wsId) : companies;
+  const filteredContacts = wsId ? contacts.filter((c) => (c.workspace_id || (c as any).workspaceId) === wsId) : contacts;
+  const filteredEnquiries = wsId ? enquiries.filter((e) => (e.workspace_id || (e as any).workspaceId) === wsId) : enquiries;
+  const filteredProducts = wsId ? products.filter((p) => (p.workspace_id || (p as any).workspaceId) === wsId) : products;
+  const filteredSalespersons = wsId ? salespersons.filter((s) => (s.workspace_id || (s as any).workspaceId) === wsId) : salespersons;
+  const filteredActivityLogs = wsId ? callLogs.filter((l) => (l.workspace_id || (l as any).workspaceId) === wsId) : callLogs;
+
   return (
     <>
       {/* Trigger Button */}
@@ -287,7 +296,7 @@ export default function CloudSyncHub({
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     System Health & Connectivity
                     <span className="text-[10px] uppercase tracking-widest font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full">
-                      v0.40.0
+                      v0.57.0
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
@@ -344,30 +353,34 @@ export default function CloudSyncHub({
               <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center space-x-2">
                   <Database className="w-4 h-4 text-blue-400" />
-                  <span>Local Memory Cache Diagnostics</span>
+                  <span>Local Memory Cache Diagnostics ({activeWorkspace?.name || 'Active Workspace'})</span>
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
                     <div className="text-xs text-slate-400">Companies</div>
-                    <div className="text-lg font-bold text-white font-mono mt-0.5">{companies.length}</div>
+                    <div className="text-lg font-bold text-white font-mono mt-0.5">{filteredCompanies.length}</div>
                   </div>
                   <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
                     <div className="text-xs text-slate-400">Contacts</div>
-                    <div className="text-lg font-bold text-white font-mono mt-0.5">{contacts.length}</div>
+                    <div className="text-lg font-bold text-white font-mono mt-0.5">{filteredContacts.length}</div>
                   </div>
                   <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
                     <div className="text-xs text-slate-400">Enquiries</div>
-                    <div className="text-lg font-bold text-white font-mono mt-0.5">{enquiries.length}</div>
+                    <div className="text-lg font-bold text-white font-mono mt-0.5">{filteredEnquiries.length}</div>
+                  </div>
+                  <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
+                    <div className="text-xs text-slate-400">Activity Logs</div>
+                    <div className="text-lg font-bold text-blue-400 font-mono mt-0.5">{filteredActivityLogs.length}</div>
                   </div>
                   <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
                     <div className="text-xs text-slate-400">Products</div>
-                    <div className="text-lg font-bold text-white font-mono mt-0.5">{products.length}</div>
+                    <div className="text-lg font-bold text-white font-mono mt-0.5">{filteredProducts.length}</div>
                   </div>
                   <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
                     <div className="text-xs text-slate-400">Team Roster</div>
-                    <div className="text-lg font-bold text-white font-mono mt-0.5">{salespersons.length}</div>
+                    <div className="text-lg font-bold text-white font-mono mt-0.5">{filteredSalespersons.length}</div>
                   </div>
-                  <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
+                  <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg col-span-2 sm:col-span-1">
                     <div className="text-xs text-slate-400">Dropdown Configs</div>
                     <div className="text-lg font-bold text-white font-mono mt-0.5">
                       {enquirySources.length + productCategories.length + units.length}

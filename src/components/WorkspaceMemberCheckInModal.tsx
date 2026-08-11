@@ -104,7 +104,7 @@ export default function WorkspaceMemberCheckInModal({
                   Workspace Member Check-In
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Confirm your identity details for <span className="text-blue-400 font-semibold">{activeWorkspace.name}</span>
+                  Confirm your identity details for <span className="text-blue-400 font-semibold">{activeWorkspace?.name || (activeWorkspace as any)?.display_name || 'Active Workspace'}</span>
                 </p>
               </div>
             </div>
