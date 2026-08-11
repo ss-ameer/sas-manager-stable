@@ -21,7 +21,6 @@ import CallLogManager from './components/CallLogManager';
 import UserProfileModal from './components/UserProfileModal';
 import TrashBinModal from './components/TrashBinModal';
 import Company360Modal from './components/Company360Modal';
-import WorkspaceMemberCheckInModal from './components/WorkspaceMemberCheckInModal';
 import FreshAccountOnboardingModal from './components/FreshAccountOnboardingModal';
 import { SuperAdminConsoleModal } from './components/SuperAdminConsoleModal';
 import { QuickActivityDrawer } from './components/QuickActivityDrawer';
@@ -559,6 +558,66 @@ export default function App() {
   useEffect(() => { setLocalCache('omni_call_outcomes', callOutcomes); }, [callOutcomes]);
   useEffect(() => { setLocalCache('omni_company_relationships', companyRelationships); }, [companyRelationships]);
   useEffect(() => { setLocalCache('omni_company_temperatures', companyTemperatures); }, [companyTemperatures]);
+
+  // Silent Auto-Provisioning: Automatically create salespersons record for active workspace if missing
+  const autoProvisionedKeysRef = React.useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user || !activeWorkspace?.id) return;
+
+    const wsId = activeWorkspace.id;
+    const userUid = user.uid;
+    const userEmail = (user.email || '').toLowerCase().trim();
+    if (!userUid) return;
+
+    const key = `${wsId}_${userUid}`;
+    if (autoProvisionedKeysRef.current.has(key)) return;
+
+    // Check if matching salesperson record exists in this workspace
+    const hasSalesperson = salespersons.some((s) => {
+      const sWsId = s.workspace_id || (s as any).workspaceId;
+      if (sWsId !== wsId) return false;
+
+      const matchesUid = (s.linked_user_id && s.linked_user_id === userUid) || (s.user_id && s.user_id === userUid) || s.uid === userUid;
+      const matchesEmail = s.email && userEmail && s.email.toLowerCase().trim() === userEmail;
+
+      return Boolean(matchesUid || matchesEmail);
+    });
+
+    if (!hasSalesperson) {
+      autoProvisionedKeysRef.current.add(key);
+
+      const displayName = user.full_name || (user as any).displayName || user.username || (userEmail ? userEmail.split('@')[0] : 'User');
+      const nameParts = displayName.trim().split(/\s+/);
+      let autoInitials = '';
+      if (nameParts.length >= 2) {
+        autoInitials = (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+      } else if (nameParts.length === 1 && nameParts[0].length >= 2) {
+        autoInitials = nameParts[0].substring(0, 2).toUpperCase();
+      } else {
+        autoInitials = (displayName.substring(0, 2) || 'RM').toUpperCase();
+      }
+
+      const spDocId = `sp_${wsId}_${userUid}`;
+      const newSalespersonDoc = {
+        id: spDocId,
+        workspace_id: wsId,
+        full_name: displayName,
+        email: user.email || '',
+        initials: autoInitials,
+        linked_user_id: userUid,
+        user_id: userUid,
+        uid: userUid,
+        status: 'Active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      safeSetDoc('salespersons', spDocId, newSalespersonDoc, { merge: true }).catch((err) => {
+        console.warn('Silent auto-provisioning salesperson error:', err);
+      });
+    }
+  }, [user, activeWorkspace?.id, salespersons]);
 
   useEffect(() => {
     if (toast) {
@@ -1652,29 +1711,6 @@ export default function App() {
             setUser(updatedUser);
             setLocalCache(`omni_user_${user.uid}`, updatedUser);
             localStorage.setItem('omni_local_user', JSON.stringify(updatedUser));
-          }}
-          triggerToast={triggerToast}
-        />
-      )}
-
-      {/* Per-Workspace Member Check-In Modal */}
-      {user && activeWorkspace && (
-        <WorkspaceMemberCheckInModal
-          isOpen={
-            Boolean(
-              workspaces.length > 0 &&
-              activeWorkspace?.id &&
-              !user.workspace_profiles?.[activeWorkspace.id] &&
-              dismissedCheckInWsId !== activeWorkspace.id
-            )
-          }
-          onClose={() => setDismissedCheckInWsId(activeWorkspace.id)}
-          currentUser={user}
-          activeWorkspace={activeWorkspace}
-          onProfileUpdated={(updated) => {
-            setUser(updated);
-            setLocalCache(`omni_user_${updated.uid}`, updated);
-            localStorage.setItem('omni_local_user', JSON.stringify(updated));
           }}
           triggerToast={triggerToast}
         />

@@ -54,6 +54,14 @@ import InviteManager from './InviteManager';
 import SystemSimulator from './SystemSimulator';
 import CloudSyncHub from './CloudSyncHub';
 import DocsSystemHub from './DocsSystemHub';
+import WorkspaceHandoverWizardModal, {
+  Category2WorkspaceInfo,
+  HandoverResolution
+} from './WorkspaceHandoverWizardModal';
+import {
+  categorizeUserWorkspacesForDeletion,
+  executeFinalCascadeDeleteAndScrub
+} from '../services/AccountDeletionService';
 import { PageHeader, PageBody, CardPanel } from './layout/UiContainer';
 import { EnquiryRepository } from '../services/repositories/EnquiryRepository';
 
@@ -146,6 +154,12 @@ export default function SettingsHub({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showGeminiKeyModal, setShowGeminiKeyModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Handover Wizard States
+  const [isHandoverWizardOpen, setIsHandoverWizardOpen] = useState(false);
+  const [category1WsIds, setCategory1WsIds] = useState<string[]>([]);
+  const [category2WsList, setCategory2WsList] = useState<Category2WorkspaceInfo[]>([]);
+  const [nonAdminExitWsList, setNonAdminExitWsList] = useState<Workspace[]>([]);
 
   // API Key Ping Test state
   const [testingApiKey, setTestingApiKey] = useState(false);
@@ -352,84 +366,29 @@ export default function SettingsHub({
   const handleDeleteAccount = async () => {
     setDeleting(true);
     try {
-      const userUid = user?.uid;
-      const userEmail = user?.email;
-      const currentUserAuth = auth.currentUser;
+      if (!user) return;
+      const { soleAdminNukeIds, adminMultiMemberList, nonAdminExits } =
+        await categorizeUserWorkspacesForDeletion(user);
 
-      if (userUid && !userUid.startsWith('local_')) {
-        const batch = writeBatch(db);
+      setNonAdminExitWsList(nonAdminExits);
+      setCategory1WsIds(soleAdminNukeIds);
+      setCategory2WsList(adminMultiMemberList);
 
-        // 1. Query workspace_members where email == currentUser.email OR user_id == currentUser.uid
-        if (userEmail) {
-          const wmSnap1 = await getDocs(query(collection(db, 'workspace_members'), where('email', '==', userEmail)));
-          wmSnap1.forEach((d) => batch.delete(d.ref));
-        }
-        if (userUid) {
-          const wmSnap2 = await getDocs(query(collection(db, 'workspace_members'), where('user_id', '==', userUid)));
-          wmSnap2.forEach((d) => batch.delete(d.ref));
-        }
-
-        // 2. Query salespersons where email == currentUser.email OR uid == currentUser.uid
-        if (userEmail) {
-          const spSnap1 = await getDocs(query(collection(db, 'salespersons'), where('email', '==', userEmail)));
-          spSnap1.forEach((d) => batch.delete(d.ref));
-        }
-        if (userUid) {
-          const spSnap2 = await getDocs(query(collection(db, 'salespersons'), where('uid', '==', userUid)));
-          spSnap2.forEach((d) => batch.delete(d.ref));
-        }
-
-        // 3. Query workspaces where members or member_emails array contains currentUser.email
-        const wsSnap = await getDocs(collection(db, 'workspaces'));
-        wsSnap.forEach((docSnap) => {
-          const wsData = docSnap.data();
-          const ref = docSnap.ref;
-          let needsUpdate = false;
-          const updatePayload: any = {};
-
-          if (userEmail) {
-            if (Array.isArray(wsData.member_emails) && wsData.member_emails.includes(userEmail)) {
-              updatePayload.member_emails = arrayRemove(userEmail);
-              needsUpdate = true;
-            }
-            if (Array.isArray(wsData.members)) {
-              const filteredMembers = wsData.members.filter(
-                (m: any) => m.uid !== userUid && (!m.email || m.email.toLowerCase() !== userEmail.toLowerCase())
-              );
-              if (filteredMembers.length !== wsData.members.length) {
-                updatePayload.members = filteredMembers;
-                needsUpdate = true;
-              }
-            }
-          }
-
-          if (needsUpdate) {
-            batch.update(ref, updatePayload);
-          }
-        });
-
-        // 4. Delete the user document: batch.delete(doc(db, 'users', userUid))
-        batch.delete(doc(db, 'users', userUid));
-
-        // 5. Commit the batch
-        await batch.commit();
+      if (adminMultiMemberList.length > 0) {
+        setIsHandoverWizardOpen(true);
+        setShowDeleteModal(false);
+        setDeleting(false);
+      } else {
+        await executeFinalCascadeDeleteAndScrub(
+          user,
+          soleAdminNukeIds,
+          {},
+          adminMultiMemberList,
+          nonAdminExits
+        );
       }
-
-      // 6. Delete the user from Firebase Authentication
-      if (currentUserAuth) {
-        await deleteUser(currentUserAuth);
-      }
-
-      // 7. Clear IndexedDB and LocalStorage caches
-      await clearAllLocalStores();
-
-      // 8. Sign out from Firebase Auth and redirect to root
-      await signOut(auth).catch(() => {});
-      window.location.href = '/'; 
     } catch (err: any) {
-      console.error('Failed to delete account:', err);
-      
-      // 6. Firebase Security Catch for stale sessions
+      console.error('Failed to process account deletion:', err);
       if (err.code === 'auth/requires-recent-login') {
         if (triggerToast) triggerToast('Security Lock: Fresh login required to delete account.', 'error');
         alert("Security Lock: Firebase requires a fresh login to delete an account. Please sign out, sign back in, and click delete again.");
@@ -1308,6 +1267,31 @@ export default function SettingsHub({
         isOpen={showGeminiKeyModal}
         onClose={() => setShowGeminiKeyModal(false)}
         triggerToast={triggerToast}
+      />
+
+      {/* Workspace Ownership & Account Deletion Wizard */}
+      <WorkspaceHandoverWizardModal
+        isOpen={isHandoverWizardOpen}
+        onClose={() => setIsHandoverWizardOpen(false)}
+        currentUser={user}
+        category2Workspaces={category2WsList}
+        category1WorkspaceIds={category1WsIds}
+        onConfirmHandoverAndDelete={async (resolutions) => {
+          setDeleting(true);
+          try {
+            await executeFinalCascadeDeleteAndScrub(
+              user,
+              category1WsIds,
+              resolutions,
+              category2WsList,
+              nonAdminExitWsList
+            );
+          } catch (err: any) {
+            console.error('Failed to execute handover and deletion:', err);
+            if (triggerToast) triggerToast('Failed to delete account profile: ' + err.message, 'error');
+            setDeleting(false);
+          }
+        }}
       />
     </PageBody>
   </>

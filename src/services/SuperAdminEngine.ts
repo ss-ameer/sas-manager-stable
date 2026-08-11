@@ -513,6 +513,14 @@ export async function cascadeDeleteWorkspace(wsId: string): Promise<{ success: b
 }
 
 /**
+ * God Mode Workspaces Management
+ */
+export async function getAllGodModeWorkspaces(): Promise<Array<{ id: string; [key: string]: any }>> {
+  const snap = await getDocs(collection(db, 'workspaces'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
  * Global Users Management
  */
 export async function getAllGlobalUsers(): Promise<Array<{ id: string; [key: string]: any }>> {

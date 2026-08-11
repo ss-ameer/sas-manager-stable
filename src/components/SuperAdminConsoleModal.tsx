@@ -41,6 +41,7 @@ import {
   changeWorkspaceOwner,
   cascadeDeleteWorkspace,
   getAllGlobalUsers,
+  getAllGodModeWorkspaces,
   toggleUserSuperAdmin,
   deleteUserAndScrub
 } from '../services/SuperAdminEngine';
@@ -65,6 +66,7 @@ export const SuperAdminConsoleModal: React.FC<SuperAdminConsoleModalProps> = ({
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Data states
+  const [godModeWorkspaces, setGodModeWorkspaces] = useState<Workspace[]>(workspaces || []);
   const [unassignedData, setUnassignedData] = useState<StagingOrphanedDocsResult | null>(null);
   const [orphanedData, setOrphanedData] = useState<StagingOrphanedDocsResult | null>(null);
   const [globalUsers, setGlobalUsers] = useState<Array<{ id: string; [key: string]: any }>>([]);
@@ -82,7 +84,7 @@ export const SuperAdminConsoleModal: React.FC<SuperAdminConsoleModalProps> = ({
   // Modal Sub-states
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportScope, setExportScope] = useState<'workspace' | 'orphaned' | 'unassigned'>('workspace');
-  const [exportWsId, setExportWsId] = useState<string>(workspaces[0]?.id || '');
+  const [exportWsId, setExportWsId] = useState<string>('');
   const [exportColName, setExportColName] = useState<string>('all');
 
   const [showReassignModal, setShowReassignModal] = useState(false);
@@ -114,6 +116,13 @@ export const SuperAdminConsoleModal: React.FC<SuperAdminConsoleModalProps> = ({
     setLoading(true);
     setStatusMsg(null);
     try {
+      const allWsDocs = await getAllGodModeWorkspaces();
+      const allWs = allWsDocs.map((d) => ({ id: d.id, ...d } as Workspace));
+      setGodModeWorkspaces(allWs);
+      if (allWs.length > 0 && !exportWsId) {
+        setExportWsId(allWs[0].id);
+      }
+
       const unassigned = await getUnassignedDocs();
       const orphaned = await getOrphanedDocs();
       const usersList = await getAllGlobalUsers();
@@ -428,7 +437,7 @@ export const SuperAdminConsoleModal: React.FC<SuperAdminConsoleModalProps> = ({
           <div className="flex items-center space-x-3 text-xs">
             <div className="px-3 py-1.5 bg-slate-800/80 border border-emerald-500/30 rounded-lg text-emerald-400 font-medium flex items-center space-x-2">
               <Building2 className="w-4 h-4" />
-              <span>Workspaces: {workspaces.length}</span>
+              <span>Workspaces: {godModeWorkspaces.length}</span>
             </div>
             <div className="px-3 py-1.5 bg-slate-800/80 border border-purple-500/30 rounded-lg text-purple-300 font-medium flex items-center space-x-2">
               <Users className="w-4 h-4" />
@@ -523,7 +532,7 @@ export const SuperAdminConsoleModal: React.FC<SuperAdminConsoleModalProps> = ({
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <span>🟢 Workspaces ({workspaces.length})</span>
+            <span>🟢 Workspaces ({godModeWorkspaces.length})</span>
           </button>
 
           <button
@@ -588,7 +597,7 @@ export const SuperAdminConsoleModal: React.FC<SuperAdminConsoleModalProps> = ({
           {/* TAB 1: WORKSPACES VIEW */}
           {activeTab === 'workspaces' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {workspaces.map((ws) => (
+              {godModeWorkspaces.map((ws) => (
                 <div
                   key={ws.id}
                   className="p-5 bg-slate-950/70 border border-slate-800 hover:border-emerald-500/40 rounded-2xl transition space-y-4 flex flex-col justify-between"
@@ -1220,7 +1229,7 @@ export const SuperAdminConsoleModal: React.FC<SuperAdminConsoleModalProps> = ({
                     onChange={(e) => setExportWsId(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none"
                   >
-                    {workspaces.map((ws) => (
+                    {godModeWorkspaces.map((ws) => (
                       <option key={ws.id} value={ws.id}>
                         {ws.name} ({ws.id})
                       </option>
@@ -1298,7 +1307,7 @@ export const SuperAdminConsoleModal: React.FC<SuperAdminConsoleModalProps> = ({
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white outline-none"
                 >
                   <option value="unassigned">🟡 Staging Buffer (Unassigned)</option>
-                  {workspaces.map((ws) => (
+                  {godModeWorkspaces.map((ws) => (
                     <option key={ws.id} value={ws.id}>
                       🟢 {ws.name} ({ws.id})
                     </option>

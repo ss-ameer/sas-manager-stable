@@ -5,6 +5,10 @@ import { writeBatch, collection, query, where, getDocs, doc, arrayRemove } from 
 import { deleteUser, signOut } from 'firebase/auth';
 import { recordAuditLog } from '../utils/auditLogger';
 import { getUserWorkspaceRole, isAdmin } from '../utils/permissions';
+import {
+  categorizeUserWorkspacesForDeletion,
+  executeFinalCascadeDeleteAndScrub
+} from '../services/AccountDeletionService';
 import { User, Check, X, Shield, Users2, AlertCircle, Trash2 } from 'lucide-react';
 import WorkspaceHandoverWizardModal, {
   Category2WorkspaceInfo,
@@ -64,7 +68,6 @@ export default function UserProfileModal({
     setErrorMsg('');
 
     try {
-      const userEmail = (currentUser.email || currentUserAuth?.email || '').toLowerCase().trim();
       const userUid = currentUser.uid || currentUserAuth?.uid;
 
       if (!userUid || userUid.startsWith('local_')) {
@@ -73,88 +76,8 @@ export default function UserProfileModal({
         return;
       }
 
-      // 1. Fetch all workspaces
-      const wsSnap = await getDocs(collection(db, 'workspaces'));
-      const allWorkspaces: Workspace[] = wsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Workspace));
-
-      // 2. Fetch all workspace_members
-      const wmSnap = await getDocs(collection(db, 'workspace_members'));
-      const allMembersDocs = wmSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-      const soleAdminNukeIds: string[] = [];
-      const adminMultiMemberList: Category2WorkspaceInfo[] = [];
-      const nonAdminExits: Workspace[] = [];
-
-      // Categorize user's workspaces based on role & team size
-      for (const ws of allWorkspaces) {
-        // Find workspace_members docs for this workspace
-        const wsMembersDocs = allMembersDocs.filter(
-          (m: any) => (m.workspace_id === ws.id || m.workspaceId === ws.id) && m.status !== 'inactive'
-        );
-
-        const memberMap = new Map<string, { uid?: string; email: string; name?: string; role?: string }>();
-
-        wsMembersDocs.forEach((m: any) => {
-          const mEmail = (m.email || '').toLowerCase().trim();
-          const mUid = m.user_id || m.uid;
-          const key = mUid || mEmail;
-          if (key) {
-            memberMap.set(key, { uid: mUid, email: mEmail, name: m.name || m.full_name, role: m.role });
-          }
-        });
-
-        if (Array.isArray(ws.members)) {
-          ws.members.forEach((m: any) => {
-            const mEmail = (m.email || '').toLowerCase().trim();
-            const mUid = m.uid;
-            const key = mUid || mEmail;
-            if (key && !memberMap.has(key)) {
-              memberMap.set(key, { uid: mUid, email: mEmail, name: m.name, role: m.role });
-            }
-          });
-        }
-
-        if (Array.isArray(ws.member_emails)) {
-          ws.member_emails.forEach((e: string) => {
-            const mEmail = (e || '').toLowerCase().trim();
-            if (mEmail && !memberMap.has(mEmail)) {
-              memberMap.set(mEmail, { email: mEmail, name: mEmail, role: 'Member' });
-            }
-          });
-        }
-
-        const isUserInWs =
-          memberMap.has(userUid) ||
-          (userEmail && memberMap.has(userEmail)) ||
-          ws.created_by === currentUser.full_name ||
-          ws.created_by === userEmail;
-
-        if (isUserInWs) {
-          const userWsRole = getUserWorkspaceRole(currentUser, ws.id, ws);
-          const isUserAdminInWs = userWsRole === 'Admin' || userWsRole === 'admin';
-
-          // Filter out currentUser from other members
-          const otherMembers = Array.from(memberMap.values()).filter((m) => {
-            if (m.uid && m.uid === userUid) return false;
-            if (m.email && m.email.toLowerCase().trim() === userEmail) return false;
-            return true;
-          });
-
-          if (!isUserAdminInWs) {
-            // Scenario 1: Non-Admin Member in ANY Workspace
-            nonAdminExits.push(ws);
-          } else if (otherMembers.length === 0) {
-            // Scenario 2: Admin in Single-Member Workspace (Sole Member)
-            soleAdminNukeIds.push(ws.id);
-          } else {
-            // Scenario 3: Admin in Multi-Member Workspace
-            adminMultiMemberList.push({
-              workspace: ws,
-              otherMembers
-            });
-          }
-        }
-      }
+      const { soleAdminNukeIds, adminMultiMemberList, nonAdminExits } =
+        await categorizeUserWorkspacesForDeletion(currentUser);
 
       setNonAdminExitWsList(nonAdminExits);
       setCategory1WsIds(soleAdminNukeIds);
@@ -165,7 +88,13 @@ export default function UserProfileModal({
         setShowDeleteConfirm(false);
         setIsDeletingAccount(false);
       } else {
-        await executeFinalCascadeDeleteAndScrub(soleAdminNukeIds, {}, adminMultiMemberList, nonAdminExits);
+        await executeFinalCascadeDeleteAndScrub(
+          currentUser,
+          soleAdminNukeIds,
+          {},
+          adminMultiMemberList,
+          nonAdminExits
+        );
       }
     } catch (err: any) {
       console.error('Failed to categorize workspaces for deletion:', err);
@@ -174,212 +103,20 @@ export default function UserProfileModal({
     }
   };
 
-  const executeFinalCascadeDeleteAndScrub = async (
-    cat1WsIds: string[],
-    resolutions: Record<string, HandoverResolution>,
-    cat2WsListOverride?: Category2WorkspaceInfo[],
-    nonAdminExitWsOverride?: Workspace[]
+  const handleConfirmHandoverAndDelete = async (
+    resolutions: Record<string, HandoverResolution>
   ) => {
     setIsDeletingAccount(true);
     setErrorMsg('');
 
     try {
-      const currentUserAuth = auth.currentUser;
-      const userEmail = (currentUser.email || currentUserAuth?.email || '').toLowerCase().trim();
-      const userUid = currentUser.uid || currentUserAuth?.uid;
-
-      let currentBatch = writeBatch(db);
-      let opCount = 0;
-
-      const safeAddBatchOp = async (type: 'delete' | 'update' | 'set', docRef: any, data?: any) => {
-        if (type === 'delete') currentBatch.delete(docRef);
-        else if (type === 'update') currentBatch.update(docRef, data);
-        else if (type === 'set') currentBatch.set(docRef, data);
-
-        opCount++;
-        if (opCount >= 380) {
-          await currentBatch.commit();
-          currentBatch = writeBatch(db);
-          opCount = 0;
-        }
-      };
-
-      // Scenario 1: Non-Admin Member Exits in ANY Workspace
-      const activeNonAdminExits = nonAdminExitWsOverride || nonAdminExitWsList;
-      for (const ws of activeNonAdminExits) {
-        const wsRef = doc(db, 'workspaces', ws.id);
-        let updatedMembers = Array.isArray(ws.members) ? [...ws.members] : [];
-        let updatedMemberEmails = Array.isArray(ws.member_emails) ? [...ws.member_emails] : [];
-
-        updatedMembers = updatedMembers.filter(
-          (m) => m.uid !== userUid && (!m.email || m.email.toLowerCase().trim() !== userEmail)
-        );
-        if (userEmail) {
-          updatedMemberEmails = updatedMemberEmails.filter(
-            (e) => typeof e === 'string' && e.toLowerCase().trim() !== userEmail
-          );
-        }
-
-        await safeAddBatchOp('update', wsRef, {
-          members: updatedMembers,
-          member_emails: updatedMemberEmails
-        });
-
-        if (userEmail) {
-          const wmSnap = await getDocs(
-            query(collection(db, 'workspace_members'), where('workspace_id', '==', ws.id), where('email', '==', userEmail))
-          );
-          wmSnap.forEach((d) => safeAddBatchOp('delete', d.ref));
-        }
-        if (userUid) {
-          const wmSnap = await getDocs(
-            query(collection(db, 'workspace_members'), where('workspace_id', '==', ws.id), where('user_id', '==', userUid))
-          );
-          wmSnap.forEach((d) => safeAddBatchOp('delete', d.ref));
-        }
-
-        if (userEmail) {
-          const spSnap = await getDocs(
-            query(collection(db, 'salespersons'), where('workspace_id', '==', ws.id), where('email', '==', userEmail))
-          );
-          spSnap.forEach((d) => safeAddBatchOp('delete', d.ref));
-        }
-        if (userUid) {
-          const spSnap = await getDocs(
-            query(collection(db, 'salespersons'), where('workspace_id', '==', ws.id), where('uid', '==', userUid))
-          );
-          spSnap.forEach((d) => safeAddBatchOp('delete', d.ref));
-        }
-      }
-
-      // Scenario 2: Admin in Single-Member Workspace (Sole Member Cascade Wipe)
-      // & Scenario 3 (Nuked Multi-Member Workspaces)
-      const activeCat2List = cat2WsListOverride || category2WsList;
-      const cat2NukeIds: string[] = [];
-      const cat2TransferEntries: Array<{ ws: Workspace; res: HandoverResolution }> = [];
-
-      activeCat2List.forEach((item) => {
-        const res = resolutions[item.workspace.id];
-        if (res) {
-          if (res.action === 'delete') {
-            cat2NukeIds.push(item.workspace.id);
-          } else if (res.action === 'transfer') {
-            cat2TransferEntries.push({ ws: item.workspace, res });
-          }
-        }
-      });
-
-      const allNukeWsIds = Array.from(new Set([...cat1WsIds, ...cat2NukeIds]));
-
-      // 1. Single-Member & Nuked Multi-Member Workspace Cascade Wipe
-      const targetCollections = [
-        'companies',
-        'contacts',
-        'enquiries',
-        'call_logs',
-        'products',
-        'salespersons',
-        'dropdown_configs',
-        'dropdown_enquiry_sources',
-        'workspace_members'
-      ];
-
-      for (const wsId of allNukeWsIds) {
-        await safeAddBatchOp('delete', doc(db, 'workspaces', wsId));
-
-        for (const colName of targetCollections) {
-          const snap1 = await getDocs(query(collection(db, colName), where('workspace_id', '==', wsId)));
-          snap1.forEach((d) => safeAddBatchOp('delete', d.ref));
-
-          const snap2 = await getDocs(query(collection(db, colName), where('workspaceId', '==', wsId)));
-          snap2.forEach((d) => safeAddBatchOp('delete', d.ref));
-        }
-      }
-
-      // 2. Transferred Workspaces
-      for (const { ws, res } of cat2TransferEntries) {
-        const targetOwner = res.newOwnerUidOrEmail || '';
-        const wsRef = doc(db, 'workspaces', ws.id);
-
-        let updatedMembers = Array.isArray(ws.members) ? [...ws.members] : [];
-        let updatedMemberEmails = Array.isArray(ws.member_emails) ? [...ws.member_emails] : [];
-
-        updatedMembers = updatedMembers.map((m) => {
-          if ((m.uid && m.uid === targetOwner) || (m.email && m.email.toLowerCase().trim() === targetOwner.toLowerCase().trim())) {
-            return { ...m, role: 'Admin' };
-          }
-          return m;
-        });
-
-        updatedMembers = updatedMembers.filter(
-          (m) => m.uid !== userUid && (!m.email || m.email.toLowerCase().trim() !== userEmail)
-        );
-        if (userEmail) {
-          updatedMemberEmails = updatedMemberEmails.filter(
-            (e) => typeof e === 'string' && e.toLowerCase().trim() !== userEmail
-          );
-        }
-
-        await safeAddBatchOp('update', wsRef, {
-          members: updatedMembers,
-          member_emails: updatedMemberEmails,
-          [`workspace_roles.${ws.id}`]: 'Admin'
-        });
-
-        if (targetOwner) {
-          const wmTargetSnap = await getDocs(
-            query(collection(db, 'workspace_members'), where('workspace_id', '==', ws.id))
-          );
-          wmTargetSnap.forEach((d) => {
-            const dData = d.data();
-            if (
-              dData.user_id === targetOwner ||
-              dData.uid === targetOwner ||
-              dData.email?.toLowerCase().trim() === targetOwner.toLowerCase().trim()
-            ) {
-              safeAddBatchOp('update', d.ref, { role: 'Admin', status: 'active' });
-            }
-            if (
-              dData.user_id === userUid ||
-              dData.uid === userUid ||
-              dData.email?.toLowerCase().trim() === userEmail
-            ) {
-              safeAddBatchOp('delete', d.ref);
-            }
-          });
-        }
-      }
-
-      // 3. Global Identity & Membership Scrub
-      if (userEmail) {
-        const wmSnap1 = await getDocs(query(collection(db, 'workspace_members'), where('email', '==', userEmail)));
-        wmSnap1.forEach((d) => safeAddBatchOp('delete', d.ref));
-
-        const spSnap1 = await getDocs(query(collection(db, 'salespersons'), where('email', '==', userEmail)));
-        spSnap1.forEach((d) => safeAddBatchOp('delete', d.ref));
-      }
-      if (userUid) {
-        const wmSnap2 = await getDocs(query(collection(db, 'workspace_members'), where('user_id', '==', userUid)));
-        wmSnap2.forEach((d) => safeAddBatchOp('delete', d.ref));
-
-        const spSnap2 = await getDocs(query(collection(db, 'salespersons'), where('uid', '==', userUid)));
-        spSnap2.forEach((d) => safeAddBatchOp('delete', d.ref));
-
-        await safeAddBatchOp('delete', doc(db, 'users', userUid));
-      }
-
-      if (opCount > 0) {
-        await currentBatch.commit();
-      }
-
-      if (currentUserAuth) {
-        await deleteUser(currentUserAuth);
-      }
-
-      localStorage.clear();
-      sessionStorage.clear();
-      await signOut(auth).catch(() => {});
-      window.location.href = '/';
+      await executeFinalCascadeDeleteAndScrub(
+        currentUser,
+        category1WsIds,
+        resolutions,
+        category2WsList,
+        nonAdminExitWsList
+      );
     } catch (err: any) {
       console.error('Failed to complete cascade deletion & scrub:', err);
       if (err.code === 'auth/requires-recent-login') {
@@ -738,7 +475,7 @@ export default function UserProfileModal({
         category2Workspaces={category2WsList}
         category1WorkspaceIds={category1WsIds}
         onConfirmHandoverAndDelete={async (resolutions) => {
-          await executeFinalCascadeDeleteAndScrub(category1WsIds, resolutions);
+          await handleConfirmHandoverAndDelete(resolutions);
         }}
       />
     </div>
