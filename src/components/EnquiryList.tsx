@@ -668,26 +668,26 @@ export default function EnquiryList({
                           className="rounded border-slate-200 text-slate-900 focus:ring-slate-900 cursor-pointer"
                         />
                       </td>
-                      <td className="py-4 px-6 font-mono text-xs text-slate-500 font-semibold">#{e.sn}</td>
-                      <td className="py-4 px-6 font-semibold text-slate-900 max-w-[200px] truncate">
+                      <td className="py-4 px-6 font-mono text-xs text-slate-500 dark:text-slate-400 font-semibold">#{e.sn}</td>
+                      <td className="py-4 px-6 font-semibold text-slate-900 dark:text-slate-100 max-w-[200px] truncate">
                         {companyName}
                       </td>
-                      <td className="py-4 px-6 font-mono text-xs text-slate-600">{e.quote_ref_no}</td>
-                      <td className="py-4 px-6 text-xs text-slate-500 font-semibold font-mono">
+                      <td className="py-4 px-6 font-mono text-xs text-slate-600 dark:text-slate-300">{e.quote_ref_no}</td>
+                      <td className="py-4 px-6 text-xs text-slate-500 dark:text-slate-400 font-semibold font-mono">
                         {(() => {
                           const sp = salespersons.find((s) => s.id === e.sales_person || s.initials === e.sales_person);
                           return sp ? (sp.initials || getInitials(sp.full_name)) : e.sales_person;
                         })()}
                       </td>
-                      <td className="py-4 px-6 font-mono text-xs text-slate-500">{e.enquiry_date}</td>
+                      <td className="py-4 px-6 font-mono text-xs text-slate-500 dark:text-slate-400">{e.enquiry_date}</td>
                       <td className="py-4 px-6 font-mono text-xs">
                         {isOverdue ? (
-                          <span className="text-rose-600 font-bold flex items-center space-x-1">
+                          <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center space-x-1">
                             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                             <span>{e.next_followup_date}</span>
                           </span>
                         ) : (
-                          <span className="text-slate-500">{e.next_followup_date || '—'}</span>
+                          <span className="text-slate-500 dark:text-slate-400">{e.next_followup_date || '—'}</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
@@ -695,21 +695,21 @@ export default function EnquiryList({
                           {e.status}
                         </span>
                       </td>
-                      <td className="py-4 px-6 font-mono text-xs text-slate-800 text-right font-bold">
+                      <td className="py-4 px-6 font-mono text-xs text-slate-800 dark:text-slate-200 text-right font-bold">
                         {formatEnquiryCurrency(e)}
                       </td>
                       <td className="py-4 px-6 text-center">
                         <div className="flex items-center justify-center space-x-2.5">
                           <button
                             onClick={() => e.id && onSelectEnquiry(e.id)}
-                            className="py-1 px-3 bg-slate-50 hover:bg-slate-900 border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-white rounded-lg text-xs font-semibold font-sans transition flex items-center shadow-sm"
+                            className="py-1 px-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-900 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 hover:border-slate-900 text-slate-700 dark:text-slate-200 hover:text-white rounded-lg text-xs font-semibold font-sans transition flex items-center shadow-sm"
                           >
                             Details
                           </button>
                           {isEditable && (
                             <button
                               onClick={() => onEditEnquiry(e)}
-                              className="py-1 px-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition"
+                              className="py-1 px-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition"
                             >
                               Edit
                             </button>
@@ -748,17 +748,17 @@ export default function EnquiryList({
           </div>
           {/* Pagination Controls */}
           {totalItems > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-200 gap-4">
-              <div className="text-xs font-mono text-slate-500">
-                Showing <span className="font-bold text-slate-950">{Math.min((currentPage - 1) * (itemsPerPage === 'All' ? totalItems : itemsPerPage) + 1, totalItems)}</span> to{' '}
-                <span className="font-bold text-slate-950">{Math.min(currentPage * (itemsPerPage === 'All' ? totalItems : itemsPerPage), totalItems)}</span> of{' '}
-                <span className="font-bold text-slate-950">{totalItems}</span> enquiries
+            <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 bg-slate-50 dark:bg-slate-950/50 border-t border-slate-200 dark:border-slate-800 gap-4">
+              <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                Showing <span className="font-bold text-slate-950 dark:text-slate-100">{Math.min((currentPage - 1) * (itemsPerPage === 'All' ? totalItems : itemsPerPage) + 1, totalItems)}</span> to{' '}
+                <span className="font-bold text-slate-950 dark:text-slate-100">{Math.min(currentPage * (itemsPerPage === 'All' ? totalItems : itemsPerPage), totalItems)}</span> of{' '}
+                <span className="font-bold text-slate-950 dark:text-slate-100">{totalItems}</span> enquiries
               </div>
               
               <div className="flex items-center space-x-4">
                 {/* Items per page Selector */}
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs text-slate-500 font-sans">Show:</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-sans">Show:</span>
                   <select
                     value={itemsPerPage}
                     onChange={(e) => {
@@ -766,7 +766,7 @@ export default function EnquiryList({
                       setItemsPerPage(val === 'All' ? 'All' : Number(val));
                       setCurrentPage(1);
                     }}
-                    className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
                   >
                     <option value={25}>25</option>
                     <option value={50}>50</option>
@@ -782,7 +782,7 @@ export default function EnquiryList({
                     <button
                       onClick={() => setCurrentPage(1)}
                       disabled={currentPage === 1}
-                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer"
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer"
                       title="First Page"
                     >
                       <ChevronsLeft className="w-4 h-4" />
@@ -790,21 +790,21 @@ export default function EnquiryList({
                     <button
                       onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
-                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer"
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer"
                       title="Previous Page"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
 
-                    <span className="text-xs font-mono px-3 text-slate-500">
-                      Page <span className="font-bold text-slate-950">{currentPage}</span> of{' '}
-                      <span className="font-bold text-slate-950">{totalPages}</span>
+                    <span className="text-xs font-mono px-3 text-slate-500 dark:text-slate-400">
+                      Page <span className="font-bold text-slate-950 dark:text-slate-100">{currentPage}</span> of{' '}
+                      <span className="font-bold text-slate-950 dark:text-slate-100">{totalPages}</span>
                     </span>
 
                     <button
                       onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                       disabled={currentPage === totalPages}
-                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer"
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer"
                       title="Next Page"
                     >
                       <ChevronRight className="w-4 h-4" />
@@ -812,7 +812,7 @@ export default function EnquiryList({
                     <button
                       onClick={() => setCurrentPage(totalPages)}
                       disabled={currentPage === totalPages}
-                      className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer"
+                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer"
                       title="Last Page"
                     >
                       <ChevronsRight className="w-4 h-4" />

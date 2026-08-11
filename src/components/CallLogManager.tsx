@@ -1234,12 +1234,12 @@ export default function CallLogManager({
 
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2 flex-wrap">
-                        <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-100 text-blue-700 border border-slate-200">
+                        <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-slate-700">
                           {getReferenceId('CL', item, callLogs)}
                         </span>
-                        <span className="font-black text-slate-900 text-base">{item.company_name}</span>
+                        <span className="font-black text-slate-900 dark:text-slate-100 text-base">{item.company_name}</span>
                         {item.contact_name && (
-                          <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
                             Attn: {item.contact_name}
                           </span>
                         )}
@@ -1286,7 +1286,7 @@ export default function CallLogManager({
                       </div>
 
                       {item.requirement_notes && (
-                        <p className="text-xs text-slate-600 line-clamp-2 pt-1 font-sans">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 pt-1 font-sans">
                           {item.requirement_notes}
                         </p>
                       )}
@@ -1529,11 +1529,11 @@ export default function CallLogManager({
                         </div>
                       </td>
                       <td className="p-3.5">
-                        <div className="font-bold text-slate-900">{log.date}</div>
-                        <div className="text-[10px] text-slate-600 font-medium">By: <span className="font-bold text-slate-900">{handledBy}</span></div>
+                        <div className="font-bold text-slate-900 dark:text-slate-100">{log.date}</div>
+                        <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">By: <span className="font-bold text-slate-900 dark:text-slate-200">{handledBy}</span></div>
                       </td>
                       <td className="p-3.5">
-                        <div className="font-bold text-slate-900 flex items-center space-x-1.5">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1547,7 +1547,7 @@ export default function CallLogManager({
                                 else triggerToast(`Company profile not found for ${log.company_name}`, 'info');
                               }
                             }}
-                            className="hover:text-blue-600 hover:underline text-left font-bold text-slate-900 flex items-center space-x-1"
+                            className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1"
                           >
                             <span>{log.company_name || '(Unassigned - Click Edit to Link)'}</span>
                             <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
@@ -1559,7 +1559,7 @@ export default function CallLogManager({
                           )}
                         </div>
                         {log.contact_name && (
-                          <div className="text-[11px] text-slate-600">Attn: {log.contact_name}</div>
+                          <div className="text-[11px] text-slate-600 dark:text-slate-400">Attn: {log.contact_name}</div>
                         )}
                         {log.geography && (
                           <div className="text-[10px] text-slate-400 font-medium">{log.geography}</div>

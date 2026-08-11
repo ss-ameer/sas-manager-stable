@@ -1,5 +1,36 @@
 # Development Ledger
 
+## Session: 2026-08-10 (Activity Log Remediation & 4-Point System Upgrade)
+
+### Goals
+- Fix Date Overwrite bug in `QuickActivityDrawer.tsx` by adding `activityDate` state and datetime-local picker.
+- Auto-pop Quick Activity Drawer on outbound contact actions in `Company360Modal.tsx` via `handleOutboundInteraction`.
+- Build high-contrast `CallLogDetailModal.tsx` for inspecting detailed activity logs.
+- Audit `EnquiryList.tsx`, `Company360Modal.tsx`, and `CallLogManager.tsx` list items and table cells for dark mode text contrast.
+- Add full `call_logs` export & import support in `SyncEngine.ts` (`exportWorkspaceData` & `importWorkspaceData`) and `WorkspaceManagerModal.tsx`.
+- Create per-workspace member check-in modal (`WorkspaceMemberCheckInModal.tsx`).
+- Create fresh account onboarding wizard (`FreshAccountOnboardingModal.tsx`) when 0 workspaces exist.
+- Bump version to `0.57.0` and verify zero errors with `tsc --noEmit` and `compile_applet`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/types.ts` | Added `channel`, `ai_summary`, and `whatsapp_draft` to `CallLogEntry`; defined `WorkspaceProfile` and added `workspace_profiles` to `UserProfile`. |
+| `/src/components/QuickActivityDrawer.tsx` | Added `activityDate` state and datetime-local picker; fixed payload assembly date field. |
+| `/src/components/Company360Modal.tsx` | Added `handleOutboundInteraction` helper to auto-pop activity drawer; applied dark mode contrast fixes. |
+| `/src/components/CallLogDetailModal.tsx` | Created modal for viewing detailed activity log entries. |
+| `/src/components/EnquiryList.tsx` | Applied dark mode contrast fixes to table cells and pagination. |
+| `/src/components/CallLogManager.tsx` | Applied dark mode contrast fixes to queue items and history table. |
+| `/src/services/SyncEngine.ts` | Added `exportWorkspaceData` and `importWorkspaceData` supporting `call_logs`. |
+| `/src/components/WorkspaceManagerModal.tsx` | Integrated workspace JSON import button and per-workspace export button. |
+| `/src/components/WorkspaceMemberCheckInModal.tsx` | Created modal prompting for Rep Initials, Job Title, and Direct Phone upon entering a workspace. |
+| `/src/components/FreshAccountOnboardingModal.tsx` | Created un-dismissable onboarding modal for 1-Click Quick Start vs. Custom Workspace setups when 0 workspaces exist. |
+| `/src/App.tsx` | Mounted `WorkspaceMemberCheckInModal` and `FreshAccountOnboardingModal`. |
+| `/package.json` | Bumped version to `0.57.0`. |
+| `/CHANGELOG.md` | Documented version `0.57.0` changes. |
+| `/development_ledger.md` | Updated session log and modifications table. |
+
 ## Session: 2026-08-10 (Step 3 Gap Remediation: Reassign Open Data Handover Workflow)
 
 ### Goals

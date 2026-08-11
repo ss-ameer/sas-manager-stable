@@ -3,6 +3,7 @@ import { Workspace, UserProfile, UserRole, WorkspaceMember } from '../types';
 import { X, Plus, Check, Building, Layers, Globe, Shield, Edit3, Trash2, Key, Download, AlertTriangle } from 'lucide-react';
 import { safeAddDoc, safeUpdateDoc, safeGetDocs, safeGetDoc, safeDeleteDoc, safeSetDoc, db } from '../firebase';
 import { where, writeBatch, doc } from 'firebase/firestore';
+import { exportWorkspaceData, importWorkspaceData } from '../services/SyncEngine';
 
 function downloadJsonFile(filename: string, data: any) {
   const jsonStr = JSON.stringify(data, null, 2);
@@ -80,6 +81,32 @@ export default function WorkspaceManagerModal({
   const [compiledBackupData, setCompiledBackupData] = useState<any | null>(null);
   const [showSecondaryPurgeCheck, setShowSecondaryPurgeCheck] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
+
+  const workspaceFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImportWorkspaceJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        const targetWsId = activeWorkspaceId || 'ws_default';
+
+        triggerToast('Restoring workspace data & call logs from backup...', 'info');
+        const result = await importWorkspaceData(targetWsId, parsed);
+        triggerToast(
+          `Workspace JSON imported! (${result.importedCounts.call_logs || 0} call logs & ${result.importedCounts.enquiries || 0} enquiries restored)`,
+          'success'
+        );
+      } catch (err: any) {
+        triggerToast(`Import failed: ${err.message}`, 'error');
+      }
+    };
+    reader.readAsText(file);
+    if (e.target) e.target.value = '';
+  };
 
   const fetchWorkspaceDataAndCounts = async (targetWs: Workspace) => {
     setDeleteLoading(true);
@@ -744,6 +771,21 @@ export default function WorkspaceManagerModal({
                   Your Workspaces ({workspaces.length})
                 </h3>
                 <div className="flex items-center space-x-2">
+                  <input
+                    type="file"
+                    ref={workspaceFileInputRef}
+                    onChange={handleImportWorkspaceJson}
+                    accept=".json"
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => workspaceFileInputRef.current?.click()}
+                    className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition"
+                    title="Import workspace JSON backup"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-600 rotate-180" />
+                    <span>Import JSON</span>
+                  </button>
                   <button
                     onClick={() => {
                       setIsJoining(true);
@@ -814,6 +856,24 @@ export default function WorkspaceManagerModal({
                         </div>
 
                         <div className="flex items-center space-x-2 ml-4">
+                          <button
+                            onClick={async () => {
+                              try {
+                                triggerToast(`Exporting data for ${wsName}...`, 'info');
+                                const exportData = await exportWorkspaceData(ws.id, ws.name);
+                                const sanitized = wsName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+                                const fileName = `workspace_export_${sanitized}_${new Date().toISOString().slice(0, 10)}.json`;
+                                downloadJsonFile(fileName, exportData);
+                                triggerToast(`Exported ${wsName} JSON backup with ${exportData.counts.call_logs || 0} call logs!`, 'success');
+                              } catch (err: any) {
+                                triggerToast(`Export failed: ${err.message}`, 'error');
+                              }
+                            }}
+                            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition"
+                            title="Export Workspace JSON Backup"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => startEdit(ws)}
                             className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition"

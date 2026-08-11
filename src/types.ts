@@ -1,5 +1,11 @@
 export type UserRole = 'Admin' | 'Member' | 'Viewer';
 
+export interface WorkspaceProfile {
+  initials: string;
+  job_title?: string;
+  phone?: string;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -8,6 +14,7 @@ export interface UserProfile {
   initials?: string;
   role: UserRole;
   workspace_roles?: Record<string, UserRole>;
+  workspace_profiles?: Record<string, WorkspaceProfile>;
   profileCompleted?: boolean;
   workspaceIds?: string[];
   defaultWorkspaceId?: string;
@@ -376,7 +383,10 @@ export interface CallLogEntry extends SoftDeleteFields {
   date: string; // ISO or YYYY-MM-DD
   status: CallStatus;
   outcome?: CallOutcome | string;
+  channel?: string;
   requirement_notes?: string;
+  ai_summary?: string;
+  whatsapp_draft?: string;
   next_followup_date?: string;
   company_id?: string;
   company_name?: string;

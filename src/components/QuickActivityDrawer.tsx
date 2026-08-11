@@ -141,6 +141,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [status, setStatus] = useState<CallStatus>(initialStatus || 'Completed');
   const [purpose, setPurpose] = useState<string>('Prospecting / Intro');
   const [notes, setNotes] = useState<string>('');
+  const [activityDate, setActivityDate] = useState<string>(() => new Date().toISOString().slice(0, 16));
   const [followupDate, setFollowupDate] = useState<string>('');
   const [isDnc, setIsDnc] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -166,6 +167,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
       setOutcome('Connected');
       setPurpose('Prospecting / Intro');
       setNotes('');
+      setActivityDate(new Date().toISOString().slice(0, 16));
       setFollowupDate('');
       setIsDnc(false);
       setActiveChipId(null);
@@ -488,6 +490,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setStatus('Completed');
     setPurpose('Prospecting / Intro');
     setNotes('');
+    setActivityDate(new Date().toISOString().slice(0, 16));
     setFollowupDate('');
     setIsDnc(false);
     setActiveChipId(null);
@@ -543,13 +546,18 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
       const userUid = currentUserUid || user?.uid || '';
       const userName = currentUserName || user?.full_name || user?.username || user?.email || currentUserInitials || 'System';
 
+      const activityIsoDate = activityDate ? new Date(activityDate).toISOString() : nowIso;
+      const followupIsoDate = followupDate ? new Date(followupDate).toISOString() : undefined;
+
       const payload: Omit<CallLogEntry, 'id'> = {
         workspace_id: activeWorkspaceId || 'ws_default',
-        date: nowIso,
+        date: activityIsoDate,
         status: status || 'Completed',
         outcome: outcome || channel,
+        channel: channel,
         requirement_notes: notes.trim(),
-        next_followup_date: followupDate || undefined,
+        whatsapp_draft: whatsappDraft ? whatsappDraft.trim() : undefined,
+        next_followup_date: followupIsoDate,
         company_id: selectedCompanyId || undefined,
         company_name: selectedCompanyName || undefined,
         contact_id: selectedContactId || undefined,
@@ -967,6 +975,20 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     <option value="General Inquiry">General Inquiry</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Date & Time of Activity */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
+                  <span>Date &amp; Time of Activity</span>
+                  <span className="text-[10px] text-slate-500 font-mono">Defaults to Now</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={activityDate}
+                  onChange={(e) => setActivityDate(e.target.value)}
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                />
               </div>
 
               {/* Notes with Speech Dictation Button & AI Assist Action Bar */}

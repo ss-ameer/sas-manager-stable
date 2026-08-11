@@ -21,6 +21,8 @@ import CallLogManager from './components/CallLogManager';
 import UserProfileModal from './components/UserProfileModal';
 import TrashBinModal from './components/TrashBinModal';
 import Company360Modal from './components/Company360Modal';
+import WorkspaceMemberCheckInModal from './components/WorkspaceMemberCheckInModal';
+import FreshAccountOnboardingModal from './components/FreshAccountOnboardingModal';
 import { QuickActivityDrawer } from './components/QuickActivityDrawer';
 import { EnquiryRepository } from './services/repositories/EnquiryRepository';
 import { CompanyRepository } from './services/repositories/CompanyRepository';
@@ -247,6 +249,7 @@ export default function App() {
   // Global toast notifications
   const [toast, setToast] = useState<{ id: string; message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [dismissedCheckInWsId, setDismissedCheckInWsId] = useState<string | null>(null);
 
   const triggerToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ id: Date.now().toString(), message, type });
@@ -1462,6 +1465,42 @@ export default function App() {
           triggerToast('Activity logged successfully!', 'success');
         }}
       />
+
+      {/* Fresh Account Onboarding Wizard */}
+      {user && (
+        <FreshAccountOnboardingModal
+          isOpen={workspaces.length === 0}
+          currentUser={user}
+          onWorkspaceCreated={(newWs) => {
+            setWorkspaces([newWs]);
+            setActiveWorkspaceId(newWs.id);
+          }}
+          triggerToast={triggerToast}
+        />
+      )}
+
+      {/* Per-Workspace Member Check-In Modal */}
+      {user && activeWorkspace && (
+        <WorkspaceMemberCheckInModal
+          isOpen={
+            Boolean(
+              workspaces.length > 0 &&
+              activeWorkspace?.id &&
+              !user.workspace_profiles?.[activeWorkspace.id] &&
+              dismissedCheckInWsId !== activeWorkspace.id
+            )
+          }
+          onClose={() => setDismissedCheckInWsId(activeWorkspace.id)}
+          currentUser={user}
+          activeWorkspace={activeWorkspace}
+          onProfileUpdated={(updated) => {
+            setUser(updated);
+            setLocalCache(`omni_user_${updated.uid}`, updated);
+            localStorage.setItem('omni_local_user', JSON.stringify(updated));
+          }}
+          triggerToast={triggerToast}
+        />
+      )}
     </div>
   );
 }

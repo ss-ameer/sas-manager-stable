@@ -1,4 +1,5 @@
-import { safeAddDoc, safeUpdateDoc, safeDeleteDoc, safeSetDoc } from '../firebase';
+import { safeAddDoc, safeUpdateDoc, safeDeleteDoc, safeSetDoc, safeGetDocs } from '../firebase';
+import { where } from 'firebase/firestore';
 import { enqueueLocalMutation, getPendingMutations, removeLocalMutation, MutationItem } from './db';
 
 type SyncListener = (status: {
@@ -150,3 +151,89 @@ class SyncEngine {
 }
 
 export const syncEngine = new SyncEngine();
+
+/**
+ * Fetch and compile full JSON export data for a workspace, including call_logs
+ */
+export async function exportWorkspaceData(wsId: string, wsName?: string): Promise<any> {
+  const collections = ['companies', 'contacts', 'enquiries', 'call_logs', 'products', 'salespersons'];
+  const recordsMap: Record<string, any[]> = {};
+  const counts: Record<string, number> = {};
+
+  for (const col of collections) {
+    const docMap = new Map<string, any>();
+    const snap1 = await safeGetDocs(col, where('workspace_id', '==', wsId));
+    const snap2 = await safeGetDocs(col, where('workspaceId', '==', wsId));
+
+    if (snap1 && !snap1.empty) {
+      for (const docSnap of snap1.docs) {
+        docMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+      }
+    }
+    if (snap2 && !snap2.empty) {
+      for (const docSnap of snap2.docs) {
+        if (!docMap.has(docSnap.id)) {
+          docMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+        }
+      }
+    }
+
+    const items = Array.from(docMap.values());
+    recordsMap[col] = items;
+    counts[col] = items.length;
+  }
+
+  return {
+    workspace_id: wsId,
+    workspace_name: wsName || wsId,
+    exported_at: new Date().toISOString(),
+    data: recordsMap,
+    counts
+  };
+}
+
+/**
+ * Import workspace data from a JSON object and write all records (including call_logs) to Firestore under targetWsId
+ */
+export async function importWorkspaceData(targetWsId: string, jsonPayload: any): Promise<{ success: boolean; importedCounts: Record<string, number> }> {
+  const importedCounts: Record<string, number> = {
+    companies: 0,
+    contacts: 0,
+    enquiries: 0,
+    call_logs: 0,
+    products: 0,
+    salespersons: 0
+  };
+
+  const dataMap = jsonPayload.data || jsonPayload;
+
+  const collections = [
+    { key: 'companies', altKey: 'companies', colName: 'companies' },
+    { key: 'contacts', altKey: 'contacts', colName: 'contacts' },
+    { key: 'enquiries', altKey: 'enquiries', colName: 'enquiries' },
+    { key: 'call_logs', altKey: 'callLogs', colName: 'call_logs' },
+    { key: 'products', altKey: 'products', colName: 'products' },
+    { key: 'salespersons', altKey: 'salespersons', colName: 'salespersons' }
+  ];
+
+  for (const col of collections) {
+    const rawItems = dataMap[col.key] || dataMap[col.altKey] || [];
+    if (Array.isArray(rawItems) && rawItems.length > 0) {
+      for (const rawItem of rawItems) {
+        const itemToSave = {
+          ...rawItem,
+          workspace_id: targetWsId,
+          workspaceId: targetWsId
+        };
+        if (itemToSave.id) {
+          await safeSetDoc(col.colName, itemToSave.id, itemToSave);
+        } else {
+          await safeAddDoc(col.colName, itemToSave);
+        }
+        importedCounts[col.key] = (importedCounts[col.key] || 0) + 1;
+      }
+    }
+  }
+
+  return { success: true, importedCounts };
+}

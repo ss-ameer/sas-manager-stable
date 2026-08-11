@@ -2,6 +2,24 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.57.0] - 2026-08-10
+
+### Added & Enhanced
+- **Activity Log System & UI/UX Audit Remediation (`QuickActivityDrawer.tsx`, `Company360Modal.tsx`, `CallLogDetailModal.tsx`)**:
+  - Fixed Date Overwrite bug by separating `activityDate` (datetime-local picker) from `next_followup_date`.
+  - Implemented `handleOutboundInteraction` helper on outbound contact action links in `Company360Modal.tsx` to automatically pop open the Quick Activity Drawer with pre-filled channel and contact details.
+  - Built high-contrast dark slate `CallLogDetailModal.tsx` for full activity log inspection.
+- **Dark Mode High-Contrast List & Table Cell Audit (`EnquiryList.tsx`, `Company360Modal.tsx`, `CallLogManager.tsx`)**:
+  - Audited list items, table text, and badges across views to ensure high-contrast legibility in dark slate mode (`text-slate-100`, `text-slate-200`, `text-slate-400`).
+- **Full Call Log JSON Backup Export & Import (`SyncEngine.ts`, `WorkspaceManagerModal.tsx`)**:
+  - Extended `exportWorkspaceData` and workspace export routines to query and bundle all `call_logs` Firestore records.
+  - Created `importWorkspaceData` to parse and restore `call_logs` attached to target workspace IDs upon JSON backup upload.
+  - Added "Import JSON" backup restore button and per-workspace "Export JSON" backup button in `WorkspaceManagerModal.tsx`.
+- **Per-Workspace Member Check-In Modal (`WorkspaceMemberCheckInModal.tsx`, `App.tsx`)**:
+  - Implemented workspace context check-in modal prompting users for Rep Initials, Job Title, and Direct Phone when entering a workspace without a workspace profile.
+- **Fresh Account Onboarding Wizard (`FreshAccountOnboardingModal.tsx`, `App.tsx`)**:
+  - Added un-dismissable onboarding modal when 0 workspaces exist, providing 1-Click Quick Start and Custom Workspace pathways.
+
 ## [0.56.0] - 2026-08-10
 
 ### Added & Enhanced

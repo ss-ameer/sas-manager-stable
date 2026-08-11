@@ -19,7 +19,8 @@ import {
   AlertTriangle,
   Clock,
   CheckCircle2,
-  Tag
+  Tag,
+  MessageSquare
 } from 'lucide-react';
 import { safeDeleteDoc } from '../firebase';
 import { recordAuditLog } from '../utils/auditLogger';
@@ -45,6 +46,7 @@ interface Company360ModalProps {
     companyName?: string;
     contactId?: string;
     enquiryId?: string;
+    channel?: any;
   }) => void;
 }
 
@@ -107,6 +109,27 @@ export default function Company360Modal({
   );
   const companyEnquiries = enquiries.filter((e) => e.company_id === company.id);
 
+  const handleOutboundInteraction = (
+    e: React.MouseEvent,
+    channel: 'Call' | 'WhatsApp' | 'Email',
+    contact: Contact | null,
+    externalUrl: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (externalUrl) {
+      window.open(externalUrl, '_blank');
+    }
+    if (onOpenActivityDrawer) {
+      onOpenActivityDrawer({
+        companyId: company.id,
+        companyName: company.display_name,
+        contactId: contact?.id,
+        channel
+      });
+    }
+  };
+
   const relationshipVal = company.relationship || 'Prospect';
   const temperatureVal = company.temperature || 'Cold';
 
@@ -123,7 +146,7 @@ export default function Company360Modal({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-hidden animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden my-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden my-auto">
         {/* Header */}
         <div className="p-6 bg-slate-900 text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
           <div className="flex items-start space-x-4">
@@ -175,7 +198,11 @@ export default function Company360Modal({
                 {compPhones.map((ph, idx) => (
                   <span key={idx} className="flex items-center space-x-1.5 font-mono">
                     <Phone className="w-3.5 h-3.5 text-blue-400" />
-                    <a href={`tel:${ph.number}`} className="hover:underline font-bold text-blue-300">
+                    <a
+                      href={`tel:${ph.number}`}
+                      onClick={(e) => handleOutboundInteraction(e, 'Call', null, `tel:${ph.number}`)}
+                      className="hover:underline font-bold text-blue-300 cursor-pointer"
+                    >
                       {ph.number}
                     </a>
                     <span className="text-[10px] bg-slate-800 px-1.5 py-0.2 rounded text-slate-400">
@@ -186,7 +213,11 @@ export default function Company360Modal({
                 {compEmails.map((em, idx) => (
                   <span key={idx} className="flex items-center space-x-1.5 font-sans">
                     <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    <a href={`mailto:${em.email}`} className="hover:underline text-slate-200">
+                    <a
+                      href={`mailto:${em.email}`}
+                      onClick={(e) => handleOutboundInteraction(e, 'Email', null, `mailto:${em.email}`)}
+                      className="hover:underline text-slate-200 cursor-pointer"
+                    >
                       {em.email}
                     </a>
                     <span className="text-[10px] bg-slate-800 px-1.5 py-0.2 rounded text-slate-400">
@@ -250,14 +281,14 @@ export default function Company360Modal({
         </div>
 
         {/* Action Toolbar */}
-        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setActiveSubTab('contacts')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
                 activeSubTab === 'contacts'
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700'
               }`}
             >
               <Users2 className="w-3.5 h-3.5" />
@@ -269,7 +300,7 @@ export default function Company360Modal({
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
                 activeSubTab === 'call_logs'
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700'
               }`}
             >
               <PhoneCall className="w-3.5 h-3.5" />
@@ -281,7 +312,7 @@ export default function Company360Modal({
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
                 activeSubTab === 'enquiries'
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700'
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
@@ -363,14 +394,14 @@ export default function Company360Modal({
                     return (
                       <div
                         key={contact.id}
-                        className="p-4 rounded-xl border border-slate-200 bg-white hover:border-blue-300 transition shadow-sm relative group space-y-2"
+                        className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 hover:border-blue-300 dark:hover:border-blue-500 transition shadow-sm relative group space-y-2"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <div className="font-bold text-slate-900 text-sm flex items-center space-x-1.5 flex-wrap gap-1">
+                            <div className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center space-x-1.5 flex-wrap gap-1">
                               <span>{contact.full_name}</span>
                               {contact.is_primary && (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
                                   Primary
                                 </span>
                               )}
@@ -410,24 +441,49 @@ export default function Company360Modal({
                         </div>
 
                         {/* Phone numbers list */}
-                        <div className="text-xs space-y-1 font-mono pt-1 border-t border-slate-100">
-                          {cPhones.map((p, pIdx) => (
-                            <div key={pIdx} className="flex items-center space-x-2 text-blue-700">
-                              <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                              <a href={`tel:${p.number}`} className="hover:underline font-bold">
-                                {p.number}
-                              </a>
-                              <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[9px] font-sans font-semibold border border-slate-200">
-                                {p.label}
-                              </span>
-                            </div>
-                          ))}
+                        <div className="text-xs space-y-1 pt-1 border-t border-slate-100">
+                          {cPhones.map((p, pIdx) => {
+                            const cleanPhone = p.number.replace(/[^0-9]/g, '');
+                            const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}` : '';
+                            return (
+                              <div key={pIdx} className="flex items-center justify-between text-blue-700 font-mono py-0.5">
+                                <div className="flex items-center space-x-2">
+                                  <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                  <a
+                                    href={`tel:${p.number}`}
+                                    onClick={(ev) => handleOutboundInteraction(ev, 'Call', contact, `tel:${p.number}`)}
+                                    className="hover:underline font-bold cursor-pointer"
+                                  >
+                                    {p.number}
+                                  </a>
+                                  <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[9px] font-sans font-semibold border border-slate-200">
+                                    {p.label}
+                                  </span>
+                                </div>
+                                {cleanPhone && (
+                                  <button
+                                    type="button"
+                                    onClick={(ev) => handleOutboundInteraction(ev, 'WhatsApp', contact, waUrl)}
+                                    className="px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer font-sans"
+                                    title="Send WhatsApp & Log Activity"
+                                  >
+                                    <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                    <span>WhatsApp</span>
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
 
                           {/* Emails list */}
                           {cEmails.map((e, eIdx) => (
-                            <div key={eIdx} className="flex items-center space-x-2 text-slate-600 font-sans truncate">
+                            <div key={eIdx} className="flex items-center space-x-2 text-slate-600 font-sans truncate py-0.5">
                               <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <a href={`mailto:${e.email}`} className="hover:underline truncate text-slate-800 font-medium">
+                              <a
+                                href={`mailto:${e.email}`}
+                                onClick={(ev) => handleOutboundInteraction(ev, 'Email', contact, `mailto:${e.email}`)}
+                                className="hover:underline truncate text-slate-800 font-medium cursor-pointer"
+                              >
                                 {e.email}
                               </a>
                               {e.label && (
