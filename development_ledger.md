@@ -28,6 +28,10 @@
 | `/src/components/CompanyModal.tsx` | Applied high-contrast styling (`text-slate-200 font-mono text-xs`) to phone/email and location cells. |
 | `/src/components/SalespersonProfiles.tsx` | Deduplicated team roster sidebar rendering by representative ID/email. |
 | `/src/components/CloudSyncHub.tsx` | Updated version badge pill to `v0.58.0`. |
+| `/src/components/UserProfileModal.tsx` | Added `handleDeleteAccount` deep email & UID scrub using Firestore writeBatch before auth user deletion. |
+| `/src/components/SettingsHub.tsx` | Updated account deletion handler with Firestore batch deletion for workspace_members, salespersons, and workspace rosters. |
+| `/src/components/FreshAccountOnboardingModal.tsx` | Added `member_emails` tracking when creating workspaces during onboarding. |
+| `/src/App.tsx` | Re-computed `userWorkspaces` filtering out orphaned workspaces and triggering `FreshAccountOnboardingModal` when `userWorkspaces.length === 0`. |
 | `/package.json` | Bumped version to `0.58.0`. |
 | `/CHANGELOG.md` | Documented version `0.58.0` release notes. |
 | `/development_ledger.md` | Updated development ledger session logs. |

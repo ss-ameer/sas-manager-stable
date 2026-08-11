@@ -14,10 +14,13 @@ All notable changes to the Enquiry Manager will be documented in this file.
   - Enhanced `importWorkspaceData` in `SyncEngine.ts` with `mode: 'merge' | 'replace'` and `onProgress` callback support.
   - Implemented pre-import batch-delete routine for `mode === 'replace'` that safely wipes all Firestore records for `targetWsId` across `companies`, `contacts`, `enquiries`, `call_logs`, `products`, and `salespersons` before writing incoming backup data.
   - Added segmented strategy control (Merge vs Wipe & Replace) and red warning confirmation modal in `WorkspaceManagerModal.tsx`.
-- **UI Contrast & Deduplication Diagnostic Remediation (`CompanyModal.tsx`, `SalespersonProfiles.tsx`, `CloudSyncHub.tsx`)**:
-  - Replaced low-contrast text in Companies table view (`CompanyModal.tsx`) with high-contrast `text-slate-200 font-mono text-xs` for contact channels and `text-slate-400 text-xs` for location labels.
-  - Deduplicated team roster list in `SalespersonProfiles.tsx` by ID/email to eliminate double-rendering of representatives in the workspace sidebar.
-  - Updated version badge in `CloudSyncHub.tsx` to `v0.58.0`.
+- **Deep Email & Membership Account Deletion Scrub (`UserProfileModal.tsx`, `UserManagementHub.tsx`, `SettingsHub.tsx`)**:
+  - Implemented transactional batch deletion routines in `UserProfileModal.tsx`, `UserManagementHub.tsx`, and `SettingsHub.tsx` during account termination.
+  - Queries and scrubs records from `workspace_members`, `salespersons`, and removes user email references from `workspaces.member_emails` and `workspaces.members` before deleting the user document from Firestore and Firebase Authentication.
+- **Onboarding Gate Enforcement & Clean Workspace Scoping (`App.tsx`, `FreshAccountOnboardingModal.tsx`)**:
+  - Re-computed `userWorkspaces` in `App.tsx` to strictly ignore orphaned/stale records.
+  - Enforced onboarding gate trigger (`userWorkspaces.length === 0`) to immediately invoke `FreshAccountOnboardingModal` for newly registered or re-created accounts.
+  - Added `member_emails` tracking on workspace creation to ensure multi-method account lookup consistency.
 
 ## [0.57.0] - 2026-08-10
 
