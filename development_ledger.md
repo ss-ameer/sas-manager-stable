@@ -1,5 +1,37 @@
 # Development Ledger
 
+## Session: 2026-08-10 (Per-Workspace Role & Permission Architecture & Import Wipe Upgrade)
+
+### Goals
+- Implement Per-Workspace Role & Permission Architecture in `src/types.ts` and `src/utils/permissions.ts`.
+- Refactor permission helper functions (`getUserWorkspaceRole`, `getUserRoleInWorkspace`, `isAdmin`, `isWorkspaceAdmin`, `canManageWorkspace`, `canDeleteRecords`) to accept `workspaceId` and evaluate `user.workspace_roles?.[workspaceId]` or `user.workspace_profiles?.[workspaceId]?.role` with global fallback.
+- Update `UserManagementHub.tsx` to save and display roles scoped to `activeWorkspace.id`.
+- Audit call sites in `WorkspaceManagerModal.tsx`, `SettingsHub.tsx`, `DropdownSettingsManager.tsx`, and `App.tsx` to pass `activeWorkspace?.id`.
+- Extend `SyncEngine.ts` `importWorkspaceData` with `mode: 'merge' | 'replace'` and pre-import batch wipe routine.
+- Add strategy toggle (Merge vs Wipe & Replace) and confirmation dialog in `WorkspaceManagerModal.tsx`.
+- Execute contrast fixes on Companies table in `CompanyModal.tsx` and team deduplication in `SalespersonProfiles.tsx`.
+- Update version badge in `CloudSyncHub.tsx` to `v0.58.0`.
+- Bump package version to `0.58.0` and verify zero errors with `npx tsc --noEmit` and `compile_applet`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/types.ts` | Extended `UserProfile` and `WorkspaceMember` with `workspace_roles?: Record<string, UserRole | string>`. |
+| `/src/utils/permissions.ts` | Refactored permission functions to evaluate `workspaceId` and added `getUserWorkspaceRole`, `canManageWorkspace`, `canDeleteRecords`. |
+| `/src/components/UserManagementHub.tsx` | Updated role assignment to write `workspace_roles.${activeWsId}` and display roles evaluated for `activeWsId`. |
+| `/src/services/SyncEngine.ts` | Implemented `mode: 'merge' | 'replace'` and pre-import batch-delete wipe routine in `importWorkspaceData`. |
+| `/src/components/WorkspaceManagerModal.tsx` | Added Import Strategy toggle (Merge vs Wipe & Replace), confirmation dialog, and JSON file picker. |
+| `/src/components/SettingsHub.tsx` | Passed `activeWorkspaceId` and `activeWorkspace` to `DropdownSettingsManager`. |
+| `/src/components/DropdownSettingsManager.tsx` | Updated `isAdmin` calculation to use `isWorkspaceAdmin(user, activeWorkspaceId, activeWorkspace)`. |
+| `/src/App.tsx` | Updated workspace and data visibility admin checks to pass `activeWorkspace?.id`. |
+| `/src/components/CompanyModal.tsx` | Applied high-contrast styling (`text-slate-200 font-mono text-xs`) to phone/email and location cells. |
+| `/src/components/SalespersonProfiles.tsx` | Deduplicated team roster sidebar rendering by representative ID/email. |
+| `/src/components/CloudSyncHub.tsx` | Updated version badge pill to `v0.58.0`. |
+| `/package.json` | Bumped version to `0.58.0`. |
+| `/CHANGELOG.md` | Documented version `0.58.0` release notes. |
+| `/development_ledger.md` | Updated development ledger session logs. |
+
 ## Session: 2026-08-10 (Activity Log Remediation & 4-Point System Upgrade)
 
 ### Goals

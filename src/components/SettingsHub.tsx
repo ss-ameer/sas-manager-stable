@@ -520,6 +520,8 @@ export default function SettingsHub({
             companies={companies}
             callLogs={callLogs}
             user={user}
+            activeWorkspaceId={activeWorkspace?.id}
+            activeWorkspace={activeWorkspace}
             setEnquirySources={setEnquirySources}
             setProductCategories={setProductCategories}
             setUnits={setUnits}

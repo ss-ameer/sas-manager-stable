@@ -33,6 +33,7 @@ import { BRAND_CONFIG } from './config';
 import { motion, AnimatePresence } from 'motion/react';
 import { seedStandardProductsIfNeeded, migrateExistingData, backfillMissingWorkspaceIds } from './utils/migration';
 import { recordAuditLog } from './utils/auditLogger';
+import { isAdmin } from './utils/permissions';
 import { SYSTEM_CALL_STATUSES, SYSTEM_CALL_OUTCOMES, SYSTEM_COMPANY_RELATIONSHIPS, SYSTEM_COMPANY_TEMPERATURES, SYSTEM_RELATIONSHIP_COLORS, SYSTEM_TEMPERATURE_COLORS, normalizeOptionName, healDropdownOptions, normalizeCompany, normalizeContact, normalizeEnquiry, normalizeCallLog } from './utils/defaults';
 import { deduplicateList } from './utils/deduplicator';
 
@@ -282,7 +283,7 @@ export default function App() {
   // Filter & deduplicate visible workspaces
   const visibleWorkspaces = useMemo(() => {
     let baseList = workspaces || [];
-    if (user && user.role !== 'Admin') {
+    if (user && !isAdmin(user)) {
       const allowedIds = user.workspaceIds && user.workspaceIds.length > 0 ? user.workspaceIds : ['ws_default'];
       baseList = baseList.filter((w) => allowedIds.includes(w.id));
     }
@@ -380,7 +381,7 @@ export default function App() {
   // Apply Role & Data Visibility Scope Filters (Admin sees everything; Non-Admin sees filtered if OWN_DATA_ONLY is active)
   const visibleEnquiries = useMemo(() => {
     const userScope = user?.dataVisibilityScope || dataVisibilityScope || 'ALL_DATA';
-    if (!user || user.role === 'Admin' || userScope !== 'OWN_DATA_ONLY') {
+    if (!user || isAdmin(user, activeWorkspace?.id, activeWorkspace) || userScope !== 'OWN_DATA_ONLY') {
       return workspaceEnquiries;
     }
     const userEmail = (user.email || '').toLowerCase().trim();
@@ -417,7 +418,7 @@ export default function App() {
 
   const visibleCallLogs = useMemo(() => {
     const userScope = user?.dataVisibilityScope || dataVisibilityScope || 'ALL_DATA';
-    if (!user || user.role === 'Admin' || userScope !== 'OWN_DATA_ONLY') {
+    if (!user || isAdmin(user, activeWorkspace?.id, activeWorkspace) || userScope !== 'OWN_DATA_ONLY') {
       return workspaceCallLogs;
     }
     const userEmail = (user.email || '').toLowerCase().trim();

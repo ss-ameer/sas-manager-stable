@@ -5,6 +5,7 @@ import { DropdownOption, Enquiry, Product, UserProfile, CallLogEntry, Company } 
 import { ShieldCheck, Plus, Trash2, Edit2, Check, X, AlertTriangle, Info } from 'lucide-react';
 import { CardPanel } from './layout/UiContainer';
 import { SYSTEM_CALL_STATUSES, SYSTEM_CALL_OUTCOMES, SYSTEM_COMPANY_RELATIONSHIPS, SYSTEM_COMPANY_TEMPERATURES, normalizeOptionName } from '../utils/defaults';
+import { isWorkspaceAdmin } from '../utils/permissions';
 
 interface DropdownSettingsProps {
   enquirySources: DropdownOption[];
@@ -19,6 +20,8 @@ interface DropdownSettingsProps {
   companies?: Company[];
   callLogs?: CallLogEntry[];
   user: UserProfile;
+  activeWorkspaceId?: string;
+  activeWorkspace?: any;
   setEnquirySources?: React.Dispatch<React.SetStateAction<DropdownOption[]>>;
   setProductCategories?: React.Dispatch<React.SetStateAction<DropdownOption[]>>;
   setUnits?: React.Dispatch<React.SetStateAction<DropdownOption[]>>;
@@ -45,6 +48,8 @@ export default function DropdownSettingsManager({
   companies = [],
   callLogs = [],
   user,
+  activeWorkspaceId,
+  activeWorkspace,
   setEnquirySources,
   setProductCategories,
   setUnits,
@@ -65,7 +70,7 @@ export default function DropdownSettingsManager({
   const [editingColor, setEditingColor] = useState('#64748b');
   const [submitting, setSubmitting] = useState(false);
 
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = isWorkspaceAdmin(user, activeWorkspaceId, activeWorkspace);
 
   const isSystemOption = (optionName: string, tab: 'sources' | 'categories' | 'units' | 'statuses' | 'outcomes' | 'relationships' | 'temperatures') => {
     const norm = normalizeOptionName(optionName);

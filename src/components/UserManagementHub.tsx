@@ -539,7 +539,8 @@ export default function UserManagementHub({
       (u.email && u.email.toLowerCase().includes(q)) ||
       (u.uid && u.uid.toLowerCase().includes(q));
 
-    const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
+    const evaluatedRole = getUserRoleInWorkspace(u, activeWsId, activeWorkspace);
+    const matchesRole = roleFilter === 'ALL' || evaluatedRole === roleFilter || u.role === roleFilter;
     const matchesStatus =
       statusFilter === 'ALL' ||
       (statusFilter === 'ACTIVE' && !u.blocked) ||
@@ -652,12 +653,13 @@ export default function UserManagementHub({
                   const isSelf = u?.uid === currentUser?.uid;
                   const displayName = u?.username || u?.full_name || (u?.email ? u.email.split('@')[0] : 'User');
                   const userInitials = (displayName || 'U').charAt(0).toUpperCase();
+                  const evaluatedRole = getUserRoleInWorkspace(u, activeWsId, activeWorkspace);
                   return (
                     <tr key={u?.uid || Math.random().toString()} className="hover:bg-slate-50/80 transition">
                       <td className="py-3.5 px-4">
                         <div className="flex items-center space-x-3">
                           <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs uppercase shrink-0 ${
-                            u?.role === 'Admin' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-700'
+                            evaluatedRole === 'Admin' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-700'
                           }`}>
                             {userInitials}
                           </div>
@@ -677,14 +679,14 @@ export default function UserManagementHub({
 
                       <td className="py-3.5 px-4 font-mono">
                         <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                          u.role === 'Admin'
+                          evaluatedRole === 'Admin'
                             ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : u.role === 'Member'
+                            : evaluatedRole === 'Member'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-slate-100 text-slate-600 border border-slate-200'
                         }`}>
                           <Shield className="w-3 h-3" />
-                          <span>{u.role}</span>
+                          <span>{evaluatedRole}</span>
                         </span>
                       </td>
 

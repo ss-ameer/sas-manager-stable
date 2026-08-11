@@ -1,16 +1,16 @@
 import { UserProfile, UserRole } from '../types';
 
-export function getUserRoleInWorkspace(
+export function getUserWorkspaceRole(
   user: UserProfile | undefined | null,
   workspaceId?: string | null,
   activeWorkspace?: any | null
-): UserRole {
+): UserRole | string {
   if (!user) return 'Member';
 
   const targetWsId = workspaceId || user.defaultWorkspaceId || 'ws_default';
 
   // 1. Global Admin ALWAYS retains Admin privileges
-  if (user.role === 'Admin') {
+  if (user.role === 'Admin' || user.role === 'admin') {
     return 'Admin';
   }
 
@@ -26,19 +26,42 @@ export function getUserRoleInWorkspace(
 
   // 3. Explicit workspace_roles mapping for joined workspaces
   if (user.workspace_roles && user.workspace_roles[targetWsId]) {
-    return user.workspace_roles[targetWsId];
+    const raw = user.workspace_roles[targetWsId];
+    if (raw === 'admin') return 'Admin';
+    if (raw === 'sales_rep') return 'Member';
+    if (raw === 'viewer') return 'Viewer';
+    return raw as UserRole;
   }
 
-  // 4. Default fallback
-  return user.role || 'Member';
+  // 4. Explicit workspace_profiles mapping
+  if (user.workspace_profiles && user.workspace_profiles[targetWsId]?.role) {
+    const raw = user.workspace_profiles[targetWsId].role;
+    if (raw === 'admin') return 'Admin';
+    if (raw === 'sales_rep') return 'Member';
+    if (raw === 'viewer') return 'Viewer';
+    return raw as UserRole;
+  }
+
+  // 5. Default fallback
+  if (user.role) {
+    if (user.role === 'admin') return 'Admin';
+    if (user.role === 'sales_rep') return 'Member';
+    if (user.role === 'viewer') return 'Viewer';
+    return user.role;
+  }
+
+  return 'Member';
 }
+
+export const getUserRoleInWorkspace = getUserWorkspaceRole;
 
 export function isAdmin(
   user: UserProfile | undefined | null, 
   workspaceId?: string | null,
   activeWorkspace?: any | null
 ): boolean {
-  return getUserRoleInWorkspace(user, workspaceId, activeWorkspace) === 'Admin';
+  const role = getUserWorkspaceRole(user, workspaceId, activeWorkspace);
+  return role === 'Admin' || role === 'admin';
 }
 
 export const isWorkspaceAdmin = (
@@ -48,6 +71,22 @@ export const isWorkspaceAdmin = (
 ): boolean => {
   return isAdmin(user, workspaceId, activeWorkspace);
 };
+
+export function canManageWorkspace(
+  user: UserProfile | undefined | null,
+  workspaceId?: string | null,
+  activeWorkspace?: any | null
+): boolean {
+  return isAdmin(user, workspaceId, activeWorkspace);
+}
+
+export function canDeleteRecords(
+  user: UserProfile | undefined | null,
+  workspaceId?: string | null,
+  activeWorkspace?: any | null
+): boolean {
+  return isAdmin(user, workspaceId, activeWorkspace);
+}
 
 export function isRecordOwner(
   user: UserProfile | undefined | null,

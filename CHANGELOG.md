@@ -2,6 +2,23 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.58.0] - 2026-08-10
+
+### Added & Enhanced
+- **Per-Workspace Role & Permission Architecture Scoping (`types.ts`, `permissions.ts`, `UserManagementHub.tsx`, `WorkspaceManagerModal.tsx`, `SettingsHub.tsx`, `DropdownSettingsManager.tsx`, `App.tsx`)**:
+  - Extended `UserProfile` and `WorkspaceMember` interfaces with `workspace_roles?: Record<string, 'admin' | 'sales_rep' | 'viewer' | string>` and workspace role mapping.
+  - Refactored `getUserWorkspaceRole`, `getUserRoleInWorkspace`, `isAdmin`, `isWorkspaceAdmin`, `canManageWorkspace`, and `canDeleteRecords` in `permissions.ts` to accept `workspaceId` and evaluate workspace-specific roles (`user.workspace_roles?.[workspaceId]` or `user.workspace_profiles?.[workspaceId]?.role`) with fallback to global role.
+  - Updated `UserManagementHub.tsx` role management to target `activeWorkspace.id` specifically when updating user roles, writing to `workspace_roles.${activeWsId}` and displaying workspace-evaluated roles in the team table.
+  - Audited call sites across `WorkspaceManagerModal.tsx`, `SettingsHub.tsx`, `DropdownSettingsManager.tsx`, and `App.tsx` to pass `activeWorkspace?.id` into permission evaluations.
+- **SyncEngine Import Strategy Toggle & Destructive Workspace Wipe (`SyncEngine.ts`, `WorkspaceManagerModal.tsx`)**:
+  - Enhanced `importWorkspaceData` in `SyncEngine.ts` with `mode: 'merge' | 'replace'` and `onProgress` callback support.
+  - Implemented pre-import batch-delete routine for `mode === 'replace'` that safely wipes all Firestore records for `targetWsId` across `companies`, `contacts`, `enquiries`, `call_logs`, `products`, and `salespersons` before writing incoming backup data.
+  - Added segmented strategy control (Merge vs Wipe & Replace) and red warning confirmation modal in `WorkspaceManagerModal.tsx`.
+- **UI Contrast & Deduplication Diagnostic Remediation (`CompanyModal.tsx`, `SalespersonProfiles.tsx`, `CloudSyncHub.tsx`)**:
+  - Replaced low-contrast text in Companies table view (`CompanyModal.tsx`) with high-contrast `text-slate-200 font-mono text-xs` for contact channels and `text-slate-400 text-xs` for location labels.
+  - Deduplicated team roster list in `SalespersonProfiles.tsx` by ID/email to eliminate double-rendering of representatives in the workspace sidebar.
+  - Updated version badge in `CloudSyncHub.tsx` to `v0.58.0`.
+
 ## [0.57.0] - 2026-08-10
 
 ### Added & Enhanced

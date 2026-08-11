@@ -1,9 +1,10 @@
-export type UserRole = 'Admin' | 'Member' | 'Viewer';
+export type UserRole = 'Admin' | 'Member' | 'Viewer' | 'admin' | 'sales_rep' | 'viewer';
 
 export interface WorkspaceProfile {
   initials: string;
   job_title?: string;
   phone?: string;
+  role?: UserRole | string;
 }
 
 export interface UserProfile {
@@ -12,8 +13,8 @@ export interface UserProfile {
   username: string;
   full_name?: string;
   initials?: string;
-  role: UserRole;
-  workspace_roles?: Record<string, UserRole>;
+  role?: UserRole | string;
+  workspace_roles?: Record<string, UserRole | string>;
   workspace_profiles?: Record<string, WorkspaceProfile>;
   profileCompleted?: boolean;
   workspaceIds?: string[];
@@ -25,12 +26,15 @@ export interface UserProfile {
   allowSalespersonSelection?: boolean;
 }
 
+export type User = UserProfile;
+
 export interface WorkspaceMember {
   uid: string;
   email: string;
   name?: string;
   full_name?: string;
-  role?: string;
+  role?: UserRole | string;
+  workspace_roles?: Record<string, UserRole | string>;
   joined_at?: string;
 }
 
