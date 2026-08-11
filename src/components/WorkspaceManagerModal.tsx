@@ -82,30 +82,48 @@ export default function WorkspaceManagerModal({
   const [showSecondaryPurgeCheck, setShowSecondaryPurgeCheck] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
+  // Workspace Backup Import State
+  const [isImportingJson, setIsImportingJson] = useState(false);
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  const [confirmWipeCheck, setConfirmWipeCheck] = useState(false);
+  const [selectedImportFile, setSelectedImportFile] = useState<File | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+
   const workspaceFileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleImportWorkspaceJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        const targetWsId = activeWorkspaceId || 'ws_default';
-
-        triggerToast('Restoring workspace data & activity logs from backup...', 'info');
-        const result = await importWorkspaceData(targetWsId, parsed);
-        triggerToast(
-          `Workspace JSON imported! (${result.importedCounts.call_logs || 0} activity logs & ${result.importedCounts.enquiries || 0} enquiries restored)`,
-          'success'
-        );
-      } catch (err: any) {
-        triggerToast(`Import failed: ${err.message}`, 'error');
-      }
-    };
-    reader.readAsText(file);
+    setSelectedImportFile(file);
+    setIsImportingJson(true);
     if (e.target) e.target.value = '';
+  };
+
+  const handleExecuteImport = async () => {
+    if (!selectedImportFile) return;
+    setIsRestoring(true);
+    try {
+      const fileText = await selectedImportFile.text();
+      const parsed = JSON.parse(fileText);
+      const targetWsId = activeWorkspaceId || 'ws_default';
+
+      await importWorkspaceData(
+        targetWsId,
+        parsed,
+        importMode,
+        (msg) => triggerToast(msg, 'info')
+      );
+
+      triggerToast('Workspace restored successfully!', 'success');
+      setIsImportingJson(false);
+      setSelectedImportFile(null);
+      setConfirmWipeCheck(false);
+      setImportMode('merge');
+    } catch (err: any) {
+      triggerToast(`Import failed: ${err.message}`, 'error');
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   const fetchWorkspaceDataAndCounts = async (targetWs: Workspace) => {
@@ -764,6 +782,195 @@ export default function WorkspaceManagerModal({
                 </button>
               </div>
             </form>
+          ) : isImportingJson ? (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Download className="w-4 h-4 text-emerald-600 rotate-180" />
+                    <span>Import Workspace JSON Backup</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Upload a JSON workspace backup to restore companies, contacts, enquiries, activity logs, and products.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsImportingJson(false);
+                    setSelectedImportFile(null);
+                    setConfirmWipeCheck(false);
+                    setImportMode('merge');
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-900 font-semibold"
+                >
+                  Cancel & Back
+                </button>
+              </div>
+
+              {/* Target Workspace Banner */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center">
+                    {(workspaces.find(w => w.id === activeWorkspaceId)?.name || 'WS').substring(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">
+                      Target Workspace: {workspaces.find(w => w.id === activeWorkspaceId)?.name || 'Active Workspace'}
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      ID: {activeWorkspaceId || 'ws_default'}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                  Active Workspace
+                </span>
+              </div>
+
+              {/* File Selection Box */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  1. Select Backup File (.json) *
+                </label>
+                <input
+                  type="file"
+                  ref={workspaceFileInputRef}
+                  onChange={handleImportWorkspaceJson}
+                  accept=".json"
+                  className="hidden"
+                />
+                <div
+                  onClick={() => workspaceFileInputRef.current?.click()}
+                  className={`p-4 rounded-xl border-2 border-dashed transition cursor-pointer flex flex-col items-center justify-center gap-1.5 text-center ${
+                    selectedImportFile
+                      ? 'bg-emerald-50/50 border-emerald-300 text-emerald-900'
+                      : 'bg-slate-50 border-slate-300 hover:border-blue-400 hover:bg-blue-50/30 text-slate-600'
+                  }`}
+                >
+                  <Download className={`w-6 h-6 ${selectedImportFile ? 'text-emerald-600 rotate-180' : 'text-slate-400'}`} />
+                  {selectedImportFile ? (
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 font-mono">{selectedImportFile.name}</p>
+                      <p className="text-[11px] text-emerald-700 font-medium">
+                        {(selectedImportFile.size / 1024).toFixed(1)} KB — Click to change file
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Click to choose workspace JSON backup</p>
+                      <p className="text-[11px] text-slate-500">Supports .json files exported from Enquiry Manager</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Import Strategy Segmented Mode Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  2. Select Import Strategy / Mode *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Option 1: Merge & Append */}
+                  <div
+                    onClick={() => {
+                      setImportMode('merge');
+                      setConfirmWipeCheck(false);
+                    }}
+                    className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                      importMode === 'merge'
+                        ? 'bg-emerald-50/60 border-emerald-500 ring-1 ring-emerald-500 shadow-sm'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="text-emerald-600 text-base">🟢</span> Merge & Append
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        Default
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      Retains existing data and merges backup. Matching document IDs will be updated and new records appended.
+                    </p>
+                  </div>
+
+                  {/* Option 2: Wipe & Replace */}
+                  <div
+                    onClick={() => setImportMode('replace')}
+                    className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                      importMode === 'replace'
+                        ? 'bg-rose-50/60 border-rose-500 ring-1 ring-rose-500 shadow-sm'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="text-rose-600 text-base">🔴</span> Wipe & Replace
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800">
+                        Destructive
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      Clears workspace data before restoring backup. Existing records in this workspace will be deleted first.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* High-Contrast Red Warning Box & Mandatory Confirmation Checkbox */}
+              {importMode === 'replace' && (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-3">
+                  <div className="flex items-start space-x-2.5 text-xs text-rose-900">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <p className="font-semibold leading-relaxed">
+                      ⚠️ Warning: Restoring in Wipe & Replace mode will permanently delete all existing companies, contacts, enquiries, activity logs, and products in this workspace before importing.
+                    </p>
+                  </div>
+
+                  <label className="flex items-center space-x-2.5 text-xs text-slate-900 font-bold cursor-pointer pt-2 border-t border-rose-200/80">
+                    <input
+                      type="checkbox"
+                      checked={confirmWipeCheck}
+                      onChange={(e) => setConfirmWipeCheck(e.target.checked)}
+                      className="w-4 h-4 text-rose-600 rounded border-rose-300 focus:ring-rose-500"
+                    />
+                    <span>I understand that all current workspace data will be erased.</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Footer Action Buttons */}
+              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsImportingJson(false);
+                    setSelectedImportFile(null);
+                    setConfirmWipeCheck(false);
+                    setImportMode('merge');
+                  }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedImportFile || isRestoring || (importMode === 'replace' && !confirmWipeCheck)}
+                  onClick={handleExecuteImport}
+                  className={`px-5 py-2.5 text-xs font-semibold rounded-xl shadow-sm transition flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    importMode === 'replace'
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  }`}
+                >
+                  <Download className="w-4 h-4 rotate-180" />
+                  <span>{isRestoring ? 'Restoring Workspace...' : 'Restore From Backup JSON'}</span>
+                </button>
+              </div>
+            </div>
           ) : !isCreating ? (
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -771,15 +978,12 @@ export default function WorkspaceManagerModal({
                   Your Workspaces ({workspaces.length})
                 </h3>
                 <div className="flex items-center space-x-2">
-                  <input
-                    type="file"
-                    ref={workspaceFileInputRef}
-                    onChange={handleImportWorkspaceJson}
-                    accept=".json"
-                    className="hidden"
-                  />
                   <button
-                    onClick={() => workspaceFileInputRef.current?.click()}
+                    onClick={() => {
+                      setIsImportingJson(true);
+                      setImportMode('merge');
+                      setConfirmWipeCheck(false);
+                    }}
                     className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition"
                     title="Import workspace JSON backup"
                   >

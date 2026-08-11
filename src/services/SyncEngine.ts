@@ -195,7 +195,12 @@ export async function exportWorkspaceData(wsId: string, wsName?: string): Promis
 /**
  * Import workspace data from a JSON object and write all records (including call_logs) to Firestore under targetWsId
  */
-export async function importWorkspaceData(targetWsId: string, jsonPayload: any): Promise<{ success: boolean; importedCounts: Record<string, number> }> {
+export async function importWorkspaceData(
+  targetWsId: string,
+  jsonPayload: any,
+  mode: 'merge' | 'replace' = 'merge',
+  onProgress?: (msg: string) => void
+): Promise<{ success: boolean; importedCounts: Record<string, number> }> {
   const importedCounts: Record<string, number> = {
     companies: 0,
     contacts: 0,
@@ -205,8 +210,6 @@ export async function importWorkspaceData(targetWsId: string, jsonPayload: any):
     salespersons: 0
   };
 
-  const dataMap = jsonPayload.data || jsonPayload;
-
   const collections = [
     { key: 'companies', altKey: 'companies', colName: 'companies' },
     { key: 'contacts', altKey: 'contacts', colName: 'contacts' },
@@ -215,6 +218,44 @@ export async function importWorkspaceData(targetWsId: string, jsonPayload: any):
     { key: 'products', altKey: 'products', colName: 'products' },
     { key: 'salespersons', altKey: 'salespersons', colName: 'salespersons' }
   ];
+
+  // If replace mode is requested, wipe all existing workspace records first
+  if (mode === 'replace') {
+    onProgress?.('Wiping existing workspace records...');
+    for (const col of collections) {
+      const docIdsToDelete = new Set<string>();
+      const snap1 = await safeGetDocs(col.colName, where('workspace_id', '==', targetWsId));
+      const snap2 = await safeGetDocs(col.colName, where('workspaceId', '==', targetWsId));
+
+      if (snap1 && !snap1.empty) {
+        for (const docSnap of snap1.docs) {
+          docIdsToDelete.add(docSnap.id);
+        }
+      }
+      if (snap2 && !snap2.empty) {
+        for (const docSnap of snap2.docs) {
+          docIdsToDelete.add(docSnap.id);
+        }
+      }
+
+      for (const id of docIdsToDelete) {
+        await safeDeleteDoc(col.colName, id);
+      }
+    }
+  }
+
+  const dataMap = jsonPayload.data || jsonPayload;
+
+  // Calculate total records to restore
+  let totalRecords = 0;
+  for (const col of collections) {
+    const rawItems = dataMap[col.key] || dataMap[col.altKey] || [];
+    if (Array.isArray(rawItems)) {
+      totalRecords += rawItems.length;
+    }
+  }
+
+  onProgress?.(`Restoring ${totalRecords} records...`);
 
   for (const col of collections) {
     const rawItems = dataMap[col.key] || dataMap[col.altKey] || [];
