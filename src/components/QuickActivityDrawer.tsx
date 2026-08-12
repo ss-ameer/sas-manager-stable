@@ -93,6 +93,14 @@ const PRESET_CHIPS: PresetChip[] = [
     followUpDays: 3
   },
   {
+    id: 'call_dropped',
+    label: 'Call Dropped',
+    channel: 'Call',
+    outcome: 'Call Dropped / Disconnected',
+    notes: 'Call dropped mid-conversation due to line instability.',
+    followUpDays: 1
+  },
+  {
     id: 'meeting_sched',
     label: 'Meeting Scheduled',
     channel: 'Meeting',
@@ -193,8 +201,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
           setLinkMode('crm');
           setUnlinkedName('');
           setUnlinkedContactInfo('');
-          setSelectedCompanyId(activeLog.company_id || companyId || '');
-          setSelectedCompanyName(activeLog.company_name || companyName || '');
+          const targetCompId = activeLog.company_id || companyId || '';
+          const matchedCompany = targetCompId && companies ? companies.find((c) => c.id === targetCompId) : null;
+          const resolvedCompName = matchedCompany
+            ? (matchedCompany.display_name || matchedCompany.canonical_name)
+            : (activeLog.company_name || companyName || '');
+          setSelectedCompanyId(targetCompId);
+          setSelectedCompanyName(resolvedCompName);
           setSelectedContactId(activeLog.contact_id || contactId || '');
           setSelectedContactName(activeLog.contact_name || contactName || '');
           setSelectedContactPhone(activeLog.contact_phone || contactPhone || '');
@@ -1169,6 +1182,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     { label: 'Awaiting Specs', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
                     { label: 'No Answer', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
                     { label: 'Busy', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
+                    { label: 'Call Dropped / Disconnected', color: 'bg-amber-500/10 text-amber-200 border-amber-500/30 hover:bg-amber-500/20' },
+                    { label: 'Cannot Be Reached / Unreachable', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
+                    { label: 'Dead / Invalid Number', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30' },
                     { label: 'Not Interested', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30' },
                     { label: 'DNC / Opt-Out', color: 'bg-rose-600/30 text-rose-200 border-rose-600/50 hover:bg-rose-600/40' }
                   ].map((item) => (
@@ -1179,6 +1195,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                         setOutcome(item.label);
                         if (item.label.includes('DNC')) setIsDnc(true);
                         if (item.label === 'No Answer' || item.label === 'Busy') setStatus(item.label as CallStatus);
+                        if (item.label.includes('Dead') || item.label.includes('Invalid')) setStatus('Invalid Number / Disconnected' as CallStatus);
                       }}
                       className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition cursor-pointer ${item.color} ${
                         outcome === item.label ? 'ring-2 ring-blue-500 scale-105 font-bold shadow-xs' : 'opacity-80'

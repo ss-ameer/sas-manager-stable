@@ -79,45 +79,88 @@ export class CompanyRepository {
     if (!companyId || !newCompanyName) return;
 
     try {
-      const storesToUpdate = ['activity_logs', 'call_logs'];
-      for (const storeName of storesToUpdate) {
-        const allLogs = await getFromLocalStore<any>(storeName);
-        if (!allLogs || !Array.isArray(allLogs) || allLogs.length === 0) continue;
+      const nowIso = new Date().toISOString();
 
-        let hasChanges = false;
-        const updatedLogs = allLogs.map((log) => {
-          if (log.company_id === companyId && log.company_name !== newCompanyName) {
-            hasChanges = true;
-            // CRITICAL: ONLY update company_name, NEVER overwrite log.phone or log.contact_phone
-            return {
-              ...log,
-              company_name: newCompanyName,
-              updatedAt: new Date().toISOString()
-            };
-          }
-          return log;
-        });
-
-        if (hasChanges) {
-          await saveToLocalStore(storeName, updatedLogs);
-
-          const affectedLogs = updatedLogs.filter(
-            (log) => log.company_id === companyId && log.company_name === newCompanyName
-          );
-
-          for (const log of affectedLogs) {
-            if (log.id) {
-              await syncEngine.enqueue(storeName as any, 'set', log.id, log);
-              try {
-                await safeUpdateDoc(storeName, log.id, {
+      // 1. Update localStorage cache 'omni_call_logs'
+      try {
+        const rawLocal = localStorage.getItem('omni_call_logs');
+        if (rawLocal) {
+          const parsed = JSON.parse(rawLocal);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            let changed = false;
+            const updatedCache = parsed.map((log: any) => {
+              if (log.company_id === companyId && log.company_name !== newCompanyName) {
+                changed = true;
+                return {
+                  ...log,
                   company_name: newCompanyName,
-                  updatedAt: new Date().toISOString()
-                });
-              } catch (e) {
-                // Ignore silent failure for individual docs if offline
+                  updatedAt: nowIso
+                };
               }
+              return log;
+            });
+            if (changed) {
+              localStorage.setItem('omni_call_logs', JSON.stringify(updatedCache));
             }
           }
+        }
+      } catch (e) {
+        console.warn('[CompanyRepository] Failed to update omni_call_logs in localStorage:', e);
+      }
+
+      // 2. Update IndexedDB stores ('activity_logs', 'call_logs')
+      const storesToUpdate = ['activity_logs', 'call_logs'];
+      for (const storeName of storesToUpdate) {
+        try {
+          const allLogs = await getFromLocalStore<any>(storeName);
+          if (allLogs && Array.isArray(allLogs) && allLogs.length > 0) {
+            let hasChanges = false;
+            const updatedLogs = allLogs.map((log) => {
+              if (log.company_id === companyId && log.company_name !== newCompanyName) {
+                hasChanges = true;
+                return {
+                  ...log,
+                  company_name: newCompanyName,
+                  updatedAt: nowIso
+                };
+              }
+              return log;
+            });
+
+            if (hasChanges) {
+              await saveToLocalStore(storeName, updatedLogs);
+            }
+          }
+        } catch (e) {
+          console.warn(`[CompanyRepository] Failed to update IndexedDB store ${storeName}:`, e);
+        }
+      }
+
+      // 3. Cascade update Firestore collections ('call_logs' and 'activity_logs') directly
+      for (const colName of storesToUpdate) {
+        try {
+          const snap = await safeGetDocs(colName);
+          if (snap && !snap.empty) {
+            const affectedDocs = snap.docs.filter((d) => {
+              const data = d.data();
+              return data.company_id === companyId && data.company_name !== newCompanyName;
+            });
+
+            for (const docSnap of affectedDocs) {
+              await syncEngine.enqueue(colName as any, 'update', docSnap.id, {
+                company_name: newCompanyName,
+                updatedAt: nowIso
+              });
+              try {
+                await safeUpdateDoc(colName, docSnap.id, {
+                  company_name: newCompanyName,
+                  updatedAt: nowIso
+                });
+              } catch (_) {}
+            }
+          }
+        } catch (e) {
+          console.warn(`[CompanyRepository] Firestore cascade update failed for collection ${colName}:`, e);
         }
       }
     } catch (e) {

@@ -14,6 +14,9 @@ export const SYSTEM_CALL_OUTCOMES = [
   'Reached – Wrong Person',
   'Interested – Follow-up Requested',
   'Forwarded',
+  'Call Dropped / Disconnected',
+  'Dead / Invalid Number',
+  'Cannot Be Reached / Unreachable',
   'Not Interested',
   'Already Has Provider / Solution',
   'Language Barrier',
@@ -35,6 +38,9 @@ export const SYSTEM_CALL_OUTCOME_DESCRIPTIONS: Record<string, string> = {
   'Reached – Wrong Person': 'Spoke with someone, but not the decision maker or concerned party',
   'Interested – Follow-up Requested': 'Positive interest; they want a later call or meeting',
   'Forwarded': 'Call, email, or message forwarded to another department or team member',
+  'Call Dropped / Disconnected': 'Call dropped mid-conversation or network line disconnected',
+  'Dead / Invalid Number': 'Phone number is dead, out of service, or invalid',
+  'Cannot Be Reached / Unreachable': 'Target contact or phone line cannot be reached',
   'Not Interested': 'Explicitly declined or showed no interest',
   'Already Has Provider / Solution': 'They already use a competitor or have an existing solution',
   'Language Barrier': 'Could not communicate effectively due to language',
@@ -365,9 +371,17 @@ export function normalizeEnquiry(raw: any, activeWsId?: string): Enquiry {
   };
 }
 
-export function normalizeCallLog(raw: any, activeWsId?: string): CallLogEntry {
+export function normalizeCallLog(raw: any, activeWsId?: string, companies?: Company[]): CallLogEntry {
   const now = new Date().toISOString();
   const wsId = raw?.workspace_id || raw?.workspaceId || activeWsId || 'ws_default';
+
+  let company_name = raw?.company_name;
+  if (raw?.company_id && companies && companies.length > 0) {
+    const matched = companies.find((c) => c.id === raw.company_id);
+    if (matched) {
+      company_name = matched.display_name || matched.canonical_name || company_name;
+    }
+  }
 
   // Dual-Key Salesperson: sales_person_id and sales_person initials fallback
   let sales_person_id = raw?.sales_person_id || raw?.handled_by_salesperson_id || raw?.salesperson_id || '';
@@ -383,6 +397,7 @@ export function normalizeCallLog(raw: any, activeWsId?: string): CallLogEntry {
 
   return {
     ...raw,
+    company_name,
     workspace_id: wsId,
     createdAt: raw?.createdAt || now,
     updatedAt: raw?.updatedAt || raw?.createdAt || now,

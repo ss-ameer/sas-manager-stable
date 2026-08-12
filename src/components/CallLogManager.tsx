@@ -434,17 +434,17 @@ export default function CallLogManager({
       );
     }
 
-    let color = 'bg-slate-100 text-slate-800 border-slate-300';
-    if (oc.includes('interested') || oc.includes('deal')) {
-      color = 'bg-emerald-50 text-emerald-800 border-emerald-300';
+    let color = 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+    if (oc.includes('interested') || oc.includes('deal') || oc.includes('won')) {
+      color = 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800';
     } else if (oc.includes('quote') || oc.includes('proposal')) {
-      color = 'bg-blue-50 text-blue-800 border-blue-300';
-    } else if (oc.includes('follow')) {
-      color = 'bg-amber-50 text-amber-800 border-amber-300';
-    } else if (oc.includes('dnc') || oc.includes('wrong')) {
-      color = 'bg-rose-50 text-rose-800 border-rose-300';
-    } else if (oc.includes('no answer') || oc.includes('voicemail')) {
-      color = 'bg-slate-100 text-slate-700 border-slate-300';
+      color = 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800';
+    } else if (oc.includes('follow') || oc.includes('callback') || oc.includes('dropped')) {
+      color = 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800';
+    } else if (oc.includes('dnc') || oc.includes('wrong') || oc.includes('dead') || oc.includes('invalid')) {
+      color = 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800';
+    } else if (oc.includes('no answer') || oc.includes('voicemail') || oc.includes('busy') || oc.includes('unreachable') || oc.includes('disconnected')) {
+      color = 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
     }
 
     return (
@@ -504,6 +504,15 @@ export default function CallLogManager({
     const comp = entry.company_id ? companyMap.get(entry.company_id) : null;
     const cont = entry.contact_id ? contactMap.get(entry.contact_id) : null;
     return Boolean(comp?.is_dnc || cont?.is_dnc);
+  };
+
+  // Helper to resolve company name from master record if available
+  const getResolvedCompanyName = (entry: Partial<CallLogEntry>): string => {
+    if (entry.company_id) {
+      const comp = companyMap.get(entry.company_id);
+      if (comp) return comp.display_name || comp.canonical_name || entry.company_name || 'Direct Client';
+    }
+    return entry.company_name || entry.unlinked_name || 'Direct Client';
   };
 
   // Date helper
@@ -568,7 +577,7 @@ export default function CallLogManager({
     setFastOutcome(entry?.outcome || 'Reached - Interested');
     setFastNextFollowup('');
     setFastNotes('');
-    setFastCompanyName(entry?.company_name || entry?.unlinked_name || '');
+    setFastCompanyName(entry ? getResolvedCompanyName(entry) : '');
     setFastContactName(entry?.contact_name || '');
     setFastContactPhone(entry?.contact_phone || entry?.unlinked_contact_info || '');
     setShowFastQueueDrawer(true);
@@ -1135,7 +1144,7 @@ export default function CallLogManager({
           contRefId.includes(q) ||
           enqRefId.includes(q) ||
           (l.id || '').toLowerCase().includes(q) ||
-          (l.company_name || '').toLowerCase().includes(q) ||
+          getResolvedCompanyName(l).toLowerCase().includes(q) ||
           (l.contact_name || '').toLowerCase().includes(q) ||
           (l.contact_phone || '').includes(q) ||
           (l.requirement_notes || '').toLowerCase().includes(q) ||
@@ -1300,7 +1309,7 @@ export default function CallLogManager({
                         <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-slate-700">
                           {getReferenceId('CL', item, callLogs)}
                         </span>
-                        <span className="font-black text-slate-900 dark:text-slate-100 text-base">{item.company_name}</span>
+                        <span className="font-black text-slate-900 dark:text-slate-100 text-base">{getResolvedCompanyName(item)}</span>
                         {item.contact_name && (
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
                             Attn: {item.contact_name}
@@ -1620,7 +1629,7 @@ export default function CallLogManager({
                               }}
                               className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1"
                             >
-                              <span>{log.company_name}</span>
+                              <span>{getResolvedCompanyName(log)}</span>
                               <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
                             </button>
                           ) : log.unlinked_name ? (
@@ -1929,6 +1938,9 @@ export default function CallLogManager({
                     { label: 'Awaiting Specs', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
                     { label: 'No Answer', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
                     { label: 'Busy', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
+                    { label: 'Call Dropped / Disconnected', color: 'bg-amber-500/10 text-amber-200 border-amber-500/30 hover:bg-amber-500/20' },
+                    { label: 'Cannot Be Reached / Unreachable', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
+                    { label: 'Dead / Invalid Number', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30' },
                     { label: 'Not Interested', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30' },
                     { label: 'DNC / Opt-Out', color: 'bg-rose-600/30 text-rose-200 border-rose-600/50 hover:bg-rose-600/40' }
                   ].map((item) => (

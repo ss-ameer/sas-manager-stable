@@ -169,15 +169,16 @@ export default function App() {
     return () => window.removeEventListener('open-super-admin-console', handleOpenSuperAdmin);
   }, []);
 
-  // Call Logs State
-  const [callLogs, setCallLogs] = useState<CallLogEntry[]>(() =>
-    getLocalCache<CallLogEntry[]>('omni_call_logs', []).map((l) => normalizeCallLog(l, activeWorkspaceId))
-  );
-
   // Firestore & Local Workspace Collections State
   const [companies, setCompanies] = useState<Company[]>(() =>
     getLocalCache<Company[]>('omni_companies', []).map((c) => normalizeCompany(c, activeWorkspaceId))
   );
+
+  // Call Logs State
+  const [callLogs, setCallLogs] = useState<CallLogEntry[]>(() => {
+    const cachedComp = getLocalCache<Company[]>('omni_companies', []);
+    return getLocalCache<CallLogEntry[]>('omni_call_logs', []).map((l) => normalizeCallLog(l, activeWorkspaceId, cachedComp));
+  });
   const [contacts, setContacts] = useState<Contact[]>(() =>
     getLocalCache<Contact[]>('omni_contacts', []).map((c) => normalizeContact(c, activeWorkspaceId))
   );
@@ -922,7 +923,8 @@ export default function App() {
     // Call Logs
     if (!refs.callLogs) {
       refs.callLogs = onSnapshot(collection(db, 'call_logs'), (snap) => {
-        const list = snap.docs.map((d) => normalizeCallLog({ id: d.id, ...d.data() }, activeWorkspaceId));
+        const cachedComp = getLocalCache<Company[]>('omni_companies', []);
+        const list = snap.docs.map((d) => normalizeCallLog({ id: d.id, ...d.data() }, activeWorkspaceId, cachedComp));
         setCallLogs((prev) => {
           const clean = deduplicateList(list, prev);
           setLocalCache('omni_call_logs', clean);
@@ -930,7 +932,8 @@ export default function App() {
         });
       }, (error) => {
         console.warn("Call logs listener error (Quota/Offline):", error);
-        setCallLogs(getLocalCache<CallLogEntry[]>('omni_call_logs', []).map((l) => normalizeCallLog(l, activeWorkspaceId)));
+        const cachedComp = getLocalCache<Company[]>('omni_companies', []);
+        setCallLogs(getLocalCache<CallLogEntry[]>('omni_call_logs', []).map((l) => normalizeCallLog(l, activeWorkspaceId, cachedComp)));
       });
     }
 

@@ -133,10 +133,7 @@ export default function Dashboard({
       const isClosed = ['Completed', 'Cancelled', 'Closed', 'Closed - Deal Made'].includes(l.status);
       if (isClosed) return;
 
-      let compName = l.company_name;
-      if (!compName && l.company_id) {
-        compName = companyMap.get(l.company_id);
-      }
+      let compName = l.company_id ? (companyMap.get(l.company_id) || l.company_name) : l.company_name;
 
       let contName = l.contact_name;
       if (!contName && l.contact_id && contacts) {

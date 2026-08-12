@@ -165,10 +165,12 @@ export default function CallLogDetailModal({
       colorClass = 'bg-emerald-950/60 text-emerald-300 border-emerald-800/80';
     } else if (oc.includes('quote') || oc.includes('proposal')) {
       colorClass = 'bg-blue-950/60 text-blue-300 border-blue-800/80';
-    } else if (oc.includes('follow')) {
+    } else if (oc.includes('follow') || oc.includes('dropped')) {
       colorClass = 'bg-amber-950/60 text-amber-300 border-amber-800/80';
-    } else if (oc.includes('dnc') || oc.includes('wrong') || oc.includes('busy')) {
+    } else if (oc.includes('dnc') || oc.includes('wrong') || oc.includes('dead') || oc.includes('invalid')) {
       colorClass = 'bg-rose-950/60 text-rose-300 border-rose-800/80';
+    } else if (oc.includes('no answer') || oc.includes('busy') || oc.includes('unreachable') || oc.includes('disconnected')) {
+      colorClass = 'bg-slate-800 text-slate-300 border-slate-700';
     }
 
     return (
@@ -283,7 +285,9 @@ export default function CallLogDetailModal({
               </div>
 
               <div className="font-bold text-slate-100 text-sm">
-                {entry.company_name ? (
+                {linkedCompany ? (
+                  linkedCompany.display_name || linkedCompany.canonical_name
+                ) : entry.company_name ? (
                   entry.company_name
                 ) : entry.unlinked_name ? (
                   <span className="text-amber-300 font-bold">{entry.unlinked_name} <span className="text-xs font-normal text-amber-400/80">(Unsaved Lead)</span></span>
