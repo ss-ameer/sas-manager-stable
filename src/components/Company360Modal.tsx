@@ -118,12 +118,11 @@ export default function Company360Modal({
     e: React.MouseEvent,
     channel: 'Call' | 'WhatsApp' | 'Email',
     contact: Contact | null,
-    externalUrl: string
+    externalUrl?: string
   ) => {
-    e.preventDefault();
     e.stopPropagation();
     if (externalUrl) {
-      window.open(externalUrl, '_blank');
+      window.open(externalUrl, '_blank', 'noopener,noreferrer');
     }
     if (onOpenActivityDrawer) {
       onOpenActivityDrawer({
@@ -207,7 +206,9 @@ export default function Company360Modal({
                       <Phone className="w-3.5 h-3.5 text-blue-400" />
                       <a
                         href={`tel:${phoneVal}`}
-                        onClick={(e) => handleOutboundInteraction(e, 'Call', null, `tel:${phoneVal}`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => handleOutboundInteraction(e, 'Call', null)}
                         className="hover:underline font-bold text-blue-300 cursor-pointer"
                       >
                         {phoneVal}
@@ -225,7 +226,9 @@ export default function Company360Modal({
                       <Mail className="w-3.5 h-3.5 text-slate-400" />
                       <a
                         href={`mailto:${emailVal}`}
-                        onClick={(e) => handleOutboundInteraction(e, 'Email', null, `mailto:${emailVal}`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => handleOutboundInteraction(e, 'Email', null)}
                         className="hover:underline text-slate-200 cursor-pointer"
                       >
                         {emailVal}
@@ -463,7 +466,9 @@ export default function Company360Modal({
                                   <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                                   <a
                                     href={`tel:${phoneVal}`}
-                                    onClick={(ev) => handleOutboundInteraction(ev, 'Call', contact, `tel:${phoneVal}`)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(ev) => handleOutboundInteraction(ev, 'Call', contact)}
                                     className="hover:underline font-bold cursor-pointer"
                                   >
                                     {phoneVal}
@@ -495,7 +500,9 @@ export default function Company360Modal({
                                 <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 <a
                                   href={`mailto:${emailVal}`}
-                                  onClick={(ev) => handleOutboundInteraction(ev, 'Email', contact, `mailto:${emailVal}`)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(ev) => handleOutboundInteraction(ev, 'Email', contact)}
                                   className="hover:underline truncate text-slate-800 dark:text-slate-200 font-medium cursor-pointer"
                                 >
                                   {emailVal}

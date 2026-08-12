@@ -1,5 +1,27 @@
 # Development Ledger
 
+## Session: 2026-08-12 (Universal Communication Link New-Tab & Event Protection)
+
+### Goals
+- Comprehensive codebase audit of all communication protocols (`tel:`, `mailto:`, `https://wa.me/`).
+- Enforce universal `target="_blank"`, `rel="noopener noreferrer"`, and `onClick={(e) => e.stopPropagation()}` on every communication anchor tag.
+- Prevent workspace tab redirection and stop event propagation so link clicks do not trigger underlying table row or modal selection handlers.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CompanyModal.tsx` | Enforced `target="_blank"` and `rel="noopener noreferrer"` across all 9 company phone/email links. |
+| `/src/components/CallLogDetailModal.tsx` | Added `target="_blank"` and `rel="noopener noreferrer"` to phone and email action links. |
+| `/src/components/CallLogManager.tsx` | Updated 5 phone/email links with `target="_blank"`, `rel="noopener noreferrer"`, and `onClick={(e) => e.stopPropagation()}`. |
+| `/src/components/Company360Modal.tsx` | Updated 4 phone/email links with `target="_blank"` and `rel="noopener noreferrer"`, and updated `handleOutboundInteraction` to prevent duplicate tab spawning. |
+| `/src/components/ContactDetailModal.tsx` | Added `target="_blank"` and `rel="noopener noreferrer"` to WhatsApp, Email, and Call action buttons. |
+| `/src/components/Dashboard.tsx` | Added `target="_blank"`, `rel="noopener noreferrer"`, and `onClick={(e) => e.stopPropagation()}` to Call and WhatsApp action buttons. |
+| `/src/components/QuickActivityDrawer.tsx` | Updated WhatsApp draft `window.open` call with `'noopener,noreferrer'`. |
+| `/package.json` | Bumped version to `0.63.3`. |
+| `/CHANGELOG.md` | Logged 0.63.3 release notes. |
+| `/development_ledger.md` | Added session record. |
+
 ## Session: 2026-08-12 (Companies Contrast, Capitalization Preservation, Phone/Email Categorization, Name Cascade Sync & Ghost Log Guardrails)
 
 ### Goals

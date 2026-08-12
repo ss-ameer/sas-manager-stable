@@ -1671,6 +1671,8 @@ export default function CompanyModal({
                         <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                         <a
                           href={`tel:${ph.number}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="font-mono text-blue-700 hover:underline font-bold"
                         >
@@ -1694,6 +1696,8 @@ export default function CompanyModal({
                         <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <a
                           href={`mailto:${em.email}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="font-mono text-slate-800 hover:underline"
                         >
@@ -1818,6 +1822,8 @@ export default function CompanyModal({
                               <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                               <a
                                 href={`tel:${ph.number}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
                                 className="font-mono text-blue-700 hover:underline font-semibold"
                               >
@@ -1833,6 +1839,8 @@ export default function CompanyModal({
                               <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               <a
                                 href={`mailto:${em.email}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
                                 className="truncate text-slate-800 hover:underline"
                               >
@@ -2231,6 +2239,8 @@ export default function CompanyModal({
                         <PhoneCall className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         <a
                           href={`tel:${ct.mobile}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="hover:underline font-bold text-blue-600"
                         >{ct.mobile}</a>
@@ -2241,6 +2251,8 @@ export default function CompanyModal({
                         <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         <a
                           href={`mailto:${ct.email}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="hover:underline text-slate-700 truncate"
                         >{ct.email}</a>
@@ -2336,6 +2348,8 @@ export default function CompanyModal({
                       {ct.mobile ? (
                         <a
                           href={`tel:${ct.mobile}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="font-mono text-blue-600 font-bold hover:underline flex items-center space-x-1"
                         >
@@ -2357,6 +2371,8 @@ export default function CompanyModal({
                       {ct.email ? (
                         <a
                           href={`mailto:${ct.email}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-slate-700 hover:text-blue-600 hover:underline"
                         >
@@ -2492,6 +2508,8 @@ export default function CompanyModal({
                     <td className="p-3.5 text-right">
                       <a
                         href={`tel:${p.number}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center space-x-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition shadow-sm"
                       >

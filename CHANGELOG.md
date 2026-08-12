@@ -2,6 +2,14 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.63.3] - 2026-08-12
+
+### Fixed & Enhanced
+- **Universal Communication Link New-Tab & Event Protection (`src/components/*`)**:
+  - Audited and updated all communication links across `CompanyModal.tsx`, `CallLogDetailModal.tsx`, `CallLogManager.tsx`, `Company360Modal.tsx`, `ContactDetailModal.tsx`, `Dashboard.tsx`, and `QuickActivityDrawer.tsx`.
+  - Enforced `target="_blank"`, `rel="noopener noreferrer"`, and `onClick={(e) => e.stopPropagation()}` on every `tel:`, `mailto:`, and `https://wa.me/` anchor tag.
+  - Ensured phone numbers launch device dialers, email addresses trigger mail clients, and WhatsApp links open WhatsApp Web/App in a dedicated browser tab without disrupting CRM navigation or triggering row/card select events.
+
 ## [0.63.2] - 2026-08-12
 
 ### Fixed & Enhanced

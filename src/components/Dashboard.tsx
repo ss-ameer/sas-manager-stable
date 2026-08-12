@@ -644,6 +644,9 @@ export default function Dashboard({
                     {item.phone ? (
                       <a
                         href={`tel:${item.phone}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
                         className="flex-1 py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold flex items-center justify-center space-x-1 transition shadow-2xs cursor-pointer"
                         title={`Call ${item.phone}`}
                       >
@@ -676,6 +679,7 @@ export default function Dashboard({
                         href={`https://wa.me/${item.phone.replace(/[^0-9]/g, '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
                         className="flex-1 py-1.5 px-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-800 rounded-lg text-xs font-bold flex items-center justify-center space-x-1 transition shadow-2xs cursor-pointer"
                         title={`WhatsApp ${item.phone}`}
                       >

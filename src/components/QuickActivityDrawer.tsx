@@ -515,7 +515,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     const targetPhone = (selectedContactPhone || '').replace(/[^0-9]/g, '');
     const encodedText = encodeURIComponent(whatsappDraft);
     const targetUrl = targetPhone ? `https://wa.me/${targetPhone}?text=${encodedText}` : `https://wa.me/?text=${encodedText}`;
-    window.open(targetUrl, '_blank');
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
   const toggleListening = () => {

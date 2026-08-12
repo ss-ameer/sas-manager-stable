@@ -1323,6 +1323,9 @@ export default function CallLogManager({
                         {item.contact_phone ? (
                           <a
                             href={`tel:${item.contact_phone}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center space-x-1.5 text-xs font-mono font-bold text-blue-700 hover:underline bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200"
                           >
                             <PhoneCall className="w-3.5 h-3.5 text-blue-600" />
@@ -1363,6 +1366,9 @@ export default function CallLogManager({
                         {item.contact_phone && (
                           <a
                             href={`tel:${item.contact_phone}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="p-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition flex items-center justify-center"
                             title="Call Now (Tap to Call)"
                           >
@@ -1645,11 +1651,23 @@ export default function CallLogManager({
                         {log.interaction_type === 'email' ? (
                           <div className="space-y-0.5 font-mono text-[11px]">
                             {log.email_address ? (
-                              <a href={`mailto:${log.email_address}`} className="text-purple-700 dark:text-purple-400 font-bold hover:underline block truncate max-w-[140px]">
+                              <a
+                                href={`mailto:${log.email_address}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-purple-700 dark:text-purple-400 font-bold hover:underline block truncate max-w-[140px]"
+                              >
                                 {log.email_address}
                               </a>
                             ) : log.unlinked_contact_info?.includes('@') ? (
-                              <a href={`mailto:${log.unlinked_contact_info}`} className="text-purple-700 dark:text-purple-400 font-bold hover:underline block truncate max-w-[140px]">
+                              <a
+                                href={`mailto:${log.unlinked_contact_info}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-purple-700 dark:text-purple-400 font-bold hover:underline block truncate max-w-[140px]"
+                              >
                                 {log.unlinked_contact_info}
                               </a>
                             ) : (
@@ -1666,6 +1684,9 @@ export default function CallLogManager({
                         ) : (log.contact_phone || log.unlinked_contact_info) ? (
                           <a
                             href={`tel:${log.contact_phone || log.unlinked_contact_info}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="font-mono text-blue-600 dark:text-blue-400 font-bold hover:underline"
                           >
                             {log.contact_phone || log.unlinked_contact_info}

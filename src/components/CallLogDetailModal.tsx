@@ -356,6 +356,8 @@ export default function CallLogDetailModal({
                           ) : (
                             <a
                               href={`tel:${phoneVal}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
                               className="hover:underline"
                             >
@@ -375,6 +377,8 @@ export default function CallLogDetailModal({
                           ) : (
                             <a
                               href={`mailto:${emailVal}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
                               className="hover:underline truncate"
                             >
