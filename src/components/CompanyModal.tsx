@@ -82,6 +82,25 @@ interface CompanyModalProps {
   }) => void;
 }
 
+function formatHistoryDate(dateStr?: string): string {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }) + ' - ' + d.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (e) {
+    return dateStr;
+  }
+}
+
 export default function CompanyModal({
   companies,
   contacts,
@@ -2664,6 +2683,34 @@ export default function CompanyModal({
                   </div>
                 </div>
 
+                <datalist id="company-phone-label-suggestions">
+                  <option value="Main" />
+                  <option value="Reception" />
+                  <option value="Engineering Dept" />
+                  <option value="Sales Desk" />
+                  <option value="Direct Line" />
+                  <option value="Mobile" />
+                  <option value="Landline" />
+                  <option value="Support" />
+                  <option value="Billing" />
+                  <option value="WhatsApp" />
+                  <option value="Fax" />
+                  <option value="HQ Switchboard" />
+                  <option value="After Hours" />
+                </datalist>
+
+                <datalist id="company-email-label-suggestions">
+                  <option value="Main" />
+                  <option value="Inquiries" />
+                  <option value="Sales" />
+                  <option value="Support" />
+                  <option value="Engineering" />
+                  <option value="Billing" />
+                  <option value="Finance" />
+                  <option value="Work" />
+                  <option value="Info" />
+                </datalist>
+
                 <div className="space-y-3 pt-2 border-t border-slate-800">
                   <div className="flex items-center justify-between">
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest">
@@ -2680,18 +2727,17 @@ export default function CompanyModal({
                   </div>
                   {companyPhones.map((ph, idx) => (
                     <div key={ph.id || idx} className="flex items-center space-x-2">
-                      <select
+                      <input
+                        type="text"
+                        list="company-phone-label-suggestions"
+                        placeholder="Label..."
                         value={ph.label}
                         onChange={(e) => {
                           const val = e.target.value;
                           setCompanyPhones(prev => prev.map((item, i) => i === idx ? { ...item, label: val } : item));
                         }}
-                        className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
-                      >
-                        {['Main', 'Mobile', 'Landline', 'Support', 'Billing', 'Direct Line', 'WhatsApp', 'Fax', 'Other'].map(lbl => (
-                          <option key={lbl} value={lbl}>{lbl}</option>
-                        ))}
-                      </select>
+                        className="w-36 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
+                      />
                       <input
                         type="text"
                         placeholder="Phone number..."
@@ -2732,18 +2778,17 @@ export default function CompanyModal({
                   </div>
                   {companyEmails.map((em, idx) => (
                     <div key={em.id || idx} className="flex items-center space-x-2">
-                      <select
+                      <input
+                        type="text"
+                        list="company-email-label-suggestions"
+                        placeholder="Label..."
                         value={em.label}
                         onChange={(e) => {
                           const val = e.target.value;
                           setCompanyEmails(prev => prev.map((item, i) => i === idx ? { ...item, label: val } : item));
                         }}
-                        className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
-                      >
-                        {['Main', 'Support', 'Billing', 'Work', 'Personal', 'Info', 'Sales', 'Inquiries', 'Other'].map(lbl => (
-                          <option key={lbl} value={lbl}>{lbl}</option>
-                        ))}
-                      </select>
+                        className="w-36 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
+                      />
                       <input
                         type="email"
                         placeholder="Email address..."

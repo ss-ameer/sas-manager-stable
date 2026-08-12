@@ -226,6 +226,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [selectedContactId, setSelectedContactId] = useState<string>(contactId || '');
   const [selectedContactName, setSelectedContactName] = useState<string>(contactName || '');
   const [selectedContactPhone, setSelectedContactPhone] = useState<string>(contactPhone || '');
+  const [selectedContactEmail, setSelectedContactEmail] = useState<string>('');
   const [selectedEnquiryId, setSelectedEnquiryId] = useState<string>(enquiryId || '');
   const [selectedEnquiryQuoteRef, setSelectedEnquiryQuoteRef] = useState<string>('');
   const [companySearchQuery, setCompanySearchQuery] = useState<string>('');
@@ -511,6 +512,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setSelectedContactId('');
     setSelectedContactName('');
     setSelectedContactPhone('');
+    setSelectedContactEmail('');
     setSelectedEnquiryId('');
     setSelectedEnquiryQuoteRef('');
   };
@@ -527,9 +529,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
       setSelectedContactName(found.full_name || '');
       const phones = getContactPhones(found);
       setSelectedContactPhone(found.mobile || found.landline || phones[0]?.number || '');
+      setSelectedContactEmail(found.email || '');
     } else {
       setSelectedContactName('');
       setSelectedContactPhone('');
+      setSelectedContactEmail('');
     }
   };
 
@@ -796,6 +800,73 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         resolvedContactId = selectedContactId || undefined;
         resolvedContactName = selectedContactName || undefined;
         resolvedContactPhone = selectedContactPhone || undefined;
+
+        // Auto-append new contact/phone/email to master company if provided
+        if (selectedCompanyId) {
+          let targetComp = companies.find((c) => c.id === selectedCompanyId);
+          if (targetComp) {
+            let compUpdated = false;
+            let updatedComp = { ...targetComp };
+
+            // 1. Append phone if new
+            if (selectedContactPhone && selectedContactPhone.trim()) {
+              const phoneTrim = selectedContactPhone.trim();
+              const existingPhones = getCompanyPhones(targetComp);
+              if (!existingPhones.some((p) => isSamePhoneNumber(p.number || p.value, phoneTrim))) {
+                const newPhoneObj = { id: `phone_${Date.now()}`, label: 'Direct Line', number: phoneTrim };
+                updatedComp.phones = [...(updatedComp.phones || []), newPhoneObj];
+                compUpdated = true;
+              }
+            }
+
+            // 2. Append email if new
+            if (selectedContactEmail && selectedContactEmail.trim()) {
+              const emailTrim = selectedContactEmail.trim().toLowerCase();
+              const existingEmails = getCompanyEmails(targetComp);
+              if (!existingEmails.some((e) => (e.email || e.value || '').toLowerCase() === emailTrim)) {
+                const newEmailObj = { id: `email_${Date.now()}`, label: 'Direct', email: selectedContactEmail.trim() };
+                updatedComp.emails = [...(updatedComp.emails || []), newEmailObj];
+                compUpdated = true;
+              }
+            }
+
+            if (compUpdated) {
+              updatedComp.updatedAt = nowIso;
+              await safeSetDoc('companies', selectedCompanyId, updatedComp);
+              await CompanyRepository.saveCompany(updatedComp);
+            }
+
+            // 3. Append contact person if new
+            if (selectedContactName && selectedContactName.trim()) {
+              const contactTrim = selectedContactName.trim();
+              const existingContact = (contacts || []).find(
+                (ct) => ct.company_id === selectedCompanyId && (ct.full_name || '').toLowerCase() === contactTrim.toLowerCase()
+              );
+
+              if (!existingContact) {
+                const newContactId = `cont_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                const newContact: Contact = {
+                  id: newContactId,
+                  company_id: selectedCompanyId,
+                  company_name: selectedCompanyName || targetComp.display_name || targetComp.canonical_name,
+                  workspace_id: activeWorkspaceId,
+                  full_name: contactTrim,
+                  mobile: selectedContactPhone ? selectedContactPhone.trim() : '',
+                  email: selectedContactEmail ? selectedContactEmail.trim() : '',
+                  is_primary: false,
+                  createdAt: nowIso,
+                  updatedAt: nowIso
+                };
+
+                await safeSetDoc('contacts', newContactId, newContact);
+                await ContactRepository.saveContact(newContact);
+                resolvedContactId = newContactId;
+              } else if (!resolvedContactId) {
+                resolvedContactId = existingContact.id;
+              }
+            }
+          }
+        }
       } else {
         const compName = expressCompanyName.trim();
         const validCompPhones = expressCompanyPhones.filter((p) => p.number.trim() !== '');
@@ -1245,48 +1316,90 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   </div>
                 )}
 
-                {/* Contact & Phone Selector (Auto-Populated) */}
+                {/* Contact, Phone & Email Creatable Hybrid Inputs */}
                 {selectedCompanyId && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                        Contact Representative
+                        Contact Person
                       </label>
-                      {availableCompanyContacts.length > 0 ? (
-                        <select
-                          value={selectedContactId}
-                          onChange={(e) => handleSelectContact(e.target.value)}
-                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                        >
-                          <option value="">-- Select Contact --</option>
-                          {availableCompanyContacts.map((c, idx) => (
-                            <option key={c.id ? `${c.id}_${idx}` : `cnt_${idx}`} value={c.id}>
-                              {c.full_name} {c.is_primary ? '(Primary)' : ''} {c.designation ? `- ${c.designation}` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          value={selectedContactName}
-                          onChange={(e) => setSelectedContactName(e.target.value)}
-                          placeholder="Contact Name..."
-                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                        />
-                      )}
+                      <input
+                        type="text"
+                        list="crm-contact-suggestions"
+                        value={selectedContactName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedContactName(val);
+                          const matched = availableCompanyContacts.find((c) => (c.full_name || '').toLowerCase() === val.toLowerCase());
+                          if (matched) {
+                            setSelectedContactId(matched.id);
+                            const phones = getContactPhones(matched);
+                            if (matched.mobile || matched.landline || phones[0]?.number) {
+                              setSelectedContactPhone(matched.mobile || matched.landline || phones[0]?.number || '');
+                            }
+                            if (matched.email) setSelectedContactEmail(matched.email);
+                          }
+                        }}
+                        placeholder="Type or select Contact Person..."
+                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                      />
+                      <datalist id="crm-contact-suggestions">
+                        {availableCompanyContacts.map((c, idx) => (
+                          <option key={c.id ? `${c.id}_${idx}` : `cnt_${idx}`} value={c.full_name}>
+                            {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}
+                          </option>
+                        ))}
+                      </datalist>
                     </div>
 
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                        Phone / Mobile
+                        Phone Number
                       </label>
                       <input
                         type="text"
+                        list="crm-phone-suggestions"
                         value={selectedContactPhone}
                         onChange={(e) => setSelectedContactPhone(e.target.value)}
-                        placeholder="+971..."
+                        placeholder="Type or select Phone..."
                         className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
                       />
+                      <datalist id="crm-phone-suggestions">
+                        {(() => {
+                          const selComp = companies.find((c) => c.id === selectedCompanyId);
+                          const phones = selComp ? getCompanyPhones(selComp) : [];
+                          return phones.map((p, idx) => (
+                            <option key={`p_${idx}`} value={p.number}>
+                              {p.number} {p.label ? `(${p.label})` : ''}
+                            </option>
+                          ));
+                        })()}
+                      </datalist>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        list="crm-email-suggestions"
+                        value={selectedContactEmail}
+                        onChange={(e) => setSelectedContactEmail(e.target.value)}
+                        placeholder="Type or select Email..."
+                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                      />
+                      <datalist id="crm-email-suggestions">
+                        {(() => {
+                          const selComp = companies.find((c) => c.id === selectedCompanyId);
+                          const emails = selComp ? getCompanyEmails(selComp) : [];
+                          return emails.map((e, idx) => (
+                            <option key={`e_${idx}`} value={e.email}>
+                              {e.email} {e.label ? `(${e.label})` : ''}
+                            </option>
+                          ));
+                        })()}
+                      </datalist>
                     </div>
                   </div>
                 )}
