@@ -202,21 +202,23 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [unlinkedContactInfo, setUnlinkedContactInfo] = useState<string>('');
 
   // Dual-Level Express Lead Form State
+  const makeExpressId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
   const [expressCompanyName, setExpressCompanyName] = useState<string>('');
-  const [expressCompanyPhones, setExpressCompanyPhones] = useState<ExpressPhoneItem[]>([
-    { id: 'ecp_1', label: 'Main', number: '' }
+  const [expressCompanyPhones, setExpressCompanyPhones] = useState<ExpressPhoneItem[]>(() => [
+    { id: makeExpressId('ecp'), label: 'Main', number: '' }
   ]);
-  const [expressCompanyEmails, setExpressCompanyEmails] = useState<ExpressEmailItem[]>([
-    { id: 'ece_1', label: 'Main', email: '' }
+  const [expressCompanyEmails, setExpressCompanyEmails] = useState<ExpressEmailItem[]>(() => [
+    { id: makeExpressId('ece'), label: 'Main', email: '' }
   ]);
 
   const [expressContactName, setExpressContactName] = useState<string>('');
   const [expressContactRole, setExpressContactRole] = useState<string>('');
-  const [expressContactPhones, setExpressContactPhones] = useState<ExpressPhoneItem[]>([
-    { id: 'ctp_1', label: 'Direct Line', number: '' }
+  const [expressContactPhones, setExpressContactPhones] = useState<ExpressPhoneItem[]>(() => [
+    { id: makeExpressId('ctp'), label: 'Direct Line', number: '' }
   ]);
-  const [expressContactEmails, setExpressContactEmails] = useState<ExpressEmailItem[]>([
-    { id: 'cte_1', label: 'Direct', email: '' }
+  const [expressContactEmails, setExpressContactEmails] = useState<ExpressEmailItem[]>(() => [
+    { id: makeExpressId('cte'), label: 'Direct', email: '' }
   ]);
 
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companyId || '');
@@ -316,16 +318,16 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
           setExpressCompanyName(activeLog.unlinked_name || '');
           const info = activeLog.unlinked_contact_info || '';
           if (info.includes('@')) {
-            setExpressCompanyEmails([{ id: 'ece_1', label: 'Main', email: info }]);
-            setExpressCompanyPhones([{ id: 'ecp_1', label: 'Main', number: '' }]);
+            setExpressCompanyEmails([{ id: makeExpressId('ece'), label: 'Main', email: info }]);
+            setExpressCompanyPhones([{ id: makeExpressId('ecp'), label: 'Main', number: '' }]);
           } else {
-            setExpressCompanyPhones([{ id: 'ecp_1', label: 'Main', number: info }]);
-            setExpressCompanyEmails([{ id: 'ece_1', label: 'Main', email: '' }]);
+            setExpressCompanyPhones([{ id: makeExpressId('ecp'), label: 'Main', number: info }]);
+            setExpressCompanyEmails([{ id: makeExpressId('ece'), label: 'Main', email: '' }]);
           }
           setExpressContactName('');
           setExpressContactRole('');
-          setExpressContactPhones([{ id: 'ctp_1', label: 'Direct Line', number: '' }]);
-          setExpressContactEmails([{ id: 'cte_1', label: 'Direct', email: '' }]);
+          setExpressContactPhones([{ id: makeExpressId('ctp'), label: 'Direct Line', number: '' }]);
+          setExpressContactEmails([{ id: makeExpressId('cte'), label: 'Direct', email: '' }]);
 
           setSelectedCompanyId('');
           setSelectedCompanyName('');
@@ -379,12 +381,12 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         setUnlinkedContactInfo('');
 
         setExpressCompanyName('');
-        setExpressCompanyPhones([{ id: 'ecp_1', label: 'Main', number: '' }]);
-        setExpressCompanyEmails([{ id: 'ece_1', label: 'Main', email: '' }]);
+        setExpressCompanyPhones([{ id: makeExpressId('ecp'), label: 'Main', number: '' }]);
+        setExpressCompanyEmails([{ id: makeExpressId('ece'), label: 'Main', email: '' }]);
         setExpressContactName('');
         setExpressContactRole('');
-        setExpressContactPhones([{ id: 'ctp_1', label: 'Direct Line', number: '' }]);
-        setExpressContactEmails([{ id: 'cte_1', label: 'Direct', email: '' }]);
+        setExpressContactPhones([{ id: makeExpressId('ctp'), label: 'Direct Line', number: '' }]);
+        setExpressContactEmails([{ id: makeExpressId('cte'), label: 'Direct', email: '' }]);
 
         setChannel(initialChannel || 'Call');
         setStatus(initialStatus || 'Completed');
@@ -682,12 +684,12 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setUnlinkedContactInfo('');
 
     setExpressCompanyName('');
-    setExpressCompanyPhones([{ id: 'ecp_1', label: 'Main', number: '' }]);
-    setExpressCompanyEmails([{ id: 'ece_1', label: 'Main', email: '' }]);
+    setExpressCompanyPhones([{ id: makeExpressId('ecp'), label: 'Main', number: '' }]);
+    setExpressCompanyEmails([{ id: makeExpressId('ece'), label: 'Main', email: '' }]);
     setExpressContactName('');
     setExpressContactRole('');
-    setExpressContactPhones([{ id: 'ctp_1', label: 'Direct Line', number: '' }]);
-    setExpressContactEmails([{ id: 'cte_1', label: 'Direct', email: '' }]);
+    setExpressContactPhones([{ id: makeExpressId('ctp'), label: 'Direct Line', number: '' }]);
+    setExpressContactEmails([{ id: makeExpressId('cte'), label: 'Direct', email: '' }]);
 
     setChannel('Call');
     setOutcome('Connected');
@@ -1208,9 +1210,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                         {isComboboxOpen && (
                           <div className="absolute z-30 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-xl p-1 space-y-0.5">
                             {filteredCompanies.length > 0 ? (
-                              filteredCompanies.map((c) => (
+                              filteredCompanies.map((c, idx) => (
                                 <button
-                                  key={c.id}
+                                  key={c.id ? `${c.id}_${idx}` : `comp_${idx}`}
                                   type="button"
                                   onClick={() => handleSelectCompany(c)}
                                   className="w-full text-left p-2 rounded-lg hover:bg-blue-600/20 hover:border-blue-500/30 border border-transparent transition-colors flex items-center justify-between cursor-pointer"
@@ -1257,8 +1259,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                           className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="">-- Select Contact --</option>
-                          {availableCompanyContacts.map((c) => (
-                            <option key={c.id} value={c.id}>
+                          {availableCompanyContacts.map((c, idx) => (
+                            <option key={c.id ? `${c.id}_${idx}` : `cnt_${idx}`} value={c.id}>
                               {c.full_name} {c.is_primary ? '(Primary)' : ''} {c.designation ? `- ${c.designation}` : ''}
                             </option>
                           ))}
@@ -1301,8 +1303,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                     >
                       <option value="">-- No Specific Proposal Link --</option>
-                      {availableCompanyEnquiries.map((e) => (
-                        <option key={e.id} value={e.id}>
+                      {availableCompanyEnquiries.map((e, idx) => (
+                        <option key={e.id ? `${e.id}_${idx}` : `enq_${idx}`} value={e.id}>
                           {e.quote_ref_no || `Enquiry #${e.sn}`} ({e.status}) {e.value_aed ? `- AED ${e.value_aed.toLocaleString()}` : ''}
                         </option>
                       ))}
@@ -1366,8 +1368,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     <label className="block text-xs font-medium text-slate-300">
                       Company Phone Numbers
                     </label>
-                    {expressCompanyPhones.map((phoneItem) => (
-                      <div key={phoneItem.id} className="flex items-center gap-1.5">
+                    {expressCompanyPhones.map((phoneItem, idx) => (
+                      <div key={phoneItem.id ? `${phoneItem.id}_${idx}` : `ecp_${idx}`} className="flex items-center gap-1.5">
                         <input
                           type="text"
                           list="express-phone-tags"
@@ -1423,8 +1425,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     <label className="block text-xs font-medium text-slate-300">
                       Company Emails
                     </label>
-                    {expressCompanyEmails.map((emailItem) => (
-                      <div key={emailItem.id} className="flex items-center gap-1.5">
+                    {expressCompanyEmails.map((emailItem, idx) => (
+                      <div key={emailItem.id ? `${emailItem.id}_${idx}` : `ece_${idx}`} className="flex items-center gap-1.5">
                         <input
                           type="text"
                           list="express-email-tags"
@@ -1504,8 +1506,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     <label className="block text-xs font-medium text-slate-300">
                       Direct Phones
                     </label>
-                    {expressContactPhones.map((phoneItem) => (
-                      <div key={phoneItem.id} className="flex items-center gap-1.5">
+                    {expressContactPhones.map((phoneItem, idx) => (
+                      <div key={phoneItem.id ? `${phoneItem.id}_${idx}` : `ctp_${idx}`} className="flex items-center gap-1.5">
                         <input
                           type="text"
                           list="express-phone-tags"
@@ -1561,8 +1563,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     <label className="block text-xs font-medium text-slate-300">
                       Direct Emails
                     </label>
-                    {expressContactEmails.map((emailItem) => (
-                      <div key={emailItem.id} className="flex items-center gap-1.5">
+                    {expressContactEmails.map((emailItem, idx) => (
+                      <div key={emailItem.id ? `${emailItem.id}_${idx}` : `cte_${idx}`} className="flex items-center gap-1.5">
                         <input
                           type="text"
                           list="express-email-tags"

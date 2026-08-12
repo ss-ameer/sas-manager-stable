@@ -2,6 +2,13 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.64.1] - 2026-08-12
+
+### Fixed
+- **Guaranteed Unique Key Generation in Quick Activity Drawer (`src/components/QuickActivityDrawer.tsx`)**:
+  - Resolved React duplicate key error (`ecp_1`) by replacing static ID initialization with dynamic unique ID generator (`makeExpressId`).
+  - Added fallback index suffixing (`${item.id}_${idx}`) across all express phone, express email, company combobox, contact dropdown, and enquiry dropdown `.map()` loops.
+
 ## [0.64.0] - 2026-08-12
 
 ### Added & Enhanced

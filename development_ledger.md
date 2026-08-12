@@ -1,5 +1,21 @@
 # Development Ledger
 
+## Session: 2026-08-12 (Fix React Duplicate Key Error in Quick Activity Drawer)
+
+### Goals
+- Fix React duplicate key error (`ecp_1`) in `QuickActivityDrawer.tsx`.
+- Replace static ID initializations with dynamic unique ID generation (`makeExpressId`).
+- Add index-suffixed keys (`${item.id}_${idx}`) across all map loops for express phone, express email, company, contact, and enquiry lists.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/QuickActivityDrawer.tsx` | Replaced static ID initializations (`ecp_1`, `ece_1`, etc.) with `makeExpressId` and updated all `.map()` rendering loops to guarantee unique React keys. |
+| `/package.json` | Bumped version to `0.64.1`. |
+| `/CHANGELOG.md` | Logged 0.64.1 release notes. |
+| `/development_ledger.md` | Added session record. |
+
 ## Session: 2026-08-12 (Ultimate Express Cold Call & Auto-CRM Registration Workflow)
 
 ### Goals
