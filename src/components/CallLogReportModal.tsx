@@ -36,13 +36,67 @@ export default function CallLogReportModal({
   callOutcomes = []
 }: CallLogReportModalProps) {
   const [reportPeriod, setReportPeriod] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('today');
-  const todayStr = new Date().toISOString().split('T')[0];
+
+  const getLocalDateStr = (d: Date = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayStr = getLocalDateStr();
   
   const [startDate, setStartDate] = useState(todayStr);
   const [endDate, setEndDate] = useState(todayStr);
   const [salespersonFilter, setSalespersonFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [outcomeFilter, setOutcomeFilter] = useState('all');
+
+  // Helper to extract candidate YYYY-MM-DD date strings from a log
+  const getLogDateStrings = (log: CallLogEntry): string[] => {
+    const raw = log.date || log.createdAt || '';
+    if (!raw) return [];
+
+    const trimmed = raw.trim();
+    const results = new Set<string>();
+
+    // 1. Direct YYYY-MM-DD prefix / split by T
+    const partBeforeT = trimmed.split('T')[0].trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(partBeforeT)) {
+      results.add(partBeforeT);
+    }
+
+    // 2. Parse date object to capture local and UTC YYYY-MM-DD
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      results.add(getLocalDateStr(parsed));
+      const utcY = parsed.getUTCFullYear();
+      const utcM = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+      const utcD = String(parsed.getUTCDate()).padStart(2, '0');
+      results.add(`${utcY}-${utcM}-${utcD}`);
+    }
+
+    return Array.from(results);
+  };
+
+  const formatReportDate = (raw?: string) => {
+    if (!raw) return '—';
+    const str = raw.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      if (str.includes('T') || str.includes(' ')) {
+        const hours = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${mins}`;
+      }
+      return `${year}-${month}-${day}`;
+    }
+    return str.split('T')[0] || str;
+  };
 
   // Report Content Toggles
   const [includeStats, setIncludeStats] = useState(true);
@@ -100,25 +154,34 @@ export default function CallLogReportModal({
   } else if (reportPeriod === 'yesterday') {
     const y = new Date(now);
     y.setDate(y.getDate() - 1);
-    const yStr = y.toISOString().split('T')[0];
-    effectiveStart = yStr;
-    effectiveEnd = yStr;
+    effectiveStart = getLocalDateStr(y);
+    effectiveEnd = getLocalDateStr(y);
   } else if (reportPeriod === 'week') {
     const w = new Date(now);
     w.setDate(w.getDate() - 7);
-    effectiveStart = w.toISOString().split('T')[0];
+    effectiveStart = getLocalDateStr(w);
     effectiveEnd = todayStr;
   } else if (reportPeriod === 'month') {
     const m = new Date(now);
     m.setDate(m.getDate() - 30);
-    effectiveStart = m.toISOString().split('T')[0];
+    effectiveStart = getLocalDateStr(m);
     effectiveEnd = todayStr;
+  }
+
+  if (effectiveStart > effectiveEnd) {
+    const temp = effectiveStart;
+    effectiveStart = effectiveEnd;
+    effectiveEnd = temp;
   }
 
   // Filter logs based on selection
   const filteredLogs = callLogs.filter((l) => {
     // Date filter
-    if (l.date < effectiveStart || l.date > effectiveEnd) return false;
+    const logDates = getLogDateStrings(l);
+    if (logDates.length > 0) {
+      const inRange = logDates.some((ds) => ds >= effectiveStart && ds <= effectiveEnd);
+      if (!inRange) return false;
+    }
     // Salesperson
     if (salespersonFilter !== 'all' && l.logged_by !== salespersonFilter) return false;
     // Status
@@ -187,17 +250,22 @@ export default function CallLogReportModal({
     const rows = filteredLogs.map((l) => {
       const channelLabel = l.interaction_type === 'email' ? 'Email Log' : l.interaction_type === 'message' ? `Message (${l.message_platform || 'WhatsApp'})` : 'Phone Call';
       const contactInfo = l.interaction_type === 'email' ? (l.email_address || l.contact_phone || '') : (l.contact_phone || '');
+      const dateFormatted = formatReportDate(l.date || l.createdAt);
+      const companyDisplayName = l.company_name || l.unlinked_name || 'Direct Client';
+      const contactDisplayName = l.contact_name || '—';
+      const followupDateFormatted = l.next_followup_date ? formatReportDate(l.next_followup_date) : '';
+
       return [
-        `"${l.date || ''}"`,
+        `"${dateFormatted}"`,
         `"${channelLabel}"`,
         `"${l.status || ''}"`,
         `"${l.outcome || ''}"`,
-        `"${(l.company_name || '').replace(/"/g, '""')}"`,
-        `"${(l.contact_name || '').replace(/"/g, '""')}"`,
+        `"${companyDisplayName.replace(/"/g, '""')}"`,
+        `"${contactDisplayName.replace(/"/g, '""')}"`,
         `"${contactInfo}"`,
         `"${l.geography || ''}"`,
         `"${l.logged_by || ''}"`,
-        `"${l.next_followup_date || ''}"`,
+        `"${followupDateFormatted}"`,
         `"${l.enquiry_quote_ref || ''}"`,
         `"${(l.requirement_notes || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`
       ];
@@ -316,13 +384,13 @@ export default function CallLogReportModal({
                         const contactDetail = l.interaction_type === 'email' ? (l.email_address || l.contact_phone || '') : (l.contact_phone || '');
                         return `
                 <tr>
-                  <td style="white-space:nowrap; font-weight:600;">${l.date}</td>
+                  <td style="white-space:nowrap; font-weight:600;">${formatReportDate(l.date || l.createdAt)}</td>
                   <td><span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px;">${channelLabel}</span></td>
-                  <td><strong>${l.status}</strong></td>
+                  <td><strong>${l.status || '-'}</strong></td>
                   <td>${l.outcome || '-'}</td>
-                  <td><strong>${l.company_name || 'Unspecified'}</strong></td>
+                  <td><strong>${l.company_name || l.unlinked_name || 'Direct Client'}</strong></td>
                   <td>${l.contact_name || '-'}${contactDetail ? `<br/><span style="color:#64748b;">${contactDetail}</span>` : ''}</td>
-                  <td>${l.logged_by}</td>
+                  <td>${l.logged_by || '-'}</td>
                   <td style="max-width: 220px;">${l.requirement_notes || '-'}</td>
                 </tr>
               `;
@@ -355,11 +423,11 @@ export default function CallLogReportModal({
                 .map(
                   (f) => `
                 <tr>
-                  <td style="font-weight:700; color:#b45309;">${f.next_followup_date}</td>
-                  <td><strong>${f.company_name}</strong></td>
+                  <td style="font-weight:700; color:#b45309;">${formatReportDate(f.next_followup_date)}</td>
+                  <td><strong>${f.company_name || f.unlinked_name || 'Direct Client'}</strong></td>
                   <td>${f.contact_name || '-'}</td>
-                  <td>${f.contact_phone || '-'}</td>
-                  <td>${f.logged_by}</td>
+                  <td>${f.contact_phone || f.email_address || '-'}</td>
+                  <td>${f.logged_by || '-'}</td>
                   <td>${f.requirement_notes || '-'}</td>
                 </tr>
               `
