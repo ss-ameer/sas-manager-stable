@@ -1,7 +1,7 @@
 import { Enquiry } from '../../types';
 import { syncEngine } from '../SyncEngine';
 import { getFromLocalStore, saveToLocalStore } from '../db';
-import { safeGetDocs } from '../../firebase';
+import { safeGetDocs, safeGetDoc } from '../../firebase';
 
 export class EnquiryRepository {
   private static STORE_NAME = 'enquiries';
@@ -14,14 +14,41 @@ export class EnquiryRepository {
     await saveToLocalStore(this.STORE_NAME, items);
   }
 
+  /**
+   * Hardened Single-Document Read Guard:
+   * Fetches document by ID and verifies workspace boundary before returning data.
+   */
+  public static async getEnquiryById(id: string, currentActiveWorkspaceId: string): Promise<Enquiry | null> {
+    let enquiry: Enquiry | null = null;
+    const docSnap = await safeGetDoc('enquiries', id);
+    if (docSnap && docSnap.exists()) {
+      enquiry = { id: docSnap.id, ...docSnap.data() } as Enquiry;
+    } else {
+      const localEnquiries = await this.getAllLocal();
+      enquiry = localEnquiries.find((e) => e.id === id) || null;
+    }
+
+    if (!enquiry) return null;
+
+    // Hardened Single-Document Read Guard: Explicitly verify workspace ownership
+    const docWsId = enquiry.workspace_id || (enquiry as any).workspaceId || 'ws_default';
+    if (currentActiveWorkspaceId && docWsId !== currentActiveWorkspaceId && currentActiveWorkspaceId !== 'ws_default') {
+      throw new Error('Access Denied: Cross-Workspace Boundary Violation');
+    }
+
+    return enquiry;
+  }
+
   public static async fetchWorkspaceEnquiriesFromCloud(workspaceId: string): Promise<Enquiry[]> {
     try {
       const snap = await safeGetDocs('enquiries');
       if (!snap || snap.empty) return this.getAllLocal();
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Enquiry));
-      const filtered = docs.filter((e) => 
-        e.workspace_id === workspaceId || (!e.workspace_id && workspaceId === 'ws_default')
-      );
+      const filtered = docs.filter((e) => {
+        const docWsId = e.workspace_id || (e as any).workspaceId || 'ws_default';
+        if (workspaceId === 'ws_default') return docWsId === 'ws_default' || !docWsId;
+        return docWsId === workspaceId;
+      });
       await this.saveLocalCache(filtered);
       return filtered;
     } catch (e) {
@@ -30,7 +57,11 @@ export class EnquiryRepository {
     }
   }
 
-  public static async save(enquiry: Enquiry): Promise<void> {
+  public static async save(enquiry: Enquiry, currentActiveWorkspaceId?: string): Promise<void> {
+    if (currentActiveWorkspaceId) {
+      // Forcefully override and append workspace_id to mutation payload right before saving
+      enquiry.workspace_id = currentActiveWorkspaceId;
+    }
     // 1. Optimistic write to local storage cache
     const current = await this.getAllLocal();
     const idx = current.findIndex((item) => item.id === enquiry.id);

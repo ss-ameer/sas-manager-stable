@@ -241,6 +241,15 @@ export default function App() {
   const [enquiryToEdit, setEnquiryToEdit] = useState<Enquiry | null>(null);
   const [showTrashBinModal, setShowTrashBinModal] = useState(false);
 
+  // Strict Zero-Trust Audit: Block "Lingering State" Context Leaks on Workspace Switch
+  useEffect(() => {
+    setSelectedEnquiryId(null);
+    setEnquiryToEdit(null);
+    setShowEnquiryForm(false);
+    setSelected360CompanyId(null);
+    setIsActivityDrawerOpen(false);
+  }, [activeWorkspaceId]);
+
   // Quick Activity Drawer State
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
   const [activityDrawerContext, setActivityDrawerContext] = useState<{
@@ -1485,6 +1494,8 @@ export default function App() {
       {selectedEnquiry && (
         <EnquiryDetail
           enquiry={selectedEnquiry}
+          activeWorkspace={activeWorkspace}
+          activeWorkspaceId={activeWorkspace?.id}
           companies={workspaceCompanies}
           contacts={workspaceContacts}
           salespersons={workspaceSalespersons}

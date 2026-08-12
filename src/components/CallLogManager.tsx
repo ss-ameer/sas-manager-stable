@@ -3,7 +3,7 @@ import { CallLogEntry, Company, Contact, Enquiry, Workspace, UserProfile, LegalS
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc } from '../firebase';
 import { recordAuditLog } from '../utils/auditLogger';
 import { getReferenceId } from '../utils/refId';
-import { isRecordOwner, canEditOrDeleteRecord, canUserClickRecord, getSalespersonFullName } from '../utils/permissions';
+import { isRecordOwner, canEditOrDeleteRecord, canUserClickRecord, getSalespersonFullName, getUserWorkspaceRole } from '../utils/permissions';
 import {
   Phone,
   PhoneCall,
@@ -47,6 +47,32 @@ import CallLogDetailModal from './CallLogDetailModal';
 import Company360Modal from './Company360Modal';
 import CallLogReportModal from './CallLogReportModal';
 import { findDuplicateCompany } from '../utils/fuzzyMatch';
+
+export function formatActivityDate(dateStr?: string): string {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()];
+    const day = d.getDate();
+    const year = d.getFullYear();
+    let hours = d.getHours();
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+
+    const hasTime = dateStr.includes('T') || dateStr.includes(':');
+    if (hasTime) {
+      return `${month} ${day}, ${year} - ${hours}:${minutes} ${ampm}`;
+    } else {
+      return `${month} ${day}, ${year}`;
+    }
+  } catch {
+    return dateStr;
+  }
+}
 
 import { DropdownOption } from '../types';
 import { PageHeader, PageBody } from './layout/UiContainer';
@@ -1530,38 +1556,50 @@ export default function CallLogManager({
                         </div>
                       </td>
                       <td className="p-3.5">
-                        <div className="font-bold text-slate-900 dark:text-slate-100">{log.date}</div>
+                        <div className="font-bold text-slate-900 dark:text-slate-100">{formatActivityDate(log.date)}</div>
                         <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">By: <span className="font-bold text-slate-900 dark:text-slate-200">{handledBy}</span></div>
                       </td>
                       <td className="p-3.5">
                         <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1.5">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (log.company_id) {
-                                setSelected360CompanyId(log.company_id);
-                              } else {
-                                const match = workspaceCompanies.find(
-                                  (c) => c.display_name.toLowerCase() === (log.company_name || '').toLowerCase()
-                                );
-                                if (match?.id) setSelected360CompanyId(match.id);
-                                else triggerToast(`Company profile not found for ${log.company_name}`, 'info');
-                              }
-                            }}
-                            className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1"
-                          >
-                            <span>{log.company_name || '(Unassigned - Click Edit to Link)'}</span>
-                            <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
-                          </button>
+                          {log.company_name || log.company_id ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (log.company_id) {
+                                  setSelected360CompanyId(log.company_id);
+                                } else {
+                                  const match = workspaceCompanies.find(
+                                    (c) => c.display_name.toLowerCase() === (log.company_name || '').toLowerCase()
+                                  );
+                                  if (match?.id) setSelected360CompanyId(match.id);
+                                  else triggerToast(`Company profile not found for ${log.company_name}`, 'info');
+                                }
+                              }}
+                              className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1"
+                            >
+                              <span>{log.company_name}</span>
+                              <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                            </button>
+                          ) : log.unlinked_name ? (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold">
+                              <User className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                              <span>{log.unlinked_name}</span>
+                              <span className="text-[9px] text-amber-600 dark:text-amber-400 font-normal">(Unsaved Lead)</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">(Unassigned)</span>
+                          )}
                           {isSuppressed && (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-600 text-white">
                               DNC
                             </span>
                           )}
                         </div>
-                        {log.contact_name && (
+                        {log.contact_name ? (
                           <div className="text-[11px] text-slate-600 dark:text-slate-400">Attn: {log.contact_name}</div>
-                        )}
+                        ) : log.unlinked_contact_info && !log.unlinked_name ? (
+                          <div className="text-[11px] text-slate-500 font-mono">{log.unlinked_contact_info}</div>
+                        ) : null}
                         {log.geography && (
                           <div className="text-[10px] text-slate-400 font-medium">{log.geography}</div>
                         )}
@@ -1570,24 +1608,30 @@ export default function CallLogManager({
                         {log.interaction_type === 'email' ? (
                           <div className="space-y-0.5 font-mono text-[11px]">
                             {log.email_address ? (
-                              <a href={`mailto:${log.email_address}`} className="text-purple-700 font-bold hover:underline block truncate max-w-[140px]">
+                              <a href={`mailto:${log.email_address}`} className="text-purple-700 dark:text-purple-400 font-bold hover:underline block truncate max-w-[140px]">
                                 {log.email_address}
                               </a>
+                            ) : log.unlinked_contact_info?.includes('@') ? (
+                              <a href={`mailto:${log.unlinked_contact_info}`} className="text-purple-700 dark:text-purple-400 font-bold hover:underline block truncate max-w-[140px]">
+                                {log.unlinked_contact_info}
+                              </a>
                             ) : (
-                              <span className="text-purple-600 font-semibold">Email Log</span>
+                              <span className="text-purple-600 dark:text-purple-400 font-semibold">Email Log</span>
                             )}
                           </div>
                         ) : log.interaction_type === 'message' ? (
                           <div className="space-y-0.5 font-mono text-[11px]">
-                            <span className="text-emerald-700 font-bold block">{log.message_platform || 'WhatsApp'}</span>
-                            {log.contact_phone && <span className="text-slate-500 text-[10px]">{log.contact_phone}</span>}
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold block">{log.message_platform || 'WhatsApp'}</span>
+                            {(log.contact_phone || log.unlinked_contact_info) && (
+                              <span className="text-slate-500 text-[10px]">{log.contact_phone || log.unlinked_contact_info}</span>
+                            )}
                           </div>
-                        ) : log.contact_phone ? (
+                        ) : (log.contact_phone || log.unlinked_contact_info) ? (
                           <a
-                            href={`tel:${log.contact_phone}`}
-                            className="font-mono text-blue-600 font-bold hover:underline"
+                            href={`tel:${log.contact_phone || log.unlinked_contact_info}`}
+                            className="font-mono text-blue-600 dark:text-blue-400 font-bold hover:underline"
                           >
-                            {log.contact_phone}
+                            {log.contact_phone || log.unlinked_contact_info}
                           </a>
                         ) : (
                           <span className="text-slate-400 italic">No phone</span>
@@ -1599,16 +1643,22 @@ export default function CallLogManager({
                           {log.outcome && <div>{renderOutcomeBadge(log.outcome)}</div>}
                         </div>
                       </td>
-                      <td className="p-3.5 text-slate-600 max-w-xs">
+                      <td className="p-3.5 text-slate-600 dark:text-slate-300 max-w-xs">
                         {log.interaction_type === 'email' && log.email_subject && (
-                          <div className="font-bold text-purple-900 text-[11px] mb-0.5 truncate">
+                          <div className="font-bold text-purple-900 dark:text-purple-300 text-[11px] mb-0.5 truncate">
                             Subj: {log.email_subject}
                           </div>
                         )}
-                        <p className="line-clamp-2">{log.requirement_notes || '—'}</p>
+                        <p className="line-clamp-2 text-xs leading-snug">
+                          {log.requirement_notes ? (
+                            log.requirement_notes.length > 90
+                              ? `${log.requirement_notes.substring(0, 90)}...`
+                              : log.requirement_notes
+                          ) : '—'}
+                        </p>
                         {log.next_followup_date && (
-                          <div className="text-[10px] text-blue-600 font-bold mt-1">
-                            Next Follow-up: {log.next_followup_date}
+                          <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-1">
+                            Next Follow-up: {formatActivityDate(log.next_followup_date)}
                           </div>
                         )}
                       </td>
@@ -1712,6 +1762,10 @@ export default function CallLogManager({
             </button>
             <button
               onClick={async () => {
+                if (getUserWorkspaceRole(user, activeWorkspace?.id, activeWorkspace) === 'Viewer') {
+                  triggerToast('Read-only viewers cannot delete records.', 'error');
+                  return;
+                }
                 const confirmDelete = await askConfirm(
                   'Bulk Delete Interaction Records',
                   `Are you sure you want to delete ALL ${selectedLogIds.length} selected interaction records? This is permanent.`,
@@ -2916,6 +2970,20 @@ export default function CallLogManager({
         entry={selectedDetailEntry}
         onClose={() => setSelectedDetailEntry(null)}
         callLogs={callLogs}
+        activeWorkspace={activeWorkspace}
+        triggerToast={triggerToast}
+        onLeadConverted={(updatedEntry, newCompany, newContact) => {
+          if (setCompanies) {
+            setCompanies((prev) => [newCompany, ...prev.filter((c) => c.id !== newCompany.id)]);
+          }
+          if (setContacts) {
+            setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== newContact.id)]);
+          }
+          if (setCallLogs) {
+            setCallLogs((prev) => prev.map((l) => (l.id === updatedEntry.id ? updatedEntry : l)));
+          }
+          setSelectedDetailEntry(updatedEntry);
+        }}
         onEdit={(entry) => {
           setSelectedEntry(entry);
           setLogFormDate(entry.date);

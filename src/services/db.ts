@@ -29,7 +29,7 @@ function getDB(): Promise<IDBDatabase> {
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       
-      const stores = ['enquiries', 'companies', 'contacts', 'call_logs', 'products', 'metadata', 'mutation_queue'];
+      const stores = ['enquiries', 'companies', 'contacts', 'call_logs', 'activity_logs', 'products', 'metadata', 'mutation_queue'];
       stores.forEach((storeName) => {
         if (!db.objectStoreNames.contains(storeName)) {
           if (storeName === 'mutation_queue') {

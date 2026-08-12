@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { CallLogEntry, Company, Contact, Enquiry, UserProfile } from '../types';
+import { CallLogEntry, Company, Contact, Enquiry, UserProfile, Workspace } from '../types';
+import LeadConversionModal from './LeadConversionModal';
 import { getReferenceId } from '../utils/refId';
 import { canEditOrDeleteRecord, isRecordOwner } from '../utils/permissions';
 import {
@@ -30,6 +31,9 @@ import {
 interface CallLogDetailModalProps {
   entry: CallLogEntry | null;
   currentUser?: UserProfile | null;
+  activeWorkspace?: Workspace;
+  triggerToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  onLeadConverted?: (updatedEntry: CallLogEntry, newCompany: Company, newContact: Contact) => void;
   onClose: () => void;
   onEdit: (entry: CallLogEntry) => void;
   onDelete: (id: string) => void;
@@ -46,6 +50,9 @@ interface CallLogDetailModalProps {
 export default function CallLogDetailModal({
   entry,
   currentUser,
+  activeWorkspace,
+  triggerToast,
+  onLeadConverted,
   onClose,
   onEdit,
   onDelete,
@@ -59,6 +66,7 @@ export default function CallLogDetailModal({
   callLogs = []
 }: CallLogDetailModalProps) {
   const [copiedDraft, setCopiedDraft] = useState(false);
+  const [showConvertModal, setShowConvertModal] = useState(false);
 
   if (!entry) return null;
 
@@ -275,8 +283,33 @@ export default function CallLogDetailModal({
               </div>
 
               <div className="font-bold text-slate-100 text-sm">
-                {entry.company_name || 'Unspecified Company'}
+                {entry.company_name ? (
+                  entry.company_name
+                ) : entry.unlinked_name ? (
+                  <span className="text-amber-300 font-bold">{entry.unlinked_name} <span className="text-xs font-normal text-amber-400/80">(Unsaved Lead)</span></span>
+                ) : (
+                  'Unspecified Target / Lead'
+                )}
               </div>
+
+              {!entry.company_id && (
+                <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-slate-900 border border-blue-500/40 flex flex-wrap items-center justify-between gap-2 shadow-xs">
+                  <div>
+                    <div className="text-xs font-bold text-blue-200 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Unsaved Lead Record</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Convert this lead into a permanent CRM Company & Contact</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowConvertModal(true)}
+                    className="px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white text-xs font-extrabold rounded-lg shadow-md flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <span>🚀 Convert to CRM Client</span>
+                  </button>
+                </div>
+              )}
 
               {linkedCompany && (
                 <div className="mt-2 text-xs text-slate-400 space-y-1">
@@ -304,13 +337,13 @@ export default function CallLogDetailModal({
               </span>
 
               <div className="font-bold text-slate-100 text-sm">
-                {entry.contact_name || 'No Personnel Contact Assigned'}
+                {entry.contact_name || entry.unlinked_name || 'No Personnel Contact Assigned'}
               </div>
 
               <div className="mt-2 text-xs text-slate-300 space-y-1">
                 {(() => {
                   const isBasicRestricted = currentUser?.role !== 'Admin' && currentUser?.dataVisibilityTier === 'BASIC' && !isRecordOwner(currentUser, entry);
-                  const phoneVal = entry.contact_phone || linkedContact?.mobile;
+                  const phoneVal = entry.contact_phone || entry.unlinked_contact_info || linkedContact?.mobile;
                   const emailVal = linkedContact?.email;
 
                   return (
@@ -471,6 +504,17 @@ export default function CallLogDetailModal({
         {/* Modal Footer Controls */}
         <div className="p-4 bg-slate-950 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center space-x-2">
+            {!entry.company_id && (
+              <button
+                type="button"
+                onClick={() => setShowConvertModal(true)}
+                className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-md transition cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>🚀 Convert to CRM Client</span>
+              </button>
+            )}
+
             {onCreateEnquiryFromCall && (
               <button
                 type="button"
@@ -531,6 +575,23 @@ export default function CallLogDetailModal({
           )}
         </div>
       </div>
+
+      {showConvertModal && activeWorkspace && (
+        <LeadConversionModal
+          isOpen={showConvertModal}
+          onClose={() => setShowConvertModal(false)}
+          entry={entry}
+          activeWorkspace={activeWorkspace}
+          currentUser={currentUser}
+          triggerToast={triggerToast}
+          onSuccess={(updatedEntry, newCompany, newContact) => {
+            setShowConvertModal(false);
+            if (onLeadConverted) {
+              onLeadConverted(updatedEntry, newCompany, newContact);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

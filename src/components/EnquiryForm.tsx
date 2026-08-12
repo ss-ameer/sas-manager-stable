@@ -9,6 +9,7 @@ import { BRAND_CONFIG } from '../config';
 import DuplicateMatchModal from './DuplicateMatchModal';
 import GeminiKeyModal from './GeminiKeyModal';
 import { findDuplicateCompany, findDuplicateContact } from '../utils/fuzzyMatch';
+import { getUserWorkspaceRole } from '../utils/permissions';
 import {
   FileText,
   Building,
@@ -1059,9 +1060,14 @@ Sl. No. Description Qty Unit Price (AED) Total Amount (AED)
       }
     }
 
+    if (!activeWorkspace?.id) {
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+
     try {
       // 1. Create Company account in Firestore catalog
       const newCompPayload = {
+        workspace_id: activeWorkspace.id,
         canonical_name: compName,
         display_name,
         aliases: [compName],
@@ -1093,6 +1099,7 @@ Sl. No. Description Qty Unit Price (AED) Total Amount (AED)
         const contactMobileVal = unregisteredEntities.phoneDestination === 'contact' ? (unregisteredEntities.contactMobile || unregisteredEntities.generalPhone) : undefined;
 
         const newContactPayload = {
+          workspace_id: activeWorkspace.id,
           company_id: compRef.id,
           full_name: unregisteredEntities.contactName.trim(),
           email: contactEmailVal,
@@ -1966,6 +1973,18 @@ Sl. No. Description Qty Unit Price (AED) Total Amount (AED)
     e.preventDefault();
     if (isSubmitting) return;
 
+    // Zero-Trust Check: Ensure Viewers cannot generate or mutate proposals
+    const userRole = getUserWorkspaceRole(user, activeWorkspace?.id, activeWorkspace);
+    if (userRole === 'Viewer') {
+      alert('Access Denied: Viewers do not have permission to create or mutate proposals.');
+      return;
+    }
+
+    if (!activeWorkspace?.id) {
+      alert('Critical Error: Active workspace context lost. Cannot save record.');
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+
     if (!companyId) {
       alert('Please search and select a valid client company first.');
       return;
@@ -2004,7 +2023,7 @@ Sl. No. Description Qty Unit Price (AED) Total Amount (AED)
     const spInitialsOrName = selectedSp?.initials || selectedSp?.full_name || salesPerson;
 
     const payload: Omit<Enquiry, 'id'> = {
-      workspace_id: activeWorkspace?.id,
+      workspace_id: activeWorkspace.id,
       sn: Number(sn),
       enquiry_date: enquiryDate,
       sales_person_id: spId,
@@ -4227,7 +4246,11 @@ Sl. No. Description Qty Unit Price (AED) Total Amount (AED)
                   }
 
                   try {
+                    if (!activeWorkspace?.id) {
+                      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+                    }
                     const newCompPayload = {
+                      workspace_id: activeWorkspace.id,
                       display_name,
                       aliases: [subCompanyName.trim()],
                       legal_suffix: subLegalSuffix,
@@ -4408,7 +4431,11 @@ Sl. No. Description Qty Unit Price (AED) Total Amount (AED)
                   }
 
                   try {
+                    if (!activeWorkspace?.id) {
+                      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+                    }
                     const newContactPayload = {
+                      workspace_id: activeWorkspace.id,
                       company_id: companyId,
                       full_name: subContactName.trim(),
                       designation: subContactDesignation.trim() || undefined,

@@ -383,7 +383,7 @@ export type CallOutcome =
   | 'General Inquiry / Support'
   | string;
 
-export interface CallLogEntry extends SoftDeleteFields {
+export interface ActivityLogEntry extends SoftDeleteFields {
   id?: string;
   workspace_id?: string | 'unassigned';
   date: string; // ISO or YYYY-MM-DD
@@ -399,6 +399,8 @@ export interface CallLogEntry extends SoftDeleteFields {
   contact_id?: string;
   contact_name?: string;
   contact_phone?: string;
+  unlinked_name?: string;
+  unlinked_contact_info?: string;
   enquiry_id?: string; // Optional link to Enquiry
   enquiry_quote_ref?: string;
   logged_by: string;
@@ -417,6 +419,8 @@ export interface CallLogEntry extends SoftDeleteFields {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type CallLogEntry = ActivityLogEntry;
 
 export const CATEGORY_SUGGESTED_ATTRIBUTES: Record<string, string[]> = {
   'FRP Tanks': ['Brand / Make', 'Diameter', 'Height', 'Volume', 'Design Pressure'],

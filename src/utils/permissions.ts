@@ -74,6 +74,8 @@ export function canDeleteRecords(
   workspaceId?: string | null,
   activeWorkspace?: any | null
 ): boolean {
+  const role = getUserWorkspaceRole(user, workspaceId, activeWorkspace);
+  if (role === 'Viewer') return false;
   return isAdmin(user, workspaceId, activeWorkspace);
 }
 
@@ -182,11 +184,14 @@ export function isRecordOwner(
 export function canEditOrDeleteRecord(
   user: UserProfile | undefined | null,
   record: any,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  activeWorkspace?: any | null
 ): boolean {
   if (!user || !record) return false;
   const targetWsId = workspaceId || record?.workspaceId || record?.workspace_id;
-  if (isAdmin(user, targetWsId)) return true;
+  const role = getUserWorkspaceRole(user, targetWsId, activeWorkspace);
+  if (role === 'Viewer') return false;
+  if (isAdmin(user, targetWsId, activeWorkspace)) return true;
   return isRecordOwner(user, record, targetWsId);
 }
 

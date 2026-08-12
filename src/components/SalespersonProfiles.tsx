@@ -125,10 +125,15 @@ export default function SalespersonProfiles({
     const email = currentUser.email || '';
     const role = 'Sales Representative';
 
+    if (!activeWorkspace?.id) {
+      setIsSubmitting(false);
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+
     setIsSubmitting(true);
     try {
       const data: Omit<Salesperson, 'id'> = {
-        workspace_id: activeWorkspace?.id,
+        workspace_id: activeWorkspace.id,
         initials: initials.toUpperCase(),
         full_name: name,
         role: role,
@@ -258,8 +263,13 @@ export default function SalespersonProfiles({
       return;
     }
 
+    if (!activeWorkspace?.id) {
+      setIsSubmitting(false);
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+
     const data: Omit<Salesperson, 'id'> = {
-      workspace_id: activeWorkspace?.id,
+      workspace_id: activeWorkspace.id,
       initials: upperInitials,
       full_name: formFullName.trim(),
       role: formRole.trim(),
@@ -626,7 +636,7 @@ export default function SalespersonProfiles({
             <button
               type="button"
               onClick={handleAddMyselfToRoster}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !activeWorkspace?.id}
               className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
@@ -1037,7 +1047,7 @@ export default function SalespersonProfiles({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !activeWorkspace?.id}
                 className="py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-xl text-xs font-bold text-white transition flex items-center space-x-1.5"
               >
                 {isSubmitting && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}

@@ -164,6 +164,11 @@ export default function ProductManager({ products, productCategories: propCatego
       return;
     }
 
+    if (!activeWorkspace?.id) {
+      setIsSubmitting(false);
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+
     setIsSubmitting(true);
 
     const cleanAttributes: ProductAttribute[] = formAttributes
@@ -174,7 +179,7 @@ export default function ProductManager({ products, productCategories: propCatego
     const searchTerms = generateProductSearchTerms(formName.trim(), formProductType, formSku.trim(), brandAttr);
 
     const data: Partial<Product> = {
-      workspace_id: activeWorkspace?.id,
+      workspace_id: activeWorkspace.id,
       name: formName.trim() || undefined,
       product_type: formProductType,
       description: formDescription.trim(),
@@ -700,7 +705,7 @@ export default function ProductManager({ products, productCategories: propCatego
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !activeWorkspace?.id}
                 className="w-1/2 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5"
               >
                 {isSubmitting && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}

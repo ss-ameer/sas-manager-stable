@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Enquiry, Company, Contact, AuditLog, UserProfile, Salesperson } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Enquiry, Company, Contact, AuditLog, UserProfile, Salesperson, Workspace } from '../types';
 import { db } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
 import { safeUpdateDoc, safeAddDoc } from '../firebase';
-import { canEditOrDeleteRecord, isRecordOwner } from '../utils/permissions';
+import { canEditOrDeleteRecord, isRecordOwner, getUserWorkspaceRole } from '../utils/permissions';
 import {
   FileText,
   Building,
@@ -38,6 +38,8 @@ interface EnquiryDetailProps {
   salespersons: Salesperson[];
   user: UserProfile;
   enquiries?: Enquiry[];
+  activeWorkspace?: Workspace;
+  activeWorkspaceId?: string;
   onClose: () => void;
   onDeleteEnquiry: (id: string) => void;
   onEditEnquiry: (enquiry: Enquiry) => void;
@@ -58,6 +60,8 @@ export default function EnquiryDetail({
   salespersons,
   user,
   enquiries = [],
+  activeWorkspace,
+  activeWorkspaceId,
   onClose,
   onDeleteEnquiry,
   onEditEnquiry,
@@ -69,6 +73,14 @@ export default function EnquiryDetail({
   const [revertSuccess, setRevertSuccess] = useState(false);
   const [isExpandedWidth, setIsExpandedWidth] = useState(false);
   const [expandedItemIndices, setExpandedItemIndices] = useState<Record<number, boolean>>({});
+
+  // Strict Zero-Trust Audit: Force close if workspace changes or mismatch detected
+  useEffect(() => {
+    const currentWsId = activeWorkspaceId || activeWorkspace?.id;
+    if (currentWsId && enquiry.workspace_id && enquiry.workspace_id !== currentWsId) {
+      onClose();
+    }
+  }, [activeWorkspaceId, activeWorkspace?.id, enquiry.workspace_id, onClose]);
 
   const toggleLineItem = (idx: number) => {
     setExpandedItemIndices((prev) => ({
@@ -138,6 +150,17 @@ export default function EnquiryDetail({
   }, [enquiries, enquiry]);
 
   const handleCreateRevision = () => {
+    const currentWsId = activeWorkspaceId || activeWorkspace?.id;
+    if (!currentWsId) {
+      alert('Critical Error: Active workspace context lost. Cannot save record.');
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+    const userRole = getUserWorkspaceRole(user, currentWsId, activeWorkspace);
+    if (userRole === 'Viewer') {
+      alert('Access Denied: Viewers do not have permission to generate or mutate proposals.');
+      return;
+    }
+
     const rootId = enquiry.parent_id || enquiry.id || (enquiry as any)._id;
     if (!rootId) {
       alert('Cannot create revision: Original enquiry ID missing.');
@@ -169,6 +192,7 @@ export default function EnquiryDetail({
 
     const revisionPayload: Enquiry = {
       ...clonedData,
+      workspace_id: currentWsId,
       id: undefined,
       parent_id: rootId,
       revision_number: nextRevNumber,
@@ -200,8 +224,14 @@ export default function EnquiryDetail({
   };
 
   const handleRevert = async (log: AuditLog) => {
-    if (user.role === 'Viewer') {
-      alert('Viewers do not have permissions to revert changes.');
+    const currentWsId = activeWorkspaceId || activeWorkspace?.id;
+    if (!currentWsId) {
+      alert('Critical Error: Active workspace context lost. Cannot save record.');
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+    const userRole = getUserWorkspaceRole(user, currentWsId, activeWorkspace);
+    if (user.role === 'Viewer' || userRole === 'Viewer') {
+      alert('Access Denied: Viewers do not have permission to mutate proposals or revert versions.');
       return;
     }
 
@@ -216,10 +246,14 @@ export default function EnquiryDetail({
           return;
         }
 
-        // Clean out ID if it's there
+        // Clean out ID if it's there & force tamper-proof active workspace_id
         const { id, updatedAt, createdAt, ...rollbackData } = targetState;
+        const finalRollbackPayload = {
+          ...rollbackData,
+          workspace_id: currentWsId
+        };
 
-        await safeUpdateDoc('enquiries', enquiry.id!, rollbackData);
+        await safeUpdateDoc('enquiries', enquiry.id!, finalRollbackPayload);
 
         // Add rollback audit log
         const auditPayload = {

@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Mail,
   Users,
+  User,
   MapPin,
   Calendar,
   Send,
@@ -148,6 +149,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [activeChipId, setActiveChipId] = useState<string | null>(null);
 
   // Target Context State
+  const [linkMode, setLinkMode] = useState<'crm' | 'unsaved'>('crm');
+  const [unlinkedName, setUnlinkedName] = useState<string>('');
+  const [unlinkedContactInfo, setUnlinkedContactInfo] = useState<string>('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companyId || '');
   const [selectedCompanyName, setSelectedCompanyName] = useState<string>(companyName || '');
   const [selectedContactId, setSelectedContactId] = useState<string>(contactId || '');
@@ -162,6 +166,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   // Context Cleanup & Initialization on Open or Prop Change
   useEffect(() => {
     if (isOpen) {
+      setLinkMode('crm');
+      setUnlinkedName('');
+      setUnlinkedContactInfo('');
       setChannel(initialChannel || 'Call');
       setStatus(initialStatus || 'Completed');
       setOutcome('Connected');
@@ -485,6 +492,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   };
 
   const handleReset = () => {
+    setLinkMode('crm');
+    setUnlinkedName('');
+    setUnlinkedContactInfo('');
     setChannel('Call');
     setOutcome('Connected');
     setStatus('Completed');
@@ -518,9 +528,16 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     e.preventDefault();
     if (isSubmitting) return;
 
-    if (!selectedCompanyId) {
-      setValidationError('Please select a company before saving an activity.');
-      return;
+    if (linkMode === 'crm') {
+      if (!selectedCompanyId) {
+        setValidationError('Please select a company before saving an activity.');
+        return;
+      }
+    } else {
+      if (!unlinkedName.trim() && !unlinkedContactInfo.trim()) {
+        setValidationError('Please provide a Lead Name or Phone/Email for the unsaved lead.');
+        return;
+      }
     }
     setValidationError(null);
 
@@ -549,8 +566,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
       const activityIsoDate = activityDate ? new Date(activityDate).toISOString() : nowIso;
       const followupIsoDate = followupDate ? new Date(followupDate).toISOString() : undefined;
 
+      if (!activeWorkspaceId) {
+        setIsSubmitting(false);
+        throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+      }
+
       const payload: Omit<CallLogEntry, 'id'> = {
-        workspace_id: activeWorkspaceId || 'ws_default',
+        workspace_id: activeWorkspaceId,
         date: activityIsoDate,
         status: status || 'Completed',
         outcome: outcome || channel,
@@ -558,13 +580,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         requirement_notes: notes.trim(),
         whatsapp_draft: whatsappDraft ? whatsappDraft.trim() : undefined,
         next_followup_date: followupIsoDate,
-        company_id: selectedCompanyId || undefined,
-        company_name: selectedCompanyName || undefined,
-        contact_id: selectedContactId || undefined,
-        contact_name: selectedContactName || undefined,
-        contact_phone: selectedContactPhone || undefined,
-        enquiry_id: selectedEnquiryId || undefined,
-        enquiry_quote_ref: selectedEnquiryQuoteRef || undefined,
+        company_id: linkMode === 'crm' ? (selectedCompanyId || undefined) : undefined,
+        company_name: linkMode === 'crm' ? (selectedCompanyName || undefined) : undefined,
+        contact_id: linkMode === 'crm' ? (selectedContactId || undefined) : undefined,
+        contact_name: linkMode === 'crm' ? (selectedContactName || undefined) : undefined,
+        contact_phone: linkMode === 'crm' ? (selectedContactPhone || undefined) : undefined,
+        unlinked_name: linkMode === 'unsaved' ? (unlinkedName.trim() || undefined) : undefined,
+        unlinked_contact_info: linkMode === 'unsaved' ? (unlinkedContactInfo.trim() || undefined) : undefined,
+        enquiry_id: linkMode === 'crm' ? (selectedEnquiryId || undefined) : undefined,
+        enquiry_quote_ref: linkMode === 'crm' ? (selectedEnquiryQuoteRef || undefined) : undefined,
         logged_by: currentUserInitials || 'System',
         sales_person_id: currentSalespersonId || undefined,
         sales_person: currentUserInitials || undefined,
@@ -581,6 +605,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         ...(isDncOptOut ? { dnc: true, opt_out: true } : {})
       };
 
+      await safeAddDoc('activity_logs', payload);
       await safeAddDoc('call_logs', payload);
 
       // Auto-DNC Suppression Trigger
@@ -668,178 +693,258 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 </div>
               )}
 
-              {/* Target Company Selector / Context Header */}
-              {companyId ? (
-                <div className="rounded-xl bg-slate-800/80 p-3.5 border border-slate-700/80 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    <span>Target Account</span>
-                    <span className="text-[10px] text-blue-400 font-mono">Fixed Context</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
-                      <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
-                      <span>{selectedCompanyName || companyName || 'Company Account'}</span>
-                    </div>
-                    {selectedEnquiryQuoteRef && (
-                      <div className="flex items-center gap-1.5 text-xs text-purple-300 bg-purple-950/60 px-2.5 py-1 rounded-md border border-purple-800/60 font-mono">
-                        <FileText className="h-3.5 w-3.5 text-purple-400" />
-                        <span>Quote Ref: <strong>{selectedEnquiryQuoteRef}</strong></span>
-                      </div>
-                    )}
+              {/* Mode Selector Toggle (only shown if not launched from a fixed company context) */}
+              {!companyId && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Logging Mode
+                  </label>
+                  <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLinkMode('crm');
+                        setValidationError(null);
+                      }}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        linkMode === 'crm'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>Link to Existing CRM Contact</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLinkMode('unsaved');
+                        setValidationError(null);
+                      }}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        linkMode === 'unsaved'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      <span>Log Unsaved Lead/Number</span>
+                    </button>
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-2 relative">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Target Company <span className="text-rose-400">*</span>
-                  </label>
+              )}
 
-                  {selectedCompanyId ? (
-                    <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-blue-500/50 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
-                        <div>
-                          <span className="font-bold text-slate-100">{selectedCompanyName}</span>
-                          <p className="text-[10px] text-slate-400 font-mono">Selected Account</p>
-                        </div>
+              {/* Target Company / Contact Context (CRM Mode) */}
+              {linkMode === 'crm' || companyId ? (
+                <>
+                  {companyId ? (
+                    <div className="rounded-xl bg-slate-800/80 p-3.5 border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                        <span>Target Account</span>
+                        <span className="text-[10px] text-blue-400 font-mono">Fixed Context</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedCompanyId('');
-                          setSelectedCompanyName('');
-                          setSelectedContactId('');
-                          setSelectedContactName('');
-                          setSelectedContactPhone('');
-                          setSelectedEnquiryId('');
-                          setSelectedEnquiryQuoteRef('');
-                          setIsComboboxOpen(true);
-                        }}
-                        className="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors cursor-pointer"
-                      >
-                        Change
-                      </button>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
+                          <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
+                          <span>{selectedCompanyName || companyName || 'Company Account'}</span>
+                        </div>
+                        {selectedEnquiryQuoteRef && (
+                          <div className="flex items-center gap-1.5 text-xs text-purple-300 bg-purple-950/60 px-2.5 py-1 rounded-md border border-purple-800/60 font-mono">
+                            <FileText className="h-3.5 w-3.5 text-purple-400" />
+                            <span>Quote Ref: <strong>{selectedEnquiryQuoteRef}</strong></span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <div className="relative">
-                      <div className="relative flex items-center">
-                        <Search className="absolute left-3 h-4 w-4 text-slate-500 pointer-events-none" />
-                        <input
-                          type="text"
-                          value={companySearchQuery}
-                          onChange={(e) => {
-                            setCompanySearchQuery(e.target.value);
-                            setIsComboboxOpen(true);
-                            setValidationError(null);
-                          }}
-                          onFocus={() => setIsComboboxOpen(true)}
-                          placeholder="Search company by name or alias..."
-                          className="w-full rounded-xl bg-slate-950 border border-slate-800 pl-9 pr-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
+                    <div className="space-y-2 relative">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        Target Company <span className="text-rose-400">*</span>
+                      </label>
 
-                      {isComboboxOpen && (
-                        <div className="absolute z-30 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-xl p-1 space-y-0.5">
-                          {filteredCompanies.length > 0 ? (
-                            filteredCompanies.map((c) => (
-                              <button
-                                key={c.id}
-                                type="button"
-                                onClick={() => handleSelectCompany(c)}
-                                className="w-full text-left p-2 rounded-lg hover:bg-blue-600/20 hover:border-blue-500/30 border border-transparent transition-colors flex items-center justify-between cursor-pointer"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Building2 className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                                  <div>
-                                    <span className="text-xs font-semibold text-slate-100 block">
-                                      {c.display_name || c.canonical_name}
-                                    </span>
-                                    {(c.city || c.country) && (
-                                      <span className="text-[10px] text-slate-400 block font-mono">
-                                        {[c.city, c.country].filter(Boolean).join(', ')}
-                                      </span>
-                                    )}
-                                  </div>
+                      {selectedCompanyId ? (
+                        <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-blue-500/50 text-xs">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
+                            <div>
+                              <span className="font-bold text-slate-100">{selectedCompanyName}</span>
+                              <p className="text-[10px] text-slate-400 font-mono">Selected Account</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCompanyId('');
+                              setSelectedCompanyName('');
+                              setSelectedContactId('');
+                              setSelectedContactName('');
+                              setSelectedContactPhone('');
+                              setSelectedEnquiryId('');
+                              setSelectedEnquiryQuoteRef('');
+                              setIsComboboxOpen(true);
+                            }}
+                            className="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors cursor-pointer"
+                          >
+                            Change
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="relative flex items-center">
+                            <Search className="absolute left-3 h-4 w-4 text-slate-500 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={companySearchQuery}
+                              onChange={(e) => {
+                                setCompanySearchQuery(e.target.value);
+                                setIsComboboxOpen(true);
+                                setValidationError(null);
+                              }}
+                              onFocus={() => setIsComboboxOpen(true)}
+                              placeholder="Search company by name or alias..."
+                              className="w-full rounded-xl bg-slate-950 border border-slate-800 pl-9 pr-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          {isComboboxOpen && (
+                            <div className="absolute z-30 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-xl p-1 space-y-0.5">
+                              {filteredCompanies.length > 0 ? (
+                                filteredCompanies.map((c) => (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => handleSelectCompany(c)}
+                                    className="w-full text-left p-2 rounded-lg hover:bg-blue-600/20 hover:border-blue-500/30 border border-transparent transition-colors flex items-center justify-between cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Building2 className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                                      <div>
+                                        <span className="text-xs font-semibold text-slate-100 block">
+                                          {c.display_name || c.canonical_name}
+                                        </span>
+                                        {(c.city || c.country) && (
+                                          <span className="text-[10px] text-slate-400 block font-mono">
+                                            {[c.city, c.country].filter(Boolean).join(', ')}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <Check className="h-3.5 w-3.5 text-slate-600" />
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="p-3 text-center text-xs text-slate-500 italic">
+                                  No matching companies found
                                 </div>
-                                <Check className="h-3.5 w-3.5 text-slate-600" />
-                              </button>
-                            ))
-                          ) : (
-                            <div className="p-3 text-center text-xs text-slate-500 italic">
-                              No matching companies found
+                              )}
                             </div>
                           )}
                         </div>
                       )}
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* Contact & Phone Selector (Auto-Populated) */}
-              {selectedCompanyId && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Contact Representative
-                    </label>
-                    {availableCompanyContacts.length > 0 ? (
+                  {/* Contact & Phone Selector (Auto-Populated) */}
+                  {selectedCompanyId && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                          Contact Representative
+                        </label>
+                        {availableCompanyContacts.length > 0 ? (
+                          <select
+                            value={selectedContactId}
+                            onChange={(e) => handleSelectContact(e.target.value)}
+                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="">-- Select Contact --</option>
+                            {availableCompanyContacts.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.full_name} {c.is_primary ? '(Primary)' : ''} {c.designation ? `- ${c.designation}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={selectedContactName}
+                            onChange={(e) => setSelectedContactName(e.target.value)}
+                            placeholder="Contact Name..."
+                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                          Phone / Mobile
+                        </label>
+                        <input
+                          type="text"
+                          value={selectedContactPhone}
+                          onChange={(e) => setSelectedContactPhone(e.target.value)}
+                          placeholder="+971..."
+                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Linked Enquiry / Quote Reference Selector */}
+                  {selectedCompanyId && availableCompanyEnquiries.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                        Linked Proposal / Quote Reference
+                      </label>
                       <select
-                        value={selectedContactId}
-                        onChange={(e) => handleSelectContact(e.target.value)}
+                        value={selectedEnquiryId}
+                        onChange={(e) => handleSelectEnquiry(e.target.value)}
                         className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                       >
-                        <option value="">-- Select Contact --</option>
-                        {availableCompanyContacts.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.full_name} {c.is_primary ? '(Primary)' : ''} {c.designation ? `- ${c.designation}` : ''}
+                        <option value="">-- No Specific Proposal Link --</option>
+                        {availableCompanyEnquiries.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.quote_ref_no || `Enquiry #${e.sn}`} ({e.status}) {e.value_aed ? `- AED ${e.value_aed.toLocaleString()}` : ''}
                           </option>
                         ))}
                       </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={selectedContactName}
-                        onChange={(e) => setSelectedContactName(e.target.value)}
-                        placeholder="Contact Name..."
-                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                      />
-                    )}
-                  </div>
-
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Unsaved Lead Mode Form Inputs */
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800">
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Phone / Mobile
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Lead Name <span className="text-amber-400">*</span>
                     </label>
                     <input
                       type="text"
-                      value={selectedContactPhone}
-                      onChange={(e) => setSelectedContactPhone(e.target.value)}
-                      placeholder="+971..."
-                      className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                      value={unlinkedName}
+                      onChange={(e) => {
+                        setUnlinkedName(e.target.value);
+                        setValidationError(null);
+                      }}
+                      placeholder="e.g. John Doe / Walk-in Lead"
+                      className="w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
                     />
                   </div>
-                </div>
-              )}
-
-              {/* Linked Enquiry / Quote Reference Selector */}
-              {selectedCompanyId && availableCompanyEnquiries.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                    Linked Proposal / Quote Reference
-                  </label>
-                  <select
-                    value={selectedEnquiryId}
-                    onChange={(e) => handleSelectEnquiry(e.target.value)}
-                    className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">-- No Specific Proposal Link --</option>
-                    {availableCompanyEnquiries.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.quote_ref_no || `Enquiry #${e.sn}`} ({e.status}) {e.value_aed ? `- AED ${e.value_aed.toLocaleString()}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Phone / Email <span className="text-amber-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={unlinkedContactInfo}
+                      onChange={(e) => {
+                        setUnlinkedContactInfo(e.target.value);
+                        setValidationError(null);
+                      }}
+                      placeholder="e.g. +971 50 123 4567 or lead@example.com"
+                      className="w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-slate-100 font-mono placeholder-slate-500 focus:border-amber-500 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1267,7 +1372,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !activeWorkspaceId}
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500 focus:outline-hidden disabled:opacity-50 transition-all cursor-pointer"
                 >
                   {isSubmitting ? (

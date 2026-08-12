@@ -220,6 +220,9 @@ export default function UserProfileModal({
 
       // Synchronize with Team Roster (salespersons collection) if requested
       if (addToTeamRoster && setSalespersons) {
+        if (!activeWorkspaceId) {
+          throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+        }
         const cleanInitials = initials.trim().toUpperCase();
         const cleanName = fullName.trim();
         const cleanEmail = email.trim();

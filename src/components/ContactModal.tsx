@@ -227,6 +227,11 @@ export default function ContactModal({
     const userUid = user?.uid || '';
     const userName = user?.full_name || user?.username || user?.email || 'Unknown User';
 
+    if (!activeWorkspaceId) {
+      setIsSaving(false);
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+
     const payload: Omit<Contact, 'id'> = {
       workspace_id: activeWorkspaceId,
       company_id: companyId || '',
@@ -691,7 +696,7 @@ export default function ContactModal({
               </button>
               <button
                 type="submit"
-                disabled={isSaving}
+                disabled={isSaving || !activeWorkspaceId}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center space-x-2 disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />

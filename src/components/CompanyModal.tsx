@@ -572,6 +572,11 @@ export default function CompanyModal({
     if (isSavingCompany) return;
     setIsSavingCompany(true);
 
+    if (!activeWorkspace?.id) {
+      setIsSavingCompany(false);
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+
     const validPhones = companyPhones.filter(p => p.number.trim() !== '');
     const validEmails = companyEmails.filter(e => e.email.trim() !== '');
 
@@ -579,7 +584,7 @@ export default function CompanyModal({
     const searchTerms = generateCompanySearchTerms(displayName, city, validPhones.length > 0 ? validPhones : [{ number: generalPhone }]);
 
     const rawCompany: Omit<Company, 'id'> = {
-      workspace_id: activeWorkspace?.id,
+      workspace_id: activeWorkspace.id,
       canonical_name: computedCanonicalName,
       legal_suffix: legalSuffix,
       display_name: displayName,
@@ -815,8 +820,13 @@ export default function CompanyModal({
     if (!selectedCompanyId || !contactName.trim() || isSavingContact) return;
     setIsSavingContact(true);
 
+    if (!activeWorkspace?.id) {
+      setIsSavingContact(false);
+      throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
+    }
+
     const rawContact: Omit<Contact, 'id'> = {
-      workspace_id: activeWorkspace?.id,
+      workspace_id: activeWorkspace.id,
       company_id: selectedCompanyId,
       full_name: contactName.trim(),
       designation: contactDesignation.trim(),
@@ -2670,7 +2680,7 @@ export default function CompanyModal({
 
                 <button
                   type="submit"
-                  disabled={isSavingCompany}
+                  disabled={isSavingCompany || !activeWorkspace?.id}
                   className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center space-x-2"
                 >
                   {isSavingCompany && <Loader2 className="w-4 h-4 animate-spin" />}
