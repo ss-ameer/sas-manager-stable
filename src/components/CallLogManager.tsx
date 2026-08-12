@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CallLogEntry, Company, Contact, Enquiry, Workspace, UserProfile, LegalSuffix, Salesperson, getCompanyPhones, getCompanyEmails, CallStatus } from '../types';
+import { CallLogEntry, Company, Contact, Enquiry, Workspace, UserProfile, LegalSuffix, Salesperson, getCompanyPhones, getContactPhones, getCompanyEmails, isSamePhoneNumber, CallStatus } from '../types';
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc } from '../firebase';
 import { recordAuditLog } from '../utils/auditLogger';
 import { getReferenceId } from '../utils/refId';
@@ -807,17 +807,22 @@ export default function CallLogManager({
       return;
     }
 
-    // Search contacts by mobile or landline
+    // Search contacts by any phone in their saved numbers
     const matchingContacts = workspaceContacts.filter((ct) => {
-      const mob = (ct.mobile || '').replace(/[^\d+]/g, '');
-      const land = (ct.landline || '').replace(/[^\d+]/g, '');
-      return (mob && mob.includes(cleaned)) || (land && land.includes(cleaned));
+      const phones = getContactPhones(ct);
+      return phones.some((p) => {
+        const pNum = p.number || p.value || '';
+        return isSamePhoneNumber(pNum, phoneInput) || (cleaned.length >= 6 && pNum.replace(/\D/g, '').includes(cleaned.replace(/\D/g, '')));
+      });
     });
 
-    // Search companies by general phone
+    // Search companies by any phone in their general phone or phone list
     const matchingCompanies = workspaceCompanies.filter((comp) => {
-      const gphone = (comp.general_phone || '').replace(/[^\d+]/g, '');
-      return gphone && gphone.includes(cleaned);
+      const phones = getCompanyPhones(comp);
+      return phones.some((p) => {
+        const pNum = p.number || p.value || '';
+        return isSamePhoneNumber(pNum, phoneInput) || (cleaned.length >= 6 && pNum.replace(/\D/g, '').includes(cleaned.replace(/\D/g, '')));
+      });
     });
 
     if (matchingContacts.length === 1) {

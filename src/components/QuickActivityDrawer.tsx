@@ -4,6 +4,7 @@ import {
   Mic,
   MicOff,
   Phone,
+  PhoneCall,
   MessageSquare,
   Mail,
   Users,
@@ -23,12 +24,29 @@ import {
   KeyRound,
   AlertCircle,
   Search,
-  ChevronDown
+  ChevronDown,
+  Plus,
+  Trash2,
+  Briefcase,
+  UserPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { safeAddDoc, safeSetDoc, safeUpdateDoc } from '../firebase';
-import { Company, Contact, Enquiry, CallLogEntry, CallStatus, getContactPhones } from '../types';
+import {
+  Company,
+  Contact,
+  Enquiry,
+  CallLogEntry,
+  CallStatus,
+  getContactPhones,
+  getCompanyPhones,
+  getContactEmails,
+  getCompanyEmails,
+  isSamePhoneNumber
+} from '../types';
 import { CallLogRepository } from '../services/repositories/CallLogRepository';
+import { CompanyRepository } from '../services/repositories/CompanyRepository';
+import { findDuplicateCompany } from '../utils/fuzzyMatch';
 import GeminiKeyModal from './GeminiKeyModal';
 
 export interface QuickActivityDrawerProps {
@@ -65,6 +83,18 @@ interface PresetChip {
   outcome: string;
   notes: string;
   followUpDays: number | null; // null means clear follow-up
+}
+
+export interface ExpressPhoneItem {
+  id: string;
+  label: string;
+  number: string;
+}
+
+export interface ExpressEmailItem {
+  id: string;
+  label: string;
+  email: string;
 }
 
 const PRESET_CHIPS: PresetChip[] = [
@@ -170,6 +200,25 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [linkMode, setLinkMode] = useState<'crm' | 'unsaved'>('crm');
   const [unlinkedName, setUnlinkedName] = useState<string>('');
   const [unlinkedContactInfo, setUnlinkedContactInfo] = useState<string>('');
+
+  // Dual-Level Express Lead Form State
+  const [expressCompanyName, setExpressCompanyName] = useState<string>('');
+  const [expressCompanyPhones, setExpressCompanyPhones] = useState<ExpressPhoneItem[]>([
+    { id: 'ecp_1', label: 'Main', number: '' }
+  ]);
+  const [expressCompanyEmails, setExpressCompanyEmails] = useState<ExpressEmailItem[]>([
+    { id: 'ece_1', label: 'Main', email: '' }
+  ]);
+
+  const [expressContactName, setExpressContactName] = useState<string>('');
+  const [expressContactRole, setExpressContactRole] = useState<string>('');
+  const [expressContactPhones, setExpressContactPhones] = useState<ExpressPhoneItem[]>([
+    { id: 'ctp_1', label: 'Direct Line', number: '' }
+  ]);
+  const [expressContactEmails, setExpressContactEmails] = useState<ExpressEmailItem[]>([
+    { id: 'cte_1', label: 'Direct', email: '' }
+  ]);
+
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companyId || '');
   const [selectedCompanyName, setSelectedCompanyName] = useState<string>(companyName || '');
   const [selectedContactId, setSelectedContactId] = useState<string>(contactId || '');
@@ -181,7 +230,80 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [isComboboxOpen, setIsComboboxOpen] = useState<boolean>(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Context Cleanup & Initialization on Open or Prop Change (Supports Edit Mode Hydration)
+  // Voice Dictation State
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const recognitionRef = useRef<any>(null);
+
+  // --- Express Phone & Email Handlers ---
+  const handleAddCompanyPhone = () => {
+    setExpressCompanyPhones((prev) => [
+      ...prev,
+      { id: `ecp_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`, label: 'Main', number: '' }
+    ]);
+  };
+
+  const handleRemoveCompanyPhone = (id: string) => {
+    setExpressCompanyPhones((prev) => (prev.length > 1 ? prev.filter((p) => p.id !== id) : prev));
+  };
+
+  const handleCompanyPhoneChange = (id: string, field: 'label' | 'number', value: string) => {
+    setExpressCompanyPhones((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+    );
+  };
+
+  const handleAddCompanyEmail = () => {
+    setExpressCompanyEmails((prev) => [
+      ...prev,
+      { id: `ece_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`, label: 'Main', email: '' }
+    ]);
+  };
+
+  const handleRemoveCompanyEmail = (id: string) => {
+    setExpressCompanyEmails((prev) => (prev.length > 1 ? prev.filter((e) => e.id !== id) : prev));
+  };
+
+  const handleCompanyEmailChange = (id: string, field: 'label' | 'email', value: string) => {
+    setExpressCompanyEmails((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, [field]: value } : e))
+    );
+  };
+
+  const handleAddContactPhone = () => {
+    setExpressContactPhones((prev) => [
+      ...prev,
+      { id: `ctp_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`, label: 'Direct Line', number: '' }
+    ]);
+  };
+
+  const handleRemoveContactPhone = (id: string) => {
+    setExpressContactPhones((prev) => (prev.length > 1 ? prev.filter((p) => p.id !== id) : prev));
+  };
+
+  const handleContactPhoneChange = (id: string, field: 'label' | 'number', value: string) => {
+    setExpressContactPhones((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+    );
+  };
+
+  const handleAddContactEmail = () => {
+    setExpressContactEmails((prev) => [
+      ...prev,
+      { id: `cte_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`, label: 'Direct', email: '' }
+    ]);
+  };
+
+  const handleRemoveContactEmail = (id: string) => {
+    setExpressContactEmails((prev) => (prev.length > 1 ? prev.filter((e) => e.id !== id) : prev));
+  };
+
+  const handleContactEmailChange = (id: string, field: 'label' | 'email', value: string) => {
+    setExpressContactEmails((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, [field]: value } : e))
+    );
+  };
+
+  // Context Cleanup & Initialization on Open or Prop Change
   useEffect(() => {
     if (isOpen) {
       const activeLog = existingLog || logToEdit;
@@ -190,6 +312,21 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
           setLinkMode('unsaved');
           setUnlinkedName(activeLog.unlinked_name || '');
           setUnlinkedContactInfo(activeLog.unlinked_contact_info || '');
+
+          setExpressCompanyName(activeLog.unlinked_name || '');
+          const info = activeLog.unlinked_contact_info || '';
+          if (info.includes('@')) {
+            setExpressCompanyEmails([{ id: 'ece_1', label: 'Main', email: info }]);
+            setExpressCompanyPhones([{ id: 'ecp_1', label: 'Main', number: '' }]);
+          } else {
+            setExpressCompanyPhones([{ id: 'ecp_1', label: 'Main', number: info }]);
+            setExpressCompanyEmails([{ id: 'ece_1', label: 'Main', email: '' }]);
+          }
+          setExpressContactName('');
+          setExpressContactRole('');
+          setExpressContactPhones([{ id: 'ctp_1', label: 'Direct Line', number: '' }]);
+          setExpressContactEmails([{ id: 'cte_1', label: 'Direct', email: '' }]);
+
           setSelectedCompanyId('');
           setSelectedCompanyName('');
           setSelectedContactId('');
@@ -240,6 +377,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         setLinkMode('crm');
         setUnlinkedName('');
         setUnlinkedContactInfo('');
+
+        setExpressCompanyName('');
+        setExpressCompanyPhones([{ id: 'ecp_1', label: 'Main', number: '' }]);
+        setExpressCompanyEmails([{ id: 'ece_1', label: 'Main', email: '' }]);
+        setExpressContactName('');
+        setExpressContactRole('');
+        setExpressContactPhones([{ id: 'ctp_1', label: 'Direct Line', number: '' }]);
+        setExpressContactEmails([{ id: 'cte_1', label: 'Direct', email: '' }]);
+
         setChannel(initialChannel || 'Call');
         setStatus(initialStatus || 'Completed');
         setOutcome('Connected');
@@ -360,7 +506,6 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setIsComboboxOpen(false);
     setValidationError(null);
 
-    // Reset contact & enquiry selections to trigger fresh lookups
     setSelectedContactId('');
     setSelectedContactName('');
     setSelectedContactPhone('');
@@ -409,94 +554,60 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [aiError, setAiError] = useState<string | null>(null);
   const [copiedWhatsapp, setCopiedWhatsapp] = useState<boolean>(false);
 
-  // Speech Recognition State
-  const [isListening, setIsListening] = useState<boolean>(false);
-  const [speechSupported, setSpeechSupported] = useState<boolean>(false);
-  const recognitionRef = useRef<any>(null);
-
+  // Web Speech API Voice Dictation Setup
   useEffect(() => {
-    const SpeechRecognitionAPI =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognitionAPI) {
-      setSpeechSupported(true);
-      const recognition = new SpeechRecognitionAPI();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
+    if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
 
-      recognition.onresult = (event: any) => {
-        let transcript = '';
+      recognitionRef.current.onresult = (event: any) => {
+        let currentTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
+          currentTranscript += event.results[i][0].transcript;
         }
-        if (transcript) {
-          setNotes((prev) => {
-            const cleanPrev = prev.trim();
-            if (!cleanPrev) return transcript;
-            if (cleanPrev.endsWith(transcript)) return cleanPrev;
-            return `${cleanPrev} ${transcript}`;
-          });
+        if (currentTranscript) {
+          setNotes((prev) => (prev ? `${prev} ${currentTranscript}` : currentTranscript));
         }
       };
 
-      recognition.onerror = (err: any) => {
+      recognitionRef.current.onerror = (err: any) => {
         console.warn('Speech recognition error:', err);
         setIsListening(false);
       };
 
-      recognition.onend = () => {
+      recognitionRef.current.onend = () => {
         setIsListening(false);
       };
-
-      recognitionRef.current = recognition;
     }
   }, []);
 
-  const getUserApiKey = (): string => {
-    return localStorage.getItem('omni_user_gemini_api_key') || '';
-  };
-
-  const handleAiCall = async (action: 'summarize_notes' | 'draft_whatsapp') => {
-    if (!notes.trim()) {
-      setAiError('Please enter or dictate activity notes first.');
-      return;
-    }
-
+  const handleAiAssist = async (action: 'summarize_notes' | 'draft_whatsapp') => {
+    if (action === 'summarize_notes') setIsSummarizing(true);
+    if (action === 'draft_whatsapp') setIsDraftingWhatsapp(true);
     setAiError(null);
-    if (action === 'summarize_notes') {
-      setIsSummarizing(true);
-    } else {
-      setIsDraftingWhatsapp(true);
-    }
 
     try {
-      const userApiKey = getUserApiKey();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
-      if (userApiKey) {
-        headers['x-user-gemini-api-key'] = userApiKey;
-      }
-
-      const response = await fetch('/api/gemini/quick-assist', {
+      const response = await fetch('/api/ai/quick-activity-assist', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action,
+          companyName: selectedCompanyName || companyName || expressCompanyName,
+          contactName: selectedContactName || contactName || expressContactName,
+          channel,
+          outcome,
+          purpose,
           notes,
-          companyName: selectedCompanyName,
-          contactName: selectedContactName,
-          followupDate
+          salespersonName: currentUserInitials
         })
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
-        if (response.status === 401 || data.isAuthError || data.isApiKeyMissing) {
-          setAiError('Gemini API key is missing or invalid. Please configure your key.');
-          setShowGeminiKeyModal(true);
-        } else if (response.status === 429 || data.isQuotaError) {
+      if (!response.ok || !data.success) {
+        if (data.needsApiKey || response.status === 429) {
           setAiError('Gemini API quota depleted. Please configure a personal API key.');
           setShowGeminiKeyModal(true);
         } else {
@@ -525,7 +636,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setCopiedWhatsapp(true);
     setTimeout(() => setCopiedWhatsapp(false), 2500);
 
-    const targetPhone = (selectedContactPhone || '').replace(/[^0-9]/g, '');
+    const targetPhone = (selectedContactPhone || expressContactPhones[0]?.number || expressCompanyPhones[0]?.number || '').replace(/[^0-9]/g, '');
     const encodedText = encodeURIComponent(whatsappDraft);
     const targetUrl = targetPhone ? `https://wa.me/${targetPhone}?text=${encodedText}` : `https://wa.me/?text=${encodedText}`;
     window.open(targetUrl, '_blank', 'noopener,noreferrer');
@@ -569,6 +680,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setLinkMode('crm');
     setUnlinkedName('');
     setUnlinkedContactInfo('');
+
+    setExpressCompanyName('');
+    setExpressCompanyPhones([{ id: 'ecp_1', label: 'Main', number: '' }]);
+    setExpressCompanyEmails([{ id: 'ece_1', label: 'Main', email: '' }]);
+    setExpressContactName('');
+    setExpressContactRole('');
+    setExpressContactPhones([{ id: 'ctp_1', label: 'Direct Line', number: '' }]);
+    setExpressContactEmails([{ id: 'cte_1', label: 'Direct', email: '' }]);
+
     setChannel('Call');
     setOutcome('Connected');
     setStatus('Completed');
@@ -608,14 +728,22 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         return;
       }
       const hasContactSelection = Boolean(selectedContactId || selectedContactName);
-      const hasUnsavedName = Boolean(unlinkedName.trim());
-      if (!hasContactSelection && !hasUnsavedName && !selectedCompanyName) {
+      if (!hasContactSelection && !selectedCompanyName) {
         setValidationError('Lead required: Please select a CRM Contact or enter an Unsaved Lead Name before scheduling or saving.');
         return;
       }
     } else {
-      if (!unlinkedName.trim() && !unlinkedContactInfo.trim()) {
-        setValidationError('Lead required: Please enter an Unsaved Lead Name or Phone/Email before scheduling or saving.');
+      // Express / Unsaved Lead Validation
+      const hasCompName = Boolean(expressCompanyName.trim());
+      const hasContactName = Boolean(expressContactName.trim());
+      const hasCompPhone = expressCompanyPhones.some((p) => p.number.trim() !== '');
+      const hasCompEmail = expressCompanyEmails.some((e) => e.email.trim() !== '');
+      const hasContactPhone = expressContactPhones.some((p) => p.number.trim() !== '');
+      const hasContactEmail = expressContactEmails.some((e) => e.email.trim() !== '');
+      const hasLegacy = Boolean(unlinkedName.trim() || unlinkedContactInfo.trim());
+
+      if (!hasCompName && !hasContactName && !hasCompPhone && !hasCompEmail && !hasContactPhone && !hasContactEmail && !hasLegacy) {
+        setValidationError('Lead required: Please enter Company Name, Contact Person Name, or Phone/Email before saving.');
         return;
       }
     }
@@ -651,6 +779,175 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
       }
 
+      // --- Seamless Auto-CRM Generation & Linking Logic ---
+      let resolvedCompanyId: string | undefined = undefined;
+      let resolvedCompanyName: string | undefined = undefined;
+      let resolvedContactId: string | undefined = undefined;
+      let resolvedContactName: string | undefined = undefined;
+      let resolvedContactPhone: string | undefined = undefined;
+      let resolvedUnlinkedName: string | undefined = undefined;
+      let resolvedUnlinkedInfo: string | undefined = undefined;
+
+      if (linkMode === 'crm') {
+        resolvedCompanyId = selectedCompanyId || undefined;
+        resolvedCompanyName = selectedCompanyName || undefined;
+        resolvedContactId = selectedContactId || undefined;
+        resolvedContactName = selectedContactName || undefined;
+        resolvedContactPhone = selectedContactPhone || undefined;
+      } else {
+        const compName = expressCompanyName.trim();
+        const validCompPhones = expressCompanyPhones.filter((p) => p.number.trim() !== '');
+        const validCompEmails = expressCompanyEmails.filter((e) => e.email.trim() !== '');
+
+        const cName = expressContactName.trim();
+        const cRole = expressContactRole.trim();
+        const validContactPhones = expressContactPhones.filter((p) => p.number.trim() !== '');
+        const validContactEmails = expressContactEmails.filter((e) => e.email.trim() !== '');
+
+        const primaryCompPhone = validCompPhones[0]?.number.trim() || validContactPhones[0]?.number.trim() || '';
+        const primaryCompEmail = validCompEmails[0]?.email.trim() || validContactEmails[0]?.email.trim() || '';
+
+        const primaryContactPhone = validContactPhones[0]?.number.trim() || primaryCompPhone || '';
+        const primaryContactEmail = validContactEmails[0]?.email.trim() || primaryCompEmail || '';
+
+        if (compName) {
+          // 1. Check or Create Company
+          let targetComp: Company | null = null;
+          const dupMatch = findDuplicateCompany(compName, companies);
+          if (dupMatch) {
+            targetComp = dupMatch.match;
+          } else {
+            targetComp = companies.find(
+              (c) => (c.display_name || c.canonical_name || '').toLowerCase() === compName.toLowerCase()
+            ) || null;
+          }
+
+          let targetCompId = targetComp?.id;
+
+          if (!targetComp) {
+            targetCompId = `comp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            const newComp: Company = {
+              id: targetCompId,
+              workspace_id: activeWorkspaceId,
+              canonical_name: compName,
+              display_name: compName,
+              legal_suffix: 'None / To Be Added Later',
+              aliases: [],
+              country: 'United Arab Emirates',
+              city: 'Dubai',
+              general_phone: primaryCompPhone,
+              general_email: primaryCompEmail,
+              phones: validCompPhones.map((p) => ({ id: p.id, label: p.label || 'Main', number: p.number.trim() })),
+              emails: validCompEmails.map((e) => ({ id: e.id, label: e.label || 'Main', email: e.email.trim() })),
+              relationship: 'Prospect',
+              createdAt: nowIso,
+              updatedAt: nowIso
+            };
+
+            await safeSetDoc('companies', targetCompId, newComp);
+            await CompanyRepository.saveCompany(newComp);
+            targetComp = newComp;
+          } else {
+            // Update company if new phones/emails given
+            let updatedComp = { ...targetComp };
+            let compChanged = false;
+
+            const existingPhones = getCompanyPhones(targetComp);
+            validCompPhones.forEach((p) => {
+              if (!existingPhones.some((ep) => isSamePhoneNumber(ep.number || ep.value, p.number))) {
+                const newPhoneObj = { id: p.id, label: p.label || 'Main', number: p.number.trim() };
+                updatedComp.phones = [...(updatedComp.phones || []), newPhoneObj];
+                compChanged = true;
+              }
+            });
+
+            const existingEmails = getCompanyEmails(targetComp);
+            validCompEmails.forEach((e) => {
+              if (!existingEmails.some((ee) => (ee.email || ee.value || '').toLowerCase() === e.email.toLowerCase())) {
+                const newEmailObj = { id: e.id, label: e.label || 'Main', email: e.email.trim() };
+                updatedComp.emails = [...(updatedComp.emails || []), newEmailObj];
+                compChanged = true;
+              }
+            });
+
+            if (compChanged) {
+              updatedComp.updatedAt = nowIso;
+              await safeSetDoc('companies', targetCompId, updatedComp);
+              await CompanyRepository.saveCompany(updatedComp);
+            }
+          }
+
+          resolvedCompanyId = targetCompId;
+          resolvedCompanyName = compName;
+
+          // 2. Nest/Create Contact Person if provided
+          if (cName || validContactPhones.length > 0 || validContactEmails.length > 0) {
+            const contactFullName = cName || `${compName} Representative`;
+            let targetContact: Contact | null = null;
+
+            if (contacts && contacts.length > 0) {
+              targetContact = contacts.find(
+                (ct) => ct.company_id === targetCompId && (ct.full_name || '').toLowerCase() === contactFullName.toLowerCase()
+              ) || null;
+            }
+
+            let targetContactId = targetContact?.id;
+
+            if (!targetContact) {
+              targetContactId = `cont_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+              const newContact: Contact = {
+                id: targetContactId,
+                workspace_id: activeWorkspaceId,
+                company_id: targetCompId,
+                full_name: contactFullName,
+                designation: cRole || undefined,
+                mobile: primaryContactPhone,
+                email: primaryContactEmail,
+                phones: validContactPhones.map((p) => ({ id: p.id, label: p.label || 'Direct Line', number: p.number.trim() })),
+                emails: validContactEmails.map((e) => ({ id: e.id, label: e.label || 'Direct', email: e.email.trim() })),
+                is_primary: true,
+                createdAt: nowIso,
+                updatedAt: nowIso
+              };
+
+              await safeSetDoc('contacts', targetContactId, newContact);
+              await CompanyRepository.saveContact(newContact);
+            } else {
+              let updatedCt = { ...targetContact };
+              let ctChanged = false;
+
+              const existingCPhones = getContactPhones(targetContact);
+              validContactPhones.forEach((p) => {
+                if (!existingCPhones.some((ep) => isSamePhoneNumber(ep.number || ep.value, p.number))) {
+                  const newPhoneObj = { id: p.id, label: p.label || 'Direct Line', number: p.number.trim() };
+                  updatedCt.phones = [...(updatedCt.phones || []), newPhoneObj];
+                  ctChanged = true;
+                }
+              });
+
+              if (ctChanged) {
+                updatedCt.updatedAt = nowIso;
+                await safeSetDoc('contacts', targetContactId, updatedCt);
+                await CompanyRepository.saveContact(updatedCt);
+              }
+            }
+
+            resolvedContactId = targetContactId;
+            resolvedContactName = contactFullName;
+            resolvedContactPhone = primaryContactPhone || primaryCompPhone;
+          } else {
+            resolvedContactPhone = primaryCompPhone;
+          }
+        } else if (cName) {
+          resolvedUnlinkedName = cName;
+          resolvedUnlinkedInfo = primaryContactPhone || primaryContactEmail || primaryCompPhone || primaryCompEmail;
+        } else {
+          // Fall back to standard unlinked log if ONLY phone/email provided
+          resolvedUnlinkedName = unlinkedName.trim() || undefined;
+          resolvedUnlinkedInfo = primaryCompPhone || primaryCompEmail || primaryContactPhone || primaryContactEmail || unlinkedContactInfo.trim() || undefined;
+        }
+      }
+
       const activeLog = existingLog || logToEdit;
       let finalStatus: CallStatus = status || 'Completed';
       let completedAtIso: string | undefined = undefined;
@@ -669,13 +966,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         requirement_notes: notes.trim(),
         whatsapp_draft: whatsappDraft ? whatsappDraft.trim() : undefined,
         next_followup_date: followupIsoDate,
-        company_id: linkMode === 'crm' ? (selectedCompanyId || undefined) : undefined,
-        company_name: linkMode === 'crm' ? (selectedCompanyName || undefined) : undefined,
-        contact_id: linkMode === 'crm' ? (selectedContactId || undefined) : undefined,
-        contact_name: linkMode === 'crm' ? (selectedContactName || undefined) : undefined,
-        contact_phone: linkMode === 'crm' ? (selectedContactPhone || undefined) : undefined,
-        unlinked_name: linkMode === 'unsaved' ? (unlinkedName.trim() || undefined) : undefined,
-        unlinked_contact_info: linkMode === 'unsaved' ? (unlinkedContactInfo.trim() || undefined) : undefined,
+        company_id: resolvedCompanyId,
+        company_name: resolvedCompanyName,
+        contact_id: resolvedContactId,
+        contact_name: resolvedContactName,
+        contact_phone: resolvedContactPhone,
+        unlinked_name: resolvedUnlinkedName,
+        unlinked_contact_info: resolvedUnlinkedInfo,
         enquiry_id: linkMode === 'crm' ? (selectedEnquiryId || undefined) : undefined,
         enquiry_quote_ref: linkMode === 'crm' ? (selectedEnquiryQuoteRef || undefined) : undefined,
         logged_by: currentUserInitials || 'System',
@@ -720,8 +1017,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
       // Auto-DNC Suppression Trigger
       if (isDncOptOut) {
-        if (selectedContactId) {
-          await safeUpdateDoc('contacts', selectedContactId, {
+        if (resolvedContactId) {
+          await safeUpdateDoc('contacts', resolvedContactId, {
             is_dnc: true,
             dnc_reason: 'Opt-Out from Activity Log',
             last_modified_by_uid: userUid,
@@ -729,8 +1026,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
             updatedAt: nowIso
           });
         }
-        if (selectedCompanyId) {
-          await safeUpdateDoc('companies', selectedCompanyId, {
+        if (resolvedCompanyId) {
+          await safeUpdateDoc('companies', resolvedCompanyId, {
             is_dnc: true,
             last_modified_by_uid: userUid,
             last_modified_by_name: userName,
@@ -752,811 +1049,934 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <>
-      <AnimatePresence>
-        <div className="fixed inset-0 z-50 flex justify-end overflow-hidden bg-slate-900/60 backdrop-blur-xs">
-          {/* Backdrop click to close */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0"
-          />
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/70 backdrop-blur-xs flex justify-end">
+        {/* Backdrop click to close */}
+        <div className="absolute inset-0" onClick={onClose} />
 
-          {/* Drawer Panel */}
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-            className="relative z-10 flex h-full w-full max-w-lg flex-col bg-slate-900 text-slate-100 shadow-2xl border-l border-slate-800"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-900/80">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30">
-                  <Clock className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-slate-100">Log Quick Activity</h3>
-                  <p className="text-xs text-slate-400">
-                    {selectedCompanyName ? `Target: ${selectedCompanyName}` : 'Record customer interaction'}
-                  </p>
+        <motion.div
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          className="relative w-full max-w-xl bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col h-full z-10 text-slate-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400">
+                <PhoneCall className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-100">
+                  {existingLog || logToEdit ? 'Edit Activity Log' : 'Quick Activity Logger'}
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Record calls, emails, or visits with instant CRM auto-registration
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Form Body */}
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Validation Error Alert */}
+            {validationError && (
+              <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800/80 flex items-center gap-2.5 text-xs text-rose-300">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+                <span>{validationError}</span>
+              </div>
+            )}
+
+            {/* Target Link Mode Toggle */}
+            {!companyId && (
+              <div className="bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <div className="grid grid-cols-2 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLinkMode('crm');
+                      setValidationError(null);
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      linkMode === 'crm'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Existing CRM Profile</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLinkMode('unsaved');
+                      setValidationError(null);
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      linkMode === 'unsaved'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>⚡ Express Lead Entry (Auto-CRM)</span>
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+            )}
 
-            {/* Form Content */}
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              {/* Validation Guardrail Banner */}
-              {validationError && (
-                <div className="flex items-center gap-2 rounded-xl bg-rose-950/80 border border-rose-800 p-3 text-xs font-semibold text-rose-200 animate-in fade-in duration-150">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
-                  <span>{validationError}</span>
-                </div>
-              )}
-
-              {/* Mode Selector Toggle (only shown if not launched from a fixed company context) */}
-              {!companyId && (
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Logging Mode
-                  </label>
-                  <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLinkMode('crm');
-                        setValidationError(null);
-                      }}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                        linkMode === 'crm'
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <Building2 className="w-3.5 h-3.5" />
-                      <span>Link to Existing CRM Contact</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLinkMode('unsaved');
-                        setValidationError(null);
-                      }}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                        linkMode === 'unsaved'
-                          ? 'bg-amber-600 text-white shadow-xs'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <User className="w-3.5 h-3.5" />
-                      <span>Log Unsaved Lead/Number</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Target Company / Contact Context (CRM Mode) */}
-              {linkMode === 'crm' || companyId ? (
-                <>
-                  {companyId ? (
-                    <div className="rounded-xl bg-slate-800/80 p-3.5 border border-slate-700/80 space-y-2">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                        <span>Target Account</span>
-                        <span className="text-[10px] text-blue-400 font-mono">Fixed Context</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
-                          <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
-                          <span>{selectedCompanyName || companyName || 'Company Account'}</span>
-                        </div>
-                        {selectedEnquiryQuoteRef && (
-                          <div className="flex items-center gap-1.5 text-xs text-purple-300 bg-purple-950/60 px-2.5 py-1 rounded-md border border-purple-800/60 font-mono">
-                            <FileText className="h-3.5 w-3.5 text-purple-400" />
-                            <span>Quote Ref: <strong>{selectedEnquiryQuoteRef}</strong></span>
-                          </div>
-                        )}
-                      </div>
+            {/* Target Company / Contact Context (CRM Mode) */}
+            {linkMode === 'crm' || companyId ? (
+              <>
+                {companyId ? (
+                  <div className="rounded-xl bg-slate-800/80 p-3.5 border border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      <span>Target Account</span>
+                      <span className="text-[10px] text-blue-400 font-mono">Fixed Context</span>
                     </div>
-                  ) : (
-                    <div className="space-y-2 relative">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                        Target Company <span className="text-rose-400">*</span>
-                      </label>
-
-                      {selectedCompanyId ? (
-                        <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-blue-500/50 text-xs">
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
-                            <div>
-                              <span className="font-bold text-slate-100">{selectedCompanyName}</span>
-                              <p className="text-[10px] text-slate-400 font-mono">Selected Account</p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedCompanyId('');
-                              setSelectedCompanyName('');
-                              setSelectedContactId('');
-                              setSelectedContactName('');
-                              setSelectedContactPhone('');
-                              setSelectedEnquiryId('');
-                              setSelectedEnquiryQuoteRef('');
-                              setIsComboboxOpen(true);
-                            }}
-                            className="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors cursor-pointer"
-                          >
-                            Change
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="relative">
-                          <div className="relative flex items-center">
-                            <Search className="absolute left-3 h-4 w-4 text-slate-500 pointer-events-none" />
-                            <input
-                              type="text"
-                              value={companySearchQuery}
-                              onChange={(e) => {
-                                setCompanySearchQuery(e.target.value);
-                                setIsComboboxOpen(true);
-                                setValidationError(null);
-                              }}
-                              onFocus={() => setIsComboboxOpen(true)}
-                              placeholder="Search company by name or alias..."
-                              className="w-full rounded-xl bg-slate-950 border border-slate-800 pl-9 pr-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-
-                          {isComboboxOpen && (
-                            <div className="absolute z-30 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-xl p-1 space-y-0.5">
-                              {filteredCompanies.length > 0 ? (
-                                filteredCompanies.map((c) => (
-                                  <button
-                                    key={c.id}
-                                    type="button"
-                                    onClick={() => handleSelectCompany(c)}
-                                    className="w-full text-left p-2 rounded-lg hover:bg-blue-600/20 hover:border-blue-500/30 border border-transparent transition-colors flex items-center justify-between cursor-pointer"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <Building2 className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                                      <div>
-                                        <span className="text-xs font-semibold text-slate-100 block">
-                                          {c.display_name || c.canonical_name}
-                                        </span>
-                                        {(c.city || c.country) && (
-                                          <span className="text-[10px] text-slate-400 block font-mono">
-                                            {[c.city, c.country].filter(Boolean).join(', ')}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <Check className="h-3.5 w-3.5 text-slate-600" />
-                                  </button>
-                                ))
-                              ) : (
-                                <div className="p-3 text-center text-xs text-slate-500 italic">
-                                  No matching companies found
-                                </div>
-                              )}
-                            </div>
-                          )}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
+                        <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
+                        <span>{selectedCompanyName || companyName || 'Company Account'}</span>
+                      </div>
+                      {selectedEnquiryQuoteRef && (
+                        <div className="flex items-center gap-1.5 text-xs text-purple-300 bg-purple-950/60 px-2.5 py-1 rounded-md border border-purple-800/60 font-mono">
+                          <FileText className="h-3.5 w-3.5 text-purple-400" />
+                          <span>Quote Ref: <strong>{selectedEnquiryQuoteRef}</strong></span>
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  <div className="space-y-2 relative">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Target Company <span className="text-rose-400">*</span>
+                    </label>
 
-                  {/* Contact & Phone Selector (Auto-Populated) */}
-                  {selectedCompanyId && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                          Contact Representative
-                        </label>
-                        {availableCompanyContacts.length > 0 ? (
-                          <select
-                            value={selectedContactId}
-                            onChange={(e) => handleSelectContact(e.target.value)}
-                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                          >
-                            <option value="">-- Select Contact --</option>
-                            {availableCompanyContacts.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.full_name} {c.is_primary ? '(Primary)' : ''} {c.designation ? `- ${c.designation}` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
+                    {selectedCompanyId ? (
+                      <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-blue-500/50 text-xs">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
+                          <div>
+                            <span className="font-bold text-slate-100">{selectedCompanyName}</span>
+                            <p className="text-[10px] text-slate-400 font-mono">Selected Account</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCompanyId('');
+                            setSelectedCompanyName('');
+                            setSelectedContactId('');
+                            setSelectedContactName('');
+                            setSelectedContactPhone('');
+                            setSelectedEnquiryId('');
+                            setSelectedEnquiryQuoteRef('');
+                            setIsComboboxOpen(true);
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <div className="relative flex items-center">
+                          <Search className="absolute left-3 h-4 w-4 text-slate-500 pointer-events-none" />
                           <input
                             type="text"
-                            value={selectedContactName}
-                            onChange={(e) => setSelectedContactName(e.target.value)}
-                            placeholder="Contact Name..."
-                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                            value={companySearchQuery}
+                            onChange={(e) => {
+                              setCompanySearchQuery(e.target.value);
+                              setIsComboboxOpen(true);
+                              setValidationError(null);
+                            }}
+                            onFocus={() => setIsComboboxOpen(true)}
+                            placeholder="Search company by name or alias..."
+                            className="w-full rounded-xl bg-slate-950 border border-slate-800 pl-9 pr-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                           />
+                        </div>
+
+                        {isComboboxOpen && (
+                          <div className="absolute z-30 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-xl p-1 space-y-0.5">
+                            {filteredCompanies.length > 0 ? (
+                              filteredCompanies.map((c) => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => handleSelectCompany(c)}
+                                  className="w-full text-left p-2 rounded-lg hover:bg-blue-600/20 hover:border-blue-500/30 border border-transparent transition-colors flex items-center justify-between cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Building2 className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                                    <div>
+                                      <span className="text-xs font-semibold text-slate-100 block">
+                                        {c.display_name || c.canonical_name}
+                                      </span>
+                                      {(c.city || c.country) && (
+                                        <span className="text-[10px] text-slate-400 block font-mono">
+                                          {[c.city, c.country].filter(Boolean).join(', ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Check className="h-3.5 w-3.5 text-slate-600" />
+                                </button>
+                              ))
+                            ) : (
+                              <div className="p-3 text-center text-xs text-slate-500 italic">
+                                No matching companies found
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
+                    )}
+                  </div>
+                )}
 
-                      <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                          Phone / Mobile
-                        </label>
-                        <input
-                          type="text"
-                          value={selectedContactPhone}
-                          onChange={(e) => setSelectedContactPhone(e.target.value)}
-                          placeholder="+971..."
-                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Linked Enquiry / Quote Reference Selector */}
-                  {selectedCompanyId && availableCompanyEnquiries.length > 0 && (
+                {/* Contact & Phone Selector (Auto-Populated) */}
+                {selectedCompanyId && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                        Linked Proposal / Quote Reference
+                        Contact Representative
                       </label>
-                      <select
-                        value={selectedEnquiryId}
-                        onChange={(e) => handleSelectEnquiry(e.target.value)}
-                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">-- No Specific Proposal Link --</option>
-                        {availableCompanyEnquiries.map((e) => (
-                          <option key={e.id} value={e.id}>
-                            {e.quote_ref_no || `Enquiry #${e.sn}`} ({e.status}) {e.value_aed ? `- AED ${e.value_aed.toLocaleString()}` : ''}
-                          </option>
-                        ))}
-                      </select>
+                      {availableCompanyContacts.length > 0 ? (
+                        <select
+                          value={selectedContactId}
+                          onChange={(e) => handleSelectContact(e.target.value)}
+                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">-- Select Contact --</option>
+                          {availableCompanyContacts.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.full_name} {c.is_primary ? '(Primary)' : ''} {c.designation ? `- ${c.designation}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={selectedContactName}
+                          onChange={(e) => setSelectedContactName(e.target.value)}
+                          placeholder="Contact Name..."
+                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                        />
+                      )}
                     </div>
-                  )}
-                </>
-              ) : (
-                /* Unsaved Lead Mode Form Inputs */
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                        Phone / Mobile
+                      </label>
+                      <input
+                        type="text"
+                        value={selectedContactPhone}
+                        onChange={(e) => setSelectedContactPhone(e.target.value)}
+                        placeholder="+971..."
+                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Linked Enquiry / Quote Reference Selector */}
+                {selectedCompanyId && availableCompanyEnquiries.length > 0 && (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Lead Name <span className="text-amber-400">*</span>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                      Linked Proposal / Quote Reference
+                    </label>
+                    <select
+                      value={selectedEnquiryId}
+                      onChange={(e) => handleSelectEnquiry(e.target.value)}
+                      className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">-- No Specific Proposal Link --</option>
+                      {availableCompanyEnquiries.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.quote_ref_no || `Enquiry #${e.sn}`} ({e.status}) {e.value_aed ? `- AED ${e.value_aed.toLocaleString()}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Express Dual-Level Lead Form Inputs */
+              <div className="space-y-3.5">
+                {/* Data List Suggestions for Phone and Email Custom Tags */}
+                <datalist id="express-phone-tags">
+                  <option value="Main" />
+                  <option value="Direct Line" />
+                  <option value="Mobile" />
+                  <option value="Reception" />
+                  <option value="Engineering Dept" />
+                  <option value="Sales Desk" />
+                  <option value="HQ Switchboard" />
+                  <option value="After Hours" />
+                  <option value="Work" />
+                </datalist>
+
+                <datalist id="express-email-tags">
+                  <option value="Main" />
+                  <option value="Direct" />
+                  <option value="Sales" />
+                  <option value="Inquiries" />
+                  <option value="Support" />
+                  <option value="Finance" />
+                  <option value="Personal" />
+                </datalist>
+
+                {/* SECTION 1: COMPANY INFORMATION */}
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-800/80">
+                    <Building2 className="h-4 w-4 text-amber-400 shrink-0" />
+                    <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                      1. Company Information
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Company Name <span className="text-amber-400">*</span>
                     </label>
                     <input
                       type="text"
-                      value={unlinkedName}
+                      value={expressCompanyName}
                       onChange={(e) => {
-                        setUnlinkedName(e.target.value);
+                        setExpressCompanyName(e.target.value);
                         setValidationError(null);
                       }}
-                      placeholder="e.g. John Doe / Walk-in Lead"
+                      placeholder="e.g. Acme Industrial Solutions FZE"
                       className="w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Phone / Email <span className="text-amber-400">*</span>
+
+                  {/* Company Phones */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-slate-300">
+                      Company Phone Numbers
                     </label>
-                    <input
-                      type="text"
-                      value={unlinkedContactInfo}
-                      onChange={(e) => {
-                        setUnlinkedContactInfo(e.target.value);
-                        setValidationError(null);
-                      }}
-                      placeholder="e.g. +971 50 123 4567 or lead@example.com"
-                      className="w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-slate-100 font-mono placeholder-slate-500 focus:border-amber-500 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
-                    />
+                    {expressCompanyPhones.map((phoneItem) => (
+                      <div key={phoneItem.id} className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          list="express-phone-tags"
+                          value={phoneItem.label}
+                          onChange={(e) => handleCompanyPhoneChange(phoneItem.id, 'label', e.target.value)}
+                          placeholder="Tag / Dept..."
+                          className="w-28 sm:w-32 shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:outline-hidden"
+                        />
+                        <input
+                          type="text"
+                          value={phoneItem.number}
+                          onChange={(e) => handleCompanyPhoneChange(phoneItem.id, 'number', e.target.value)}
+                          placeholder="+971 4 123 4567"
+                          className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:border-amber-500 focus:outline-hidden"
+                        />
+                        {phoneItem.number.trim() && (
+                          <a
+                            href={`tel:${phoneItem.number.replace(/[^\d+]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors"
+                            title={`Call ${phoneItem.number}`}
+                          >
+                            <Phone className="h-3 w-3 text-emerald-400" />
+                            <span className="hidden sm:inline">Call Now</span>
+                          </a>
+                        )}
+                        {expressCompanyPhones.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCompanyPhone(phoneItem.id)}
+                            className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            title="Remove Phone"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleAddCompanyPhone}
+                      className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>+ Add Company Phone</span>
+                    </button>
+                  </div>
+
+                  {/* Company Emails */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="block text-xs font-medium text-slate-300">
+                      Company Emails
+                    </label>
+                    {expressCompanyEmails.map((emailItem) => (
+                      <div key={emailItem.id} className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          list="express-email-tags"
+                          value={emailItem.label}
+                          onChange={(e) => handleCompanyEmailChange(emailItem.id, 'label', e.target.value)}
+                          placeholder="Tag..."
+                          className="w-28 sm:w-32 shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:outline-hidden"
+                        />
+                        <input
+                          type="email"
+                          value={emailItem.email}
+                          onChange={(e) => handleCompanyEmailChange(emailItem.id, 'email', e.target.value)}
+                          placeholder="info@company.com"
+                          className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:border-amber-500 focus:outline-hidden"
+                        />
+                        {expressCompanyEmails.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCompanyEmail(emailItem.id)}
+                            className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            title="Remove Email"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleAddCompanyEmail}
+                      className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>+ Add Company Email</span>
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {/* Channel Selector */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                  Interaction Channel
-                </label>
-                <div className="grid grid-cols-5 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                  {[
-                    { id: 'Call', label: 'Call', icon: Phone },
-                    { id: 'WhatsApp', label: 'WhatsApp', icon: MessageSquare },
-                    { id: 'Email', label: 'Email', icon: Mail },
-                    { id: 'Meeting', label: 'Meeting', icon: Users },
-                    { id: 'Site Visit', label: 'Site Visit', icon: MapPin }
-                  ].map((item) => {
-                    const IconComponent = item.icon;
-                    const isSelected = channel === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setChannel(item.id as ActivityChannel)}
-                        className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-xs font-medium transition-all ${
-                          isSelected
-                            ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                        }`}
-                      >
-                        <IconComponent className="h-4 w-4" />
-                        <span className="text-[11px] truncate w-full text-center">{item.label}</span>
-                      </button>
-                    );
-                  })}
+                {/* SECTION 2: CONTACT PERSON DETAILS */}
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-800/80">
+                    <User className="h-4 w-4 text-blue-400 shrink-0" />
+                    <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">
+                      2. Contact Person Info (Optional)
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Person Name
+                      </label>
+                      <input
+                        type="text"
+                        value={expressContactName}
+                        onChange={(e) => setExpressContactName(e.target.value)}
+                        placeholder="e.g. John Doe"
+                        className="w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Designation / Role
+                      </label>
+                      <input
+                        type="text"
+                        value={expressContactRole}
+                        onChange={(e) => setExpressContactRole(e.target.value)}
+                        placeholder="e.g. Procurement Manager"
+                        className="w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Direct Phones */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="block text-xs font-medium text-slate-300">
+                      Direct Phones
+                    </label>
+                    {expressContactPhones.map((phoneItem) => (
+                      <div key={phoneItem.id} className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          list="express-phone-tags"
+                          value={phoneItem.label}
+                          onChange={(e) => handleContactPhoneChange(phoneItem.id, 'label', e.target.value)}
+                          placeholder="Tag..."
+                          className="w-28 sm:w-32 shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
+                        />
+                        <input
+                          type="text"
+                          value={phoneItem.number}
+                          onChange={(e) => handleContactPhoneChange(phoneItem.id, 'number', e.target.value)}
+                          placeholder="+971 50 123 4567"
+                          className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
+                        />
+                        {phoneItem.number.trim() && (
+                          <a
+                            href={`tel:${phoneItem.number.replace(/[^\d+]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors"
+                            title={`Call ${phoneItem.number}`}
+                          >
+                            <Phone className="h-3 w-3 text-emerald-400" />
+                            <span className="hidden sm:inline">Call Now</span>
+                          </a>
+                        )}
+                        {expressContactPhones.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveContactPhone(phoneItem.id)}
+                            className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            title="Remove Phone"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleAddContactPhone}
+                      className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>+ Add Direct Phone</span>
+                    </button>
+                  </div>
+
+                  {/* Direct Emails */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="block text-xs font-medium text-slate-300">
+                      Direct Emails
+                    </label>
+                    {expressContactEmails.map((emailItem) => (
+                      <div key={emailItem.id} className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          list="express-email-tags"
+                          value={emailItem.label}
+                          onChange={(e) => handleContactEmailChange(emailItem.id, 'label', e.target.value)}
+                          placeholder="Tag..."
+                          className="w-28 sm:w-32 shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
+                        />
+                        <input
+                          type="email"
+                          value={emailItem.email}
+                          onChange={(e) => handleContactEmailChange(emailItem.id, 'email', e.target.value)}
+                          placeholder="direct@company.com"
+                          className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
+                        />
+                        {expressContactEmails.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveContactEmail(emailItem.id)}
+                            className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            title="Remove Email"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleAddContactEmail}
+                      className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>+ Add Direct Email</span>
+                    </button>
+                  </div>
                 </div>
               </div>
+            )}
 
-              {/* Call Status / Disposition Toggle */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                  Call Status / Disposition
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                  {[
-                    { id: 'Completed', label: 'Completed Log' },
-                    { id: 'Scheduled', label: 'Scheduled / Planned' },
-                    { id: 'No Answer', label: 'No Answer' },
-                    { id: 'Busy', label: 'Busy' }
-                  ].map((st) => (
+            {/* Channel Selector */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                Interaction Channel
+              </label>
+              <div className="grid grid-cols-5 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                {[
+                  { id: 'Call', label: 'Call', icon: Phone },
+                  { id: 'WhatsApp', label: 'WhatsApp', icon: MessageSquare },
+                  { id: 'Email', label: 'Email', icon: Mail },
+                  { id: 'Meeting', label: 'Meeting', icon: Users },
+                  { id: 'Site Visit', label: 'Site Visit', icon: MapPin }
+                ].map((item) => {
+                  const IconComponent = item.icon;
+                  const isSelected = channel === item.id;
+                  return (
                     <button
-                      key={st.id}
+                      key={item.id}
                       type="button"
-                      onClick={() => {
-                        const newStatus = st.id as CallStatus;
-                        setStatus(newStatus);
-                        if (newStatus === 'Busy') {
-                          setOutcome('Busy');
-                        } else if (newStatus === 'No Answer') {
-                          setOutcome('No Answer');
-                        } else if (newStatus === 'Scheduled') {
-                          if (!outcome || outcome === 'Connected' || outcome === 'Busy' || outcome === 'No Answer') {
-                            setOutcome('Pending');
-                          }
-                          if (!followupDate) {
-                            setFollowupDate(getOffsetDateString(1));
-                          }
-                        }
-                      }}
-                      className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                        status === st.id
-                          ? 'bg-blue-600 text-white font-bold shadow-xs'
+                      onClick={() => setChannel(item.id as ActivityChannel)}
+                      className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-xs font-medium transition-all ${
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                       }`}
                     >
-                      {st.label}
+                      <IconComponent className="h-4 w-4" />
+                      <span className="text-[11px] truncate w-full text-center">{item.label}</span>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
+            </div>
 
-              {/* 1-Tap Preset Chips */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Quick Presets
-                  </label>
-                  <span className="flex items-center gap-1 text-[11px] text-blue-400 font-medium">
-                    <Sparkles className="h-3 w-3" /> 1-Tap Autofill
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {PRESET_CHIPS.map((chip) => {
-                    const isActive = activeChipId === chip.id;
-                    return (
-                      <button
-                        key={chip.id}
-                        type="button"
-                        onClick={() => handleApplyPreset(chip)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border cursor-pointer ${
-                          isActive
-                            ? 'bg-blue-600/20 text-blue-300 border-blue-500/50 ring-1 ring-blue-500/30'
-                            : 'bg-slate-800/80 text-slate-300 border-slate-700/60 hover:bg-slate-700 hover:border-slate-600'
-                        }`}
-                      >
-                        {isActive && <Check className="h-3 w-3 text-blue-400" />}
-                        {chip.label}
-                      </button>
-                    );
-                  })}
-                </div>
+            {/* Call Status / Disposition Toggle */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                Call Status / Disposition
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                {[
+                  { id: 'Completed', label: 'Completed Log' },
+                  { id: 'Scheduled', label: 'Scheduled / Planned' },
+                  { id: 'No Answer', label: 'No Answer' },
+                  { id: 'Busy', label: 'Busy' }
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => {
+                      const newStatus = st.id as CallStatus;
+                      setStatus(newStatus);
+                      if (newStatus === 'Busy') {
+                        setOutcome('Busy');
+                      } else if (newStatus === 'No Answer') {
+                        setOutcome('No Answer');
+                      } else if (newStatus === 'Scheduled') {
+                        if (!outcome || outcome === 'Connected' || outcome === 'Busy' || outcome === 'No Answer') {
+                          setOutcome('Pending');
+                        }
+                      } else if (newStatus === 'Completed') {
+                        if (!outcome || outcome === 'Pending') {
+                          setOutcome('Connected');
+                        }
+                      }
+                    }}
+                    className={`py-2 px-2 rounded-lg text-xs font-medium transition-all text-center ${
+                      status === st.id
+                        ? 'bg-slate-800 text-blue-400 border border-blue-500/40 shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {/* Outcome Pill Grid */}
+            {/* Outcome & Purpose Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                  Call Outcome (1-Tap Pill Grid)
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                  Call Outcome
                 </label>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {[
-                    { label: 'Connected', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
-                    { label: 'Reached - Interested', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
-                    { label: 'Proposal Sent', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
-                    { label: 'Callback Requested', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
-                    { label: 'Quote Follow-Up', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
-                    { label: 'Awaiting Specs', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
-                    { label: 'No Answer', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
-                    { label: 'Busy', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
-                    { label: 'Call Dropped / Disconnected', color: 'bg-amber-500/10 text-amber-200 border-amber-500/30 hover:bg-amber-500/20' },
-                    { label: 'Cannot Be Reached / Unreachable', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
-                    { label: 'Dead / Invalid Number', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30' },
-                    { label: 'Not Interested', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30' },
-                    { label: 'DNC / Opt-Out', color: 'bg-rose-600/30 text-rose-200 border-rose-600/50 hover:bg-rose-600/40' }
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => {
-                        setOutcome(item.label);
-                        if (item.label.includes('DNC')) setIsDnc(true);
-                        if (item.label === 'No Answer' || item.label === 'Busy') setStatus(item.label as CallStatus);
-                        if (item.label.includes('Dead') || item.label.includes('Invalid')) setStatus('Invalid Number / Disconnected' as CallStatus);
-                      }}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition cursor-pointer ${item.color} ${
-                        outcome === item.label ? 'ring-2 ring-blue-500 scale-105 font-bold shadow-xs' : 'opacity-80'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="text"
+                <select
                   value={outcome}
                   onChange={(e) => setOutcome(e.target.value)}
-                  placeholder="Or enter custom outcome..."
-                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                />
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="Connected">Connected / Reached</option>
+                  <option value="Interested - Quote Requested">Interested - Quote Requested</option>
+                  <option value="Left Voicemail">Left Voicemail</option>
+                  <option value="Call Back Later">Call Back Later</option>
+                  <option value="Call Dropped / Disconnected">Call Dropped / Disconnected</option>
+                  <option value="Busy">Line Busy</option>
+                  <option value="No Answer">No Answer / Unreachable</option>
+                  <option value="Not Interested">Not Interested</option>
+                  <option value="Wrong Number / Invalid">Wrong Number / Invalid</option>
+                  <option value="Meeting Scheduled">Meeting Scheduled</option>
+                  <option value="Site Visit Completed">Site Visit Completed</option>
+                  <option value="dnc_opt_out">Opt-Out / Do Not Contact (DNC)</option>
+                </select>
               </div>
 
-              {/* Interaction Purpose Pill Grid */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                  Interaction Purpose
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                  Call Purpose
                 </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    'Prospecting / Intro',
-                    'Quote Follow-Up',
-                    'Technical Specs',
-                    'Negotiation',
-                    'Payment / Billing',
-                    'General Inquiry'
-                  ].map((p) => (
+                <select
+                  value={purpose}
+                  onChange={(e) => setPurpose(e.target.value)}
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="Prospecting / Intro">Prospecting / Intro</option>
+                  <option value="Quote Follow-up">Quote Follow-up</option>
+                  <option value="Technical Review">Technical Review</option>
+                  <option value="Commercial Negotiation">Commercial Negotiation</option>
+                  <option value="Payment / Invoicing">Payment / Invoicing</option>
+                  <option value="Customer Care">Customer Care</option>
+                </select>
+              </div>
+            </div>
+
+            {/* One-Tap Outcome Preset Chips */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  One-Tap Outcome Presets
+                </label>
+                <span className="text-[10px] text-slate-500">Auto-fills notes & follow-up</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_CHIPS.map((chip) => {
+                  const isActive = activeChipId === chip.id;
+                  return (
                     <button
-                      key={p}
+                      key={chip.id}
                       type="button"
-                      onClick={() => setPurpose(p)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
-                        purpose === p
-                          ? 'bg-blue-600 text-white border-blue-500 font-bold'
-                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-800'
+                      onClick={() => handleApplyPreset(chip)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border ${
+                        isActive
+                          ? 'bg-blue-600 text-white border-blue-400 shadow-xs'
+                          : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800 hover:border-slate-700'
                       }`}
                     >
-                      {p}
+                      {chip.label}
                     </button>
-                  ))}
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Requirement Notes & Voice Dictation */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Activity & Requirement Notes
+                </label>
+                <div className="flex items-center gap-2">
+                  {recognitionRef.current && (
+                    <button
+                      type="button"
+                      onClick={toggleListening}
+                      className={`px-2 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+                        isListening
+                          ? 'bg-rose-600 text-white animate-pulse'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {isListening ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+                      <span>{isListening ? 'Listening...' : 'Dictate'}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleAiAssist('summarize_notes')}
+                    disabled={isSummarizing || !notes.trim()}
+                    className="px-2 py-1 rounded-md bg-purple-950/80 hover:bg-purple-900 border border-purple-800/80 text-purple-300 text-[11px] font-semibold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSummarizing ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-purple-400" />
+                    ) : (
+                      <Sparkles className="h-3 w-3 text-purple-400" />
+                    )}
+                    <span>AI Polish</span>
+                  </button>
                 </div>
               </div>
 
-              {/* Date & Time of Activity */}
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Log discussion points, customer feedback, project specifications..."
+                className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Date & Follow-Up Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
-                  <span>Date &amp; Time of Activity</span>
-                  <span className="text-[10px] text-slate-500 font-mono">Defaults to Now</span>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                  Activity Date & Time
                 </label>
                 <input
                   type="datetime-local"
                   value={activityDate}
                   onChange={(e) => setActivityDate(e.target.value)}
-                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden font-mono"
                 />
               </div>
 
-              {/* Notes with Speech Dictation Button & AI Assist Action Bar */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-medium text-slate-300">
-                    Activity Notes
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Next Follow-up Date
                   </label>
-                  {speechSupported && (
-                    <button
-                      type="button"
-                      onClick={toggleListening}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                        isListening
-                          ? 'bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
-                      }`}
-                    >
-                      {isListening ? (
-                        <>
-                          <MicOff className="h-3.5 w-3.5 text-red-400" />
-                          Listening... (Tap to Stop)
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="h-3.5 w-3.5 text-blue-400" />
-                          Dictate Voice
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <textarea
-                    rows={4}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Enter details of the discussion or use voice dictation..."
-                    className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 resize-none"
-                  />
-                  {isListening && (
-                    <div className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-md bg-red-950/80 px-2 py-0.5 text-[10px] text-red-300 border border-red-800/50">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
-                      Recording audio...
-                    </div>
-                  )}
-                </div>
-
-                {/* ✨ AI Assist Action Bar */}
-                <div className="mt-2.5 rounded-xl border border-blue-900/40 bg-blue-950/20 p-2.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-300">
-                      <Sparkles className="h-3.5 w-3.5 text-blue-400" />
-                      <span>AI Assist Toolbar</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowGeminiKeyModal(true)}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-blue-300 transition-colors"
-                      title="Configure Personal Gemini API Key"
-                    >
-                      <KeyRound className="h-3 w-3" />
-                      {getUserApiKey() ? 'Key Active' : 'Set Gemini Key'}
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Summarize Notes */}
-                    <button
-                      type="button"
-                      onClick={() => handleAiCall('summarize_notes')}
-                      disabled={isSummarizing || isDraftingWhatsapp || !notes.trim()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/30 hover:border-blue-400 disabled:opacity-40 transition-all shadow-xs cursor-pointer"
-                    >
-                      {isSummarizing ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />
-                          <span>Summarizing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-3.5 w-3.5 text-blue-400" />
-                          <span>✨ Summarize Notes</span>
-                        </>
-                      )}
-                    </button>
-
-                    {/* Draft WhatsApp Message */}
-                    <button
-                      type="button"
-                      onClick={() => handleAiCall('draft_whatsapp')}
-                      disabled={isSummarizing || isDraftingWhatsapp || !notes.trim()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/30 hover:border-emerald-400 disabled:opacity-40 transition-all shadow-xs cursor-pointer"
-                    >
-                      {isDraftingWhatsapp ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
-                          <span>Drafting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
-                          <span>💬 Draft WhatsApp Message</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Inline Error / Safeguard Banner */}
-                  {aiError && (
-                    <div className="flex items-center justify-between text-xs text-rose-300 bg-rose-950/50 border border-rose-800/50 rounded-lg p-2 mt-1">
-                      <div className="flex items-center gap-1.5">
-                        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
-                        <span>{aiError}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowGeminiKeyModal(true)}
-                        className="text-[11px] underline text-blue-300 font-semibold hover:text-white shrink-0 ml-2"
-                      >
-                        Configure Key
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Drafted WhatsApp Message Preview Box */}
-                {whatsappDraft && (
-                  <div className="mt-2.5 rounded-xl border border-emerald-500/40 bg-emerald-950/20 p-3.5 space-y-2.5 animate-in fade-in duration-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
-                        <MessageSquare className="h-4 w-4 text-emerald-400" />
-                        <span>Drafted WhatsApp Message</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setWhatsappDraft('')}
-                        className="text-slate-400 hover:text-slate-200 p-1 rounded-md transition-colors"
-                        title="Dismiss draft"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-
-                    <textarea
-                      rows={3}
-                      value={whatsappDraft}
-                      onChange={(e) => setWhatsappDraft(e.target.value)}
-                      className="w-full rounded-lg bg-slate-950/80 border border-emerald-800/50 px-3 py-2 text-xs text-emerald-100 focus:border-emerald-500 focus:outline-hidden resize-none font-sans"
-                    />
-
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      <span className="text-[11px] text-emerald-400/80 font-medium">
-                        Ready to dispatch to client
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(whatsappDraft);
-                            setCopiedWhatsapp(true);
-                            setTimeout(() => setCopiedWhatsapp(false), 2000);
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
-                        >
-                          {copiedWhatsapp ? (
-                            <>
-                              <Check className="h-3.5 w-3.5 text-emerald-400" />
-                              <span>Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3.5 w-3.5 text-slate-400" />
-                              <span>Copy Text</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleCopyAndSendWhatsapp}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          <span>Copy & Send via WhatsApp</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Follow-up Date & Quick Shortcuts */}
-              <div className="space-y-2">
-                <label className="block text-xs font-medium text-slate-300">
-                  Next Follow-Up Date
-                </label>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="date"
-                      value={followupDate}
-                      onChange={(e) => setFollowupDate(e.target.value)}
-                      className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
                   {followupDate && (
                     <button
                       type="button"
                       onClick={() => setFollowupDate('')}
-                      className="rounded-lg p-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                      className="text-[10px] text-slate-500 hover:text-slate-300"
                     >
                       Clear
                     </button>
                   )}
                 </div>
-
-                {/* Quick Date Shortcuts */}
-                <div className="flex items-center gap-1.5">
-                  {[
-                    { label: 'Tomorrow', days: 1 },
-                    { label: '+3 Days', days: 3 },
-                    { label: 'Next Week', days: 7 }
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => setFollowupDate(getOffsetDateString(item.days))}
-                      className="px-2.5 py-1 rounded-md bg-slate-800/60 hover:bg-slate-800 text-[11px] font-medium text-slate-400 hover:text-slate-200 border border-slate-700/50 transition-colors cursor-pointer"
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* DNC / Opt-out Checkbox */}
-              <div className="rounded-xl border border-red-900/30 bg-red-950/10 p-3">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isDnc}
-                    onChange={(e) => setIsDnc(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-700 bg-slate-900 text-red-600 focus:ring-red-500/30 focus:ring-offset-slate-900"
-                  />
-                  <div>
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-red-400">
-                      <ShieldAlert className="h-3.5 w-3.5" />
-                      Mark as Do Not Call / Opt-Out
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Tags contact to exclude them from future outreach and promotional campaigns.
-                    </p>
-                  </div>
-                </label>
-              </div>
-            </form>
-
-            {/* Footer Actions */}
-            <div className="flex items-center justify-between border-t border-slate-800 px-6 py-4 bg-slate-900/80">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-              >
-                Reset Form
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-lg px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || !activeWorkspaceId}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500 focus:outline-hidden disabled:opacity-50 transition-all cursor-pointer"
-                >
-                  {isSubmitting ? (
-                    <span>Saving...</span>
-                  ) : (
-                    <>
-                      <Send className="h-3.5 w-3.5" />
-                      Save Activity
-                    </>
-                  )}
-                </button>
+                <input
+                  type="date"
+                  value={followupDate}
+                  onChange={(e) => setFollowupDate(e.target.value)}
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden font-mono"
+                />
               </div>
             </div>
-          </motion.div>
-        </div>
-      </AnimatePresence>
 
-      <GeminiKeyModal
-        isOpen={showGeminiKeyModal}
-        onClose={() => setShowGeminiKeyModal(false)}
-      />
-    </>
+            {/* DNC Opt-Out Checkbox */}
+            <div className="pt-1">
+              <label className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer hover:bg-slate-900/80 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={isDnc}
+                  onChange={(e) => setIsDnc(e.target.checked)}
+                  className="rounded-md border-slate-700 bg-slate-900 text-rose-500 focus:ring-rose-500 h-4 w-4"
+                />
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-rose-400 shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold text-rose-300 block">
+                      Mark as Do-Not-Contact (DNC) / Opt-Out
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">
+                      Suppresses contact from future dialer queues and outreach lists
+                    </span>
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {/* AI WhatsApp Draft Generator Section */}
+            <div className="p-3.5 rounded-xl bg-purple-950/20 border border-purple-800/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-purple-200">
+                    WhatsApp Follow-Up Draft
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAiAssist('draft_whatsapp')}
+                  disabled={isDraftingWhatsapp || !notes.trim()}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {isDraftingWhatsapp ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                  )}
+                  <span>Generate Draft</span>
+                </button>
+              </div>
+
+              {whatsappDraft ? (
+                <div className="space-y-2 pt-1">
+                  <textarea
+                    value={whatsappDraft}
+                    onChange={(e) => setWhatsappDraft(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg bg-slate-950 border border-slate-800 p-2.5 text-xs text-slate-100 placeholder-slate-500 focus:border-emerald-500 focus:outline-hidden font-sans"
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyAndSendWhatsapp}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                    >
+                      {copiedWhatsapp ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                      <span>{copiedWhatsapp ? 'Copied & Opening...' : 'Send via WhatsApp'}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400 italic">
+                  Click 'Generate Draft' to create a personalized WhatsApp follow-up based on your notes.
+                </p>
+              )}
+            </div>
+
+            {aiError && (
+              <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800/80 flex items-center justify-between text-xs text-rose-300">
+                <span>{aiError}</span>
+                <button
+                  type="button"
+                  onClick={() => setShowGeminiKeyModal(true)}
+                  className="px-2 py-1 rounded-md bg-rose-900/80 hover:bg-rose-800 text-white text-[10px] font-semibold flex items-center gap-1 transition-colors shrink-0 ml-2 cursor-pointer"
+                >
+                  <KeyRound className="h-3 w-3" />
+                  <span>Config Key</span>
+                </button>
+              </div>
+            )}
+          </form>
+
+          {/* Drawer Footer Actions */}
+          <div className="p-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="px-3 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+            >
+              Reset Form
+            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                    <span>Saving Activity...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 text-white" />
+                    <span>{existingLog || logToEdit ? 'Update Log' : 'Save Activity Log'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Gemini API Key Modal */}
+      {showGeminiKeyModal && (
+        <GeminiKeyModal
+          isOpen={showGeminiKeyModal}
+          onClose={() => setShowGeminiKeyModal(false)}
+        />
+      )}
+    </AnimatePresence>
   );
 };
 
+export default QuickActivityDrawer;

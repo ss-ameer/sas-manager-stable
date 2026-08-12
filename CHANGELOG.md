@@ -2,6 +2,23 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.64.0] - 2026-08-12
+
+### Added & Enhanced
+- **Ultimate Express Cold Call & Auto-CRM Registration Workflow (`src/components/QuickActivityDrawer.tsx`)**:
+  - Overhauled "Unlinked Lead" tab into a dual-level Express Form cleanly separating "Company Information" from "Contact Person Info".
+  - Added inline "📞 Call Now" action buttons for every entered company or direct phone number (`target="_blank"`, `rel="noopener noreferrer"`, `onClick={(e) => e.stopPropagation()}`).
+  - Implemented dynamic, multi-phone and multi-email arrays allowing operators to add secondary numbers mid-call.
+- **Flexible Custom Tagging for Phones & Emails (`src/components/QuickActivityDrawer.tsx`)**:
+  - Replaced rigid dropdown tags with custom comboboxes and free-text inputs for phone/email labels with smart datalist suggestions (`Main`, `Reception`, `Engineering Dept`, `Direct Line`, `Sales Desk`, etc.).
+- **Normalized Phone Matching & Duplicate Suppression (`src/types.ts`, `src/components/CallLogManager.tsx`)**:
+  - Added `normalizePhoneNumber` and `isSamePhoneNumber` helper functions to strip spaces, dashes, and country codes before matching numbers.
+  - Resolved live phone lookup in `CallLogManager.tsx` to automatically suppress false duplicate assignment prompts when dialed numbers match existing company or contact records.
+- **Seamless Auto-CRM Generation & Linking (`src/components/QuickActivityDrawer.tsx`)**:
+  - Updated `handleSubmit` in `QuickActivityDrawer.tsx` to automatically generate and save Company records via `CompanyRepository.saveCompany` when a company name and phone/email are provided.
+  - Automatically nests and registers Contact records under the new Company when contact details are provided.
+  - Automatically links saved call logs to newly generated `company_id` and `contact_id` records while falling back to standard unlinked logs when only a phone number is provided.
+
 ## [0.63.3] - 2026-08-12
 
 ### Fixed & Enhanced

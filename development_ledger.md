@@ -1,5 +1,25 @@
 # Development Ledger
 
+## Session: 2026-08-12 (Ultimate Express Cold Call & Auto-CRM Registration Workflow)
+
+### Goals
+- Overhaul "Unlinked Lead" tab into a dual-level Express Lead Entry form in `QuickActivityDrawer.tsx`.
+- Separate Company Info from Contact Person Info with inline "Call Now" action buttons (`target="_blank"`, `rel="noopener noreferrer"`, `onClick={(e) => e.stopPropagation()}`).
+- Implement flexible custom tagging for phones/emails via comboboxes/inputs with datalist suggestions.
+- Fix duplicate assignment prompt issue by normalizing phone numbers (stripping spaces, dashes, and country codes) across lookup logic.
+- Implement seamless Auto-CRM generation and linking in `handleSubmit` via `CompanyRepository.ts`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/types.ts` | Added `normalizePhoneNumber` and `isSamePhoneNumber` helper functions. |
+| `/src/components/CallLogManager.tsx` | Updated live phone lookup logic (`handlePhoneInputChange`) with normalized phone comparison to suppress duplicate assignment prompts. |
+| `/src/components/QuickActivityDrawer.tsx` | Overhauled "Unlinked Lead" into dual-level Express Form with inline Call Now buttons, custom tag inputs, multi-phone/email support, and Auto-CRM generation. |
+| `/package.json` | Bumped version to `0.64.0`. |
+| `/CHANGELOG.md` | Logged 0.64.0 release notes. |
+| `/development_ledger.md` | Added session record. |
+
 ## Session: 2026-08-12 (Universal Communication Link New-Tab & Event Protection)
 
 ### Goals

@@ -149,6 +149,23 @@ export interface Contact extends SoftDeleteFields {
   updatedAt?: string;
 }
 
+export function normalizePhoneNumber(phone?: string): string {
+  if (!phone) return '';
+  return phone.replace(/\D/g, '');
+}
+
+export function isSamePhoneNumber(phoneA?: string, phoneB?: string): boolean {
+  if (!phoneA || !phoneB) return false;
+  const numA = normalizePhoneNumber(phoneA);
+  const numB = normalizePhoneNumber(phoneB);
+  if (!numA || !numB) return false;
+  if (numA === numB) return true;
+  if (numA.length >= 7 && numB.length >= 7) {
+    return numA.endsWith(numB) || numB.endsWith(numA);
+  }
+  return false;
+}
+
 export function getContactPhones(contact?: Partial<Contact> | null): Array<LabeledPhone & { value: string; id?: string }> {
   if (!contact) return [];
   if (contact.phones && contact.phones.length > 0) {
