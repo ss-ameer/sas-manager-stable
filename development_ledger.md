@@ -1,5 +1,26 @@
 # Development Ledger
 
+## Session: 2026-08-12 (Companies Contrast, Capitalization Preservation, Phone/Email Categorization, Name Cascade Sync & Ghost Log Guardrails)
+
+### Goals
+- Fix invisible company name text in Companies Registry list/table view with high-contrast Tailwind classes.
+- Preserve user capitalization on display names while storing background lowercase `canonical_name` for duplicate matching.
+- Upgrade Phone and Email array controls with category dropdown selectors and render category badges in Company Details view.
+- Implement company name cascade sync in `CompanyRepository.ts` (`cascadeUpdateCallLogsCompanyName`) that updates matching call logs while strictly protecting historical phone numbers.
+- Prevent blank ghost logs in `QuickActivityDrawer.tsx` with strict submit validation and safeguard Fast Outcome Logger in `CallLogManager.tsx` with optional chaining and Missing Lead Guard.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CompanyModal.tsx` | High-contrast table styling, user capitalization preservation, and Phone/Email category selector & badge inspector. |
+| `/src/services/repositories/CompanyRepository.ts` | Refined `cascadeUpdateCallLogsCompanyName` to update matching call logs across local stores (`activity_logs` and `call_logs`) and Firestore while preserving historical phone fields. |
+| `/src/components/QuickActivityDrawer.tsx` | Enforced strict submit validation preventing ghost logs when no CRM Contact or Unsaved Lead is selected. |
+| `/src/components/CallLogManager.tsx` | Hardened Fast Call Outcome Logger with optional chaining for legacy blank logs and inline Missing Lead Guard enforcement. |
+| `/package.json` | Bumped version to `0.63.2`. |
+| `/CHANGELOG.md` | Added 0.63.2 release entry. |
+| `/development_ledger.md` | Logged session goals and modifications table. |
+
 ## Session: 2026-08-12 (Firestore Connection Resilience & Long Polling Fallback)
 
 ### Goals

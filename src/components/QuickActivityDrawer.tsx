@@ -591,12 +591,18 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
     if (linkMode === 'crm') {
       if (!selectedCompanyId) {
-        setValidationError('Please select a company before saving an activity.');
+        setValidationError('Please select a company or CRM contact before saving an activity.');
+        return;
+      }
+      const hasContactSelection = Boolean(selectedContactId || selectedContactName);
+      const hasUnsavedName = Boolean(unlinkedName.trim());
+      if (!hasContactSelection && !hasUnsavedName && !selectedCompanyName) {
+        setValidationError('Lead required: Please select a CRM Contact or enter an Unsaved Lead Name before scheduling or saving.');
         return;
       }
     } else {
       if (!unlinkedName.trim() && !unlinkedContactInfo.trim()) {
-        setValidationError('Please provide a Lead Name or Phone/Email for the unsaved lead.');
+        setValidationError('Lead required: Please enter an Unsaved Lead Name or Phone/Email before scheduling or saving.');
         return;
       }
     }

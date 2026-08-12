@@ -79,44 +79,42 @@ export class CompanyRepository {
     if (!companyId || !newCompanyName) return;
 
     try {
-      const allLogs = await getFromLocalStore<any>('activity_logs');
-      let hasChanges = false;
-      const updatedLogs = allLogs.map((log) => {
-        if (log.company_id === companyId && log.company_name !== newCompanyName) {
-          hasChanges = true;
-          // CRITICAL: ONLY update company_name, NEVER overwrite log.phone or log.contact_phone
-          return {
-            ...log,
-            company_name: newCompanyName,
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return log;
-      });
+      const storesToUpdate = ['activity_logs', 'call_logs'];
+      for (const storeName of storesToUpdate) {
+        const allLogs = await getFromLocalStore<any>(storeName);
+        if (!allLogs || !Array.isArray(allLogs) || allLogs.length === 0) continue;
 
-      if (hasChanges) {
-        await saveToLocalStore('activity_logs', updatedLogs);
+        let hasChanges = false;
+        const updatedLogs = allLogs.map((log) => {
+          if (log.company_id === companyId && log.company_name !== newCompanyName) {
+            hasChanges = true;
+            // CRITICAL: ONLY update company_name, NEVER overwrite log.phone or log.contact_phone
+            return {
+              ...log,
+              company_name: newCompanyName,
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return log;
+        });
 
-        const affectedLogs = updatedLogs.filter(
-          (log) => log.company_id === companyId && log.company_name === newCompanyName
-        );
+        if (hasChanges) {
+          await saveToLocalStore(storeName, updatedLogs);
 
-        for (const log of affectedLogs) {
-          if (log.id) {
-            await syncEngine.enqueue('activity_logs', 'set', log.id, log);
-            try {
-              await safeUpdateDoc('activity_logs', log.id, {
-                company_name: newCompanyName,
-                updatedAt: new Date().toISOString()
-              });
-            } catch (e) {
+          const affectedLogs = updatedLogs.filter(
+            (log) => log.company_id === companyId && log.company_name === newCompanyName
+          );
+
+          for (const log of affectedLogs) {
+            if (log.id) {
+              await syncEngine.enqueue(storeName as any, 'set', log.id, log);
               try {
-                await safeUpdateDoc('call_logs', log.id, {
+                await safeUpdateDoc(storeName, log.id, {
                   company_name: newCompanyName,
                   updatedAt: new Date().toISOString()
                 });
-              } catch (err) {
-                // Ignore silent fail
+              } catch (e) {
+                // Ignore silent failure for individual docs if offline
               }
             }
           }

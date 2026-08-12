@@ -2,6 +2,22 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.63.2] - 2026-08-12
+
+### Fixed & Enhanced
+- **High-Contrast Companies Registry Table (`src/components/CompanyModal.tsx`)**:
+  - Corrected light-on-light color clash in the Companies Registry list/table view by applying high-contrast Tailwind classes (`text-slate-900 dark:text-slate-100` and `text-slate-800 dark:text-slate-200`).
+- **Preserved User Capitalization & Canonical Matching (`src/components/CompanyModal.tsx`)**:
+  - Removed aggressive lowercasing on frontend display name input states. The exact user capitalization (e.g. "Green Land LLC") is strictly preserved in `display_name`, while the lowercase version is saved in the background as `canonical_name` strictly for duplicate checking.
+- **Phone & Email Categorization & Badge Inspector (`src/components/CompanyModal.tsx`)**:
+  - Upgraded Phone and Email array controls in the company edit/create form with category selectors (`Main`, `Mobile`, `Landline`, `Support`, `Billing`, `Direct Line`, `WhatsApp`, `Fax`, `Work`, `Personal`, etc.).
+  - Updated Company Details view to render clean category badges alongside all saved phone numbers and email addresses.
+- **Company Name Cascade Sync & Historical Phone Protection (`src/services/repositories/CompanyRepository.ts`)**:
+  - Updated `CompanyRepository.updateCompany` and `cascadeUpdateCallLogsCompanyName` to cascade company name changes across matching call log entries in local store (`activity_logs` and `call_logs`) and Firestore while strictly preserving the historical `phone` / `contact_phone` fields recorded on each call log.
+- **Ghost Log Prevention & Fast Logger Missing Lead Guard (`src/components/QuickActivityDrawer.tsx`, `src/components/CallLogManager.tsx`)**:
+  - Added strict validation in `QuickActivityDrawer.tsx` preventing activity submission when no CRM Contact or Unsaved Lead is attached, rendering an inline alert banner.
+  - Hardened Fast Call Outcome Logger (`CallLogManager.tsx`) with optional chaining (`?.`) to prevent runtime crashes on legacy blank logs and enforced an inline "Missing Lead Guard" before marking logs as completed.
+
 ## [0.63.1] - 2026-08-12
 
 ### Fixed & Enhanced

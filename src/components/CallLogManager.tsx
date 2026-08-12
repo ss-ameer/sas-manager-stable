@@ -565,12 +565,12 @@ export default function CallLogManager({
 
   const openFastQueueLogger = (entry: CallLogEntry) => {
     setSelectedEntry(entry);
-    setFastOutcome(entry.outcome || 'Reached - Interested');
+    setFastOutcome(entry?.outcome || 'Reached - Interested');
     setFastNextFollowup('');
     setFastNotes('');
-    setFastCompanyName(entry.company_name || '');
-    setFastContactName(entry.contact_name || '');
-    setFastContactPhone(entry.contact_phone || '');
+    setFastCompanyName(entry?.company_name || entry?.unlinked_name || '');
+    setFastContactName(entry?.contact_name || '');
+    setFastContactPhone(entry?.contact_phone || entry?.unlinked_contact_info || '');
     setShowFastQueueDrawer(true);
   };
 
@@ -578,14 +578,24 @@ export default function CallLogManager({
     e.preventDefault();
     if (!selectedEntry || !selectedEntry.id) return;
 
+    // Inline Missing Lead Guard Enforcement
+    const trimmedComp = fastCompanyName.trim();
+    const trimmedContact = fastContactName.trim();
+    const hasExistingLead = Boolean(selectedEntry?.company_name || selectedEntry?.unlinked_name || selectedEntry?.contact_name);
+
+    if (!trimmedComp && !trimmedContact && !hasExistingLead) {
+      triggerToast('Lead required: Please tag a Company Name or Contact Person before marking completed.', 'info');
+      return;
+    }
+
     setFastSaving(true);
     try {
       const nowIso = new Date().toISOString();
-      const finalCompanyName = fastCompanyName.trim() || selectedEntry.company_name || 'Direct Client';
-      const finalContactName = fastContactName.trim() || selectedEntry.contact_name || '';
-      const finalContactPhone = fastContactPhone.trim() || selectedEntry.contact_phone || '';
+      const finalCompanyName = trimmedComp || selectedEntry?.company_name || selectedEntry?.unlinked_name || 'Direct Client';
+      const finalContactName = trimmedContact || selectedEntry?.contact_name || '';
+      const finalContactPhone = fastContactPhone.trim() || selectedEntry?.contact_phone || selectedEntry?.unlinked_contact_info || '';
 
-      const updatedNotes = fastNotes ? `${selectedEntry.requirement_notes || ''}\n[Completed Note]: ${fastNotes}`.trim() : selectedEntry.requirement_notes;
+      const updatedNotes = fastNotes ? `${selectedEntry?.requirement_notes || ''}\n[Completed Note]: ${fastNotes}`.trim() : (selectedEntry?.requirement_notes || '');
       
       const updatedPayload = {
         status: 'Completed' as const,
