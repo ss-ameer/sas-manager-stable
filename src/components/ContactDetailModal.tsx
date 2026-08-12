@@ -140,6 +140,7 @@ export default function ContactDetailModal({
                 href={`https://wa.me/${whatsappPhone}`}
                 target="_blank"
                 rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 className="flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
               >
                 <MessageSquare className="w-4 h-4" />
@@ -159,6 +160,7 @@ export default function ContactDetailModal({
             {!isMaskedForBasic && primaryEmail ? (
               <a
                 href={`mailto:${primaryEmail}`}
+                onClick={(e) => e.stopPropagation()}
                 className="flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
               >
                 <Mail className="w-4 h-4" />
@@ -178,6 +180,7 @@ export default function ContactDetailModal({
             {!isMaskedForBasic && primaryPhone ? (
               <a
                 href={`tel:${primaryPhone}`}
+                onClick={(e) => e.stopPropagation()}
                 className="flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-xs"
               >
                 <PhoneCall className="w-4 h-4" />

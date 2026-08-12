@@ -1,5 +1,27 @@
 # Development Ledger
 
+## Session: 2026-08-12 (Activity Drawer Edit Hydration, Dropdown Eradication, Fast Outcome Logger Modernization & Timestamp Automation)
+
+### Goals
+- Hydrate form state in `QuickActivityDrawer.tsx` when editing existing logs and conditionally route submit to `safeUpdateDoc`.
+- Add "Scheduled" status preset and automate `completedAt` timestamp recording when transitioning scheduled calls to completed.
+- Eradicate native `<select>` dropdowns for status/outcome across `QuickActivityDrawer.tsx` and `CallLogManager.tsx` in favor of a uniform 1-Tap Pill Grid.
+- Modernize Fast Outcome Logger in `CallLogManager.tsx` with dark theme, Missing Lead Guard (inline editable lead fields), and Smart Date Toggle chips.
+- Wire pencil/edit buttons across `CallLogDetailModal.tsx`, `CompanyModal.tsx`, `CallLogManager.tsx`, and `Dashboard.tsx` to launch `QuickActivityDrawer` with full hydration.
+- Bump package version to `0.63.0` and verify clean build with `tsc --noEmit` and `compile_applet`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/QuickActivityDrawer.tsx` | Added `existingLog` / `logToEdit` form state hydration hook, conditional update routing for existing records, "Scheduled" status button preset, automated `completedAt` timestamping, and replaced native dropdowns with 1-Tap Pill Grids. |
+| `/src/components/CallLogDetailModal.tsx` | Updated "Edit Log" trigger to pass `existingLog` / `logToEdit` directly into `QuickActivityDrawer`. |
+| `/src/components/CallLogManager.tsx` | Redesigned Fast Outcome Logger drawer in Slate Dark theme with Missing Lead Guard inline fields, Pill Grid outcome selector, and Smart Date Toggle chips. Updated queue and history table edit triggers to pass `existingLog`. Added `getOffsetDateString` helper. |
+| `/src/components/Dashboard.tsx` | Attached `originalLog` to queue items and passed `existingLog` in `onOpenActivityDrawer` calls. |
+| `/package.json` | Bumped version to `0.63.0`. |
+| `/CHANGELOG.md` | Documented 0.63.0 release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
 ## Session: 2026-08-12 (Activity Logic Sync, Duplicate Guards, IndexedDB Safety & Premium UI Unification)
 
 ### Goals

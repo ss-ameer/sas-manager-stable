@@ -48,7 +48,13 @@ interface EnquiryDetailProps {
     companyId?: string;
     companyName?: string;
     contactId?: string;
+    contactName?: string;
+    contactPhone?: string;
     enquiryId?: string;
+    channel?: 'Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Site Visit' | string;
+    initialStatus?: string;
+    existingLog?: any;
+    logToEdit?: any;
   }) => void;
 }
 

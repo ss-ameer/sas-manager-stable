@@ -59,7 +59,13 @@ interface DashboardProps {
     companyId?: string;
     companyName?: string;
     contactId?: string;
+    contactName?: string;
+    contactPhone?: string;
     enquiryId?: string;
+    channel?: 'Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Site Visit' | string;
+    initialStatus?: string;
+    existingLog?: any;
+    logToEdit?: any;
   }) => void;
 }
 
@@ -116,6 +122,7 @@ export default function Dashboard({
       notes: string;
       sales_person?: string;
       phone?: string;
+      originalLog?: CallLogEntry;
     }> = [];
 
     const seenKeys = new Set<string>();
@@ -166,7 +173,8 @@ export default function Dashboard({
         status: l.status || 'Pending',
         notes: l.requirement_notes || l.outcome || l.purpose || 'Follow-up scheduled from previous engagement.',
         sales_person: l.sales_person || l.handled_by_team_member_name,
-        phone
+        phone,
+        originalLog: l
       });
     });
 
@@ -647,6 +655,7 @@ export default function Dashboard({
                         onClick={() => {
                           if (onOpenActivityDrawer) {
                             onOpenActivityDrawer({
+                              existingLog: item.originalLog,
                               companyId: item.company_id,
                               companyName: item.company_name,
                               contactId: item.contact_id,
@@ -678,6 +687,7 @@ export default function Dashboard({
                         onClick={() => {
                           if (onOpenActivityDrawer) {
                             onOpenActivityDrawer({
+                              existingLog: item.originalLog,
                               companyId: item.company_id,
                               companyName: item.company_name,
                               contactId: item.contact_id,
@@ -697,6 +707,7 @@ export default function Dashboard({
                       onClick={() => {
                         if (onOpenActivityDrawer) {
                           onOpenActivityDrawer({
+                            existingLog: item.originalLog,
                             companyId: item.company_id,
                             companyName: item.company_name,
                             contactId: item.contact_id,

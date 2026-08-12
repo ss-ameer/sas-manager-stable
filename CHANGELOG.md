@@ -2,6 +2,24 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.63.0] - 2026-08-12
+
+### Added & Enhanced
+- **Activity Drawer Edit Hydration & Update Routing (`QuickActivityDrawer.tsx`, `CallLogDetailModal.tsx`)**:
+  - Refactored `QuickActivityDrawer` to accept `existingLog` / `logToEdit` props with an automated `useEffect` form hydration hook.
+  - Implemented conditional submit routing calling `safeUpdateDoc` on existing log IDs instead of creating duplicate documents.
+  - Bound "Edit Log" buttons across `CallLogDetailModal.tsx`, `CompanyModal.tsx`, `CallLogManager.tsx`, and `Dashboard.tsx` to launch `QuickActivityDrawer` in edit mode with 100% field hydration.
+- **Scheduled Call Preset & Timestamp Automation (`QuickActivityDrawer.tsx`)**:
+  - Added a "Scheduled" status preset button automatically setting outcome to 'Pending'.
+  - Added timestamp automation: when updating a 'Scheduled' call to 'Completed', `status` transitions to 'Completed' and `completedAt` timestamp is recorded alongside `updatedAt`.
+- **Dropdown Eradication & Uniform 1-Tap Pill Grid (`QuickActivityDrawer.tsx`, `CallLogManager.tsx`)**:
+  - Removed native `<select>` dropdowns for Call Outcomes, Interaction Purposes, and Call Statuses across `QuickActivityDrawer` and `CallLogManager`.
+  - Implemented standard 1-Tap Pill Grid styled with dark theme accents (Green for Success, Amber for Follow-up, Red/Slate for Closed).
+- **Fast Call Outcome Logger Modernization (`CallLogManager.tsx`)**:
+  - Redesigned the Fast Outcome Logger drawer to match the Slate dark theme (`bg-slate-900 border-slate-800`).
+  - Added **Missing Lead Guard**: Inline editable fields (`[ + Add Company Name ]`, Contact Person) directly inside the modal to tag leads on the fly.
+  - Added **Smart Date Toggle**: Quick chips (`Tomorrow`, `Next Week`, `None`) that automatically calculate follow-up dates in local timezone math using `getOffsetDateString`.
+
 ## [0.62.0] - 2026-08-12
 
 ### Added & Enhanced

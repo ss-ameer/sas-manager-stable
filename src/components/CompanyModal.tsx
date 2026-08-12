@@ -71,7 +71,13 @@ interface CompanyModalProps {
     companyId?: string;
     companyName?: string;
     contactId?: string;
+    contactName?: string;
+    contactPhone?: string;
     enquiryId?: string;
+    channel?: 'Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Site Visit' | string;
+    initialStatus?: string;
+    existingLog?: any;
+    logToEdit?: any;
   }) => void;
 }
 
@@ -1643,7 +1649,11 @@ export default function CompanyModal({
                     getCompanyPhones(selectedCompany).map((ph, idx) => (
                       <div key={idx} className="flex items-center space-x-2 text-xs">
                         <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <a href={`tel:${ph.number}`} className="font-mono text-blue-700 hover:underline font-bold">
+                        <a
+                          href={`tel:${ph.number}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-mono text-blue-700 hover:underline font-bold"
+                        >
                           {ph.number}
                         </a>
                         <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
@@ -1662,7 +1672,11 @@ export default function CompanyModal({
                     getCompanyEmails(selectedCompany).map((em, idx) => (
                       <div key={idx} className="flex items-center space-x-2 text-xs">
                         <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <a href={`mailto:${em.email}`} className="font-mono text-slate-800 hover:underline">
+                        <a
+                          href={`mailto:${em.email}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-mono text-slate-800 hover:underline"
+                        >
                           {em.email}
                         </a>
                         <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
@@ -1782,7 +1796,11 @@ export default function CompanyModal({
                           {cPhones.map((ph, pIdx) => (
                             <div key={pIdx} className="flex items-center space-x-2">
                               <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                              <a href={`tel:${ph.number}`} className="font-mono text-blue-700 hover:underline font-semibold">
+                              <a
+                                href={`tel:${ph.number}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="font-mono text-blue-700 hover:underline font-semibold"
+                              >
                                 {ph.number}
                               </a>
                               <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
@@ -1793,7 +1811,11 @@ export default function CompanyModal({
                           {cEmails.map((em, eIdx) => (
                             <div key={eIdx} className="flex items-center space-x-2 overflow-hidden">
                               <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <a href={`mailto:${em.email}`} className="truncate text-slate-800 hover:underline">
+                              <a
+                                href={`mailto:${em.email}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="truncate text-slate-800 hover:underline"
+                              >
                                 {em.email}
                               </a>
                               {em.label && (
@@ -2187,13 +2209,21 @@ export default function CompanyModal({
                     {ct.mobile && (
                       <div className="flex items-center space-x-1.5">
                         <PhoneCall className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <a href={`tel:${ct.mobile}`} className="hover:underline font-bold text-blue-600">{ct.mobile}</a>
+                        <a
+                          href={`tel:${ct.mobile}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:underline font-bold text-blue-600"
+                        >{ct.mobile}</a>
                       </div>
                     )}
                     {ct.email && (
                       <div className="flex items-center space-x-1.5 truncate">
                         <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <a href={`mailto:${ct.email}`} className="hover:underline text-slate-700 truncate">{ct.email}</a>
+                        <a
+                          href={`mailto:${ct.email}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:underline text-slate-700 truncate"
+                        >{ct.email}</a>
                       </div>
                     )}
                   </div>
@@ -2284,7 +2314,11 @@ export default function CompanyModal({
                     </td>
                     <td className="p-3.5">
                       {ct.mobile ? (
-                        <a href={`tel:${ct.mobile}`} className="font-mono text-blue-600 font-bold hover:underline flex items-center space-x-1">
+                        <a
+                          href={`tel:${ct.mobile}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-mono text-blue-600 font-bold hover:underline flex items-center space-x-1"
+                        >
                           <PhoneCall className="w-3 h-3 text-blue-500" />
                           <span>{ct.mobile}</span>
                         </a>
@@ -2301,7 +2335,11 @@ export default function CompanyModal({
                     </td>
                     <td className="p-3.5">
                       {ct.email ? (
-                        <a href={`mailto:${ct.email}`} className="text-slate-700 hover:text-blue-600 hover:underline">
+                        <a
+                          href={`mailto:${ct.email}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-slate-700 hover:text-blue-600 hover:underline"
+                        >
                           {ct.email}
                         </a>
                       ) : (
@@ -2434,6 +2472,7 @@ export default function CompanyModal({
                     <td className="p-3.5 text-right">
                       <a
                         href={`tel:${p.number}`}
+                        onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center space-x-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition shadow-sm"
                       >
                         <PhoneCall className="w-3 h-3" />
@@ -3128,7 +3167,22 @@ export default function CompanyModal({
           entry={selectedCallLogDetail}
           currentUser={user}
           onClose={() => setSelectedCallLogDetail(null)}
-          onEdit={() => {}}
+          onEdit={(log) => {
+            setSelectedCallLogDetail(null);
+            if (onOpenActivityDrawer) {
+              onOpenActivityDrawer({
+                existingLog: log,
+                companyId: log.company_id,
+                companyName: log.company_name,
+                contactId: log.contact_id,
+                contactName: log.contact_name,
+                contactPhone: log.contact_phone,
+                enquiryId: log.enquiry_id,
+                channel: (log.channel as any) || 'Call',
+                initialStatus: log.status
+              });
+            }
+          }}
           onDelete={async (id) => {
             try {
               await safeDeleteDoc('call_logs', id);

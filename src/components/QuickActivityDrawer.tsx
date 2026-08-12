@@ -26,13 +26,16 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { safeAddDoc, safeUpdateDoc } from '../firebase';
+import { safeAddDoc, safeSetDoc, safeUpdateDoc } from '../firebase';
 import { Company, Contact, Enquiry, CallLogEntry, CallStatus, getContactPhones } from '../types';
+import { CallLogRepository } from '../services/repositories/CallLogRepository';
 import GeminiKeyModal from './GeminiKeyModal';
 
 export interface QuickActivityDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  existingLog?: CallLogEntry | null;
+  logToEdit?: CallLogEntry | null;
   companyId?: string;
   companyName?: string;
   contactId?: string;
@@ -115,9 +118,16 @@ const PRESET_CHIPS: PresetChip[] = [
   }
 ];
 
+const getLocalDateTimeString = (d: Date = new Date()): string => {
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
 export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   isOpen,
   onClose,
+  existingLog,
+  logToEdit,
   companyId,
   companyName,
   contactId,
@@ -142,7 +152,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [status, setStatus] = useState<CallStatus>(initialStatus || 'Completed');
   const [purpose, setPurpose] = useState<string>('Prospecting / Intro');
   const [notes, setNotes] = useState<string>('');
-  const [activityDate, setActivityDate] = useState<string>(() => new Date().toISOString().slice(0, 16));
+  const [activityDate, setActivityDate] = useState<string>(() => getLocalDateTimeString());
   const [followupDate, setFollowupDate] = useState<string>('');
   const [isDnc, setIsDnc] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -163,37 +173,88 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [isComboboxOpen, setIsComboboxOpen] = useState<boolean>(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Context Cleanup & Initialization on Open or Prop Change
+  // Context Cleanup & Initialization on Open or Prop Change (Supports Edit Mode Hydration)
   useEffect(() => {
     if (isOpen) {
-      setLinkMode('crm');
-      setUnlinkedName('');
-      setUnlinkedContactInfo('');
-      setChannel(initialChannel || 'Call');
-      setStatus(initialStatus || 'Completed');
-      setOutcome('Connected');
-      setPurpose('Prospecting / Intro');
-      setNotes('');
-      setActivityDate(new Date().toISOString().slice(0, 16));
-      setFollowupDate('');
-      setIsDnc(false);
-      setActiveChipId(null);
-      setWhatsappDraft('');
-      setAiError(null);
-      setValidationError(null);
-      setCompanySearchQuery('');
-      setIsComboboxOpen(false);
+      const activeLog = existingLog || logToEdit;
+      if (activeLog) {
+        if (activeLog.unlinked_name || activeLog.unlinked_contact_info) {
+          setLinkMode('unsaved');
+          setUnlinkedName(activeLog.unlinked_name || '');
+          setUnlinkedContactInfo(activeLog.unlinked_contact_info || '');
+          setSelectedCompanyId('');
+          setSelectedCompanyName('');
+          setSelectedContactId('');
+          setSelectedContactName('');
+          setSelectedContactPhone('');
+          setSelectedEnquiryId('');
+          setSelectedEnquiryQuoteRef('');
+        } else {
+          setLinkMode('crm');
+          setUnlinkedName('');
+          setUnlinkedContactInfo('');
+          setSelectedCompanyId(activeLog.company_id || companyId || '');
+          setSelectedCompanyName(activeLog.company_name || companyName || '');
+          setSelectedContactId(activeLog.contact_id || contactId || '');
+          setSelectedContactName(activeLog.contact_name || contactName || '');
+          setSelectedContactPhone(activeLog.contact_phone || contactPhone || '');
+          setSelectedEnquiryId(activeLog.enquiry_id || enquiryId || '');
+          setSelectedEnquiryQuoteRef(activeLog.enquiry_quote_ref || '');
+        }
 
-      setSelectedCompanyId(companyId || '');
-      setSelectedCompanyName(companyName || '');
-      setSelectedContactId(contactId || '');
-      setSelectedContactName(contactName || '');
-      setSelectedContactPhone(contactPhone || '');
-      setSelectedEnquiryId(enquiryId || '');
-      setSelectedEnquiryQuoteRef('');
+        setChannel((activeLog.channel as ActivityChannel) || initialChannel || 'Call');
+        setStatus(activeLog.status || initialStatus || 'Completed');
+        setOutcome(activeLog.outcome || 'Connected');
+        setPurpose(activeLog.purpose || 'Prospecting / Intro');
+        setNotes(activeLog.requirement_notes || (activeLog as any).notes || '');
+        setWhatsappDraft(activeLog.whatsapp_draft || '');
+
+        const logDateObj = activeLog.date ? new Date(activeLog.date) : new Date();
+        setActivityDate(getLocalDateTimeString(isNaN(logDateObj.getTime()) ? new Date() : logDateObj));
+
+        setFollowupDate(
+          activeLog.next_followup_date
+            ? activeLog.next_followup_date.slice(0, 10)
+            : ''
+        );
+        setIsDnc(Boolean((activeLog as any).dnc || activeLog.is_dnc || (activeLog as any).opt_out));
+        setActiveChipId(null);
+        setAiError(null);
+        setValidationError(null);
+        setCompanySearchQuery('');
+        setIsComboboxOpen(false);
+      } else {
+        setLinkMode('crm');
+        setUnlinkedName('');
+        setUnlinkedContactInfo('');
+        setChannel(initialChannel || 'Call');
+        setStatus(initialStatus || 'Completed');
+        setOutcome('Connected');
+        setPurpose('Prospecting / Intro');
+        setNotes('');
+        setActivityDate(getLocalDateTimeString());
+        setFollowupDate('');
+        setIsDnc(false);
+        setActiveChipId(null);
+        setWhatsappDraft('');
+        setAiError(null);
+        setValidationError(null);
+        setCompanySearchQuery('');
+        setIsComboboxOpen(false);
+
+        setSelectedCompanyId(companyId || '');
+        setSelectedCompanyName(companyName || '');
+        setSelectedContactId(contactId || '');
+        setSelectedContactName(contactName || '');
+        setSelectedContactPhone(contactPhone || '');
+        setSelectedEnquiryId(enquiryId || '');
+        setSelectedEnquiryQuoteRef('');
+      }
     }
   }, [
     isOpen,
+    existingLog,
+    logToEdit,
     companyId,
     companyName,
     contactId,
@@ -571,10 +632,19 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
       }
 
+      const activeLog = existingLog || logToEdit;
+      let finalStatus: CallStatus = status || 'Completed';
+      let completedAtIso: string | undefined = undefined;
+
+      if (finalStatus === 'Completed' || (activeLog?.status === 'Scheduled' && finalStatus !== 'Scheduled')) {
+        finalStatus = 'Completed';
+        completedAtIso = nowIso;
+      }
+
       const payload: Omit<CallLogEntry, 'id'> = {
         workspace_id: activeWorkspaceId,
         date: activityIsoDate,
-        status: status || 'Completed',
+        status: finalStatus,
         outcome: outcome || channel,
         channel: channel,
         requirement_notes: notes.trim(),
@@ -602,11 +672,32 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         last_modified_by_name: userName,
         createdAt: nowIso,
         updatedAt: nowIso,
+        ...(completedAtIso ? { completedAt: completedAtIso } : {}),
         ...(isDncOptOut ? { dnc: true, opt_out: true } : {})
       };
 
-      await safeAddDoc('activity_logs', payload);
-      await safeAddDoc('call_logs', payload);
+      if (activeLog?.id) {
+        const updatedEntry: CallLogEntry = {
+          ...activeLog,
+          ...payload,
+          id: activeLog.id,
+          updatedAt: nowIso,
+          last_modified_by_uid: userUid,
+          last_modified_by_name: userName
+        };
+        await safeSetDoc('activity_logs', activeLog.id, updatedEntry);
+        await safeSetDoc('call_logs', activeLog.id, updatedEntry);
+        await CallLogRepository.save(updatedEntry);
+      } else {
+        const newId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const newEntry: CallLogEntry = {
+          ...payload,
+          id: newId
+        };
+        await safeSetDoc('activity_logs', newId, newEntry);
+        await safeSetDoc('call_logs', newId, newEntry);
+        await CallLogRepository.save(newEntry);
+      }
 
       // Auto-DNC Suppression Trigger
       if (isDncOptOut) {
@@ -990,7 +1081,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
                   {[
                     { id: 'Completed', label: 'Completed Log' },
-                    { id: 'Scheduled', label: 'Schedule Follow-Up' },
+                    { id: 'Scheduled', label: 'Scheduled / Planned' },
                     { id: 'No Answer', label: 'No Answer' },
                     { id: 'Busy', label: 'Busy' }
                   ].map((st) => (
@@ -1004,8 +1095,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                           setOutcome('Busy');
                         } else if (newStatus === 'No Answer') {
                           setOutcome('No Answer');
-                        } else if (newStatus === 'Scheduled' && !followupDate) {
-                          setFollowupDate(getOffsetDateString(1));
+                        } else if (newStatus === 'Scheduled') {
+                          if (!outcome || outcome === 'Connected' || outcome === 'Busy' || outcome === 'No Answer') {
+                            setOutcome('Pending');
+                          }
+                          if (!followupDate) {
+                            setFollowupDate(getOffsetDateString(1));
+                          }
                         }
                       }}
                       className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
@@ -1052,37 +1148,76 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 </div>
               </div>
 
-              {/* Outcome & Purpose Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                    Outcome / Result
-                  </label>
-                  <input
-                    type="text"
-                    value={outcome}
-                    onChange={(e) => setOutcome(e.target.value)}
-                    placeholder="e.g. Connected, Left Voicemail"
-                    className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                  />
+              {/* Outcome Pill Grid */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Call Outcome (1-Tap Pill Grid)
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {[
+                    { label: 'Connected', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
+                    { label: 'Reached - Interested', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
+                    { label: 'Proposal Sent', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
+                    { label: 'Callback Requested', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
+                    { label: 'Quote Follow-Up', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
+                    { label: 'Awaiting Specs', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
+                    { label: 'No Answer', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
+                    { label: 'Busy', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
+                    { label: 'Not Interested', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30' },
+                    { label: 'DNC / Opt-Out', color: 'bg-rose-600/30 text-rose-200 border-rose-600/50 hover:bg-rose-600/40' }
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => {
+                        setOutcome(item.label);
+                        if (item.label.includes('DNC')) setIsDnc(true);
+                        if (item.label === 'No Answer' || item.label === 'Busy') setStatus(item.label as CallStatus);
+                      }}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition cursor-pointer ${item.color} ${
+                        outcome === item.label ? 'ring-2 ring-blue-500 scale-105 font-bold shadow-xs' : 'opacity-80'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
+                <input
+                  type="text"
+                  value={outcome}
+                  onChange={(e) => setOutcome(e.target.value)}
+                  placeholder="Or enter custom outcome..."
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                    Interaction Purpose
-                  </label>
-                  <select
-                    value={purpose}
-                    onChange={(e) => setPurpose(e.target.value)}
-                    className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="Prospecting / Intro">Prospecting / Intro</option>
-                    <option value="Quote Follow-Up">Quote Follow-Up</option>
-                    <option value="Technical Specs">Technical Specs</option>
-                    <option value="Negotiation">Negotiation</option>
-                    <option value="Payment / Billing">Payment / Billing</option>
-                    <option value="General Inquiry">General Inquiry</option>
-                  </select>
+              {/* Interaction Purpose Pill Grid */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Interaction Purpose
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Prospecting / Intro',
+                    'Quote Follow-Up',
+                    'Technical Specs',
+                    'Negotiation',
+                    'Payment / Billing',
+                    'General Inquiry'
+                  ].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPurpose(p)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
+                        purpose === p
+                          ? 'bg-blue-600 text-white border-blue-500 font-bold'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
                 </div>
               </div>
 

@@ -354,7 +354,11 @@ export default function CallLogDetailModal({
                           {isBasicRestricted ? (
                             <span className="text-slate-500 font-sans">*** **** (Basic View)</span>
                           ) : (
-                            <a href={`tel:${phoneVal}`} className="hover:underline">
+                            <a
+                              href={`tel:${phoneVal}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:underline"
+                            >
                               {phoneVal}
                             </a>
                           )}
@@ -369,7 +373,11 @@ export default function CallLogDetailModal({
                           {isBasicRestricted ? (
                             <span className="text-slate-500">***@***.*** (Basic View)</span>
                           ) : (
-                            <a href={`mailto:${emailVal}`} className="hover:underline truncate">
+                            <a
+                              href={`mailto:${emailVal}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:underline truncate"
+                            >
                               {emailVal}
                             </a>
                           )}

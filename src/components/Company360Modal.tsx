@@ -45,8 +45,13 @@ interface Company360ModalProps {
     companyId?: string;
     companyName?: string;
     contactId?: string;
+    contactName?: string;
+    contactPhone?: string;
     enquiryId?: string;
     channel?: any;
+    initialStatus?: string;
+    existingLog?: any;
+    logToEdit?: any;
   }) => void;
 }
 

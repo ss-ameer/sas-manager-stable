@@ -261,6 +261,8 @@ export default function App() {
     enquiryId?: string;
     channel?: 'Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Site Visit';
     initialStatus?: CallStatus;
+    existingLog?: CallLogEntry | null;
+    logToEdit?: CallLogEntry | null;
   }>({});
 
   // Global toast notifications
@@ -1677,6 +1679,8 @@ export default function App() {
       <QuickActivityDrawer
         isOpen={isActivityDrawerOpen}
         onClose={() => setIsActivityDrawerOpen(false)}
+        existingLog={activityDrawerContext.existingLog}
+        logToEdit={activityDrawerContext.logToEdit}
         companyId={activityDrawerContext.companyId}
         companyName={activityDrawerContext.companyName}
         contactId={activityDrawerContext.contactId}
