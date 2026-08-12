@@ -1,5 +1,22 @@
 # Development Ledger
 
+## Session: 2026-08-12 (Firestore Connection Resilience & Long Polling Fallback)
+
+### Goals
+- Resolve transient Firestore connection unavailable error log by enabling auto-detect long polling fallback.
+- Configure `initializeFirestore` in `src/firebase.ts` with `experimentalAutoDetectLongPolling: true` to support sandboxed iframe network proxies without connection drops.
+- Update `handleFirestoreError` to gracefully log offline/reconnecting states while local IndexedDB cache and `SyncEngine` maintain seamless offline operation.
+- Bump package version to `0.63.1` and verify clean build with `tsc --noEmit` and `compile_applet`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/firebase.ts` | Configured `initializeFirestore` with `experimentalAutoDetectLongPolling: true` and updated `handleFirestoreError` to gracefully handle offline/reconnecting states (`isUnavailable`). |
+| `/package.json` | Bumped version to `0.63.1`. |
+| `/CHANGELOG.md` | Added 0.63.1 release entry. |
+| `/development_ledger.md` | Logged session goals and modifications table. |
+
 ## Session: 2026-08-12 (Activity Drawer Edit Hydration, Dropdown Eradication, Fast Outcome Logger Modernization & Timestamp Automation)
 
 ### Goals

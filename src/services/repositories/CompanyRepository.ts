@@ -1,7 +1,7 @@
 import { Company, Contact } from '../../types';
 import { syncEngine } from '../SyncEngine';
 import { getFromLocalStore, saveToLocalStore } from '../db';
-import { safeGetDocs } from '../../firebase';
+import { safeGetDocs, safeUpdateDoc } from '../../firebase';
 
 export class CompanyRepository {
   private static COMPANY_STORE = 'companies';
@@ -45,6 +45,86 @@ export class CompanyRepository {
     }
     await this.saveCompaniesLocalCache(updated);
     await syncEngine.enqueue('companies', 'set', company.id, company);
+
+    if (company.id && (company.display_name || company.canonical_name)) {
+      const newName = company.display_name || company.canonical_name;
+      await this.cascadeUpdateCallLogsCompanyName(company.id, newName);
+    }
+  }
+
+  public static async updateCompany(companyId: string, companyData: Partial<Company>): Promise<void> {
+    const current = await this.getCompaniesLocal();
+    const idx = current.findIndex((item) => item.id === companyId);
+    let companyToSave: Company;
+
+    if (idx >= 0) {
+      companyToSave = {
+        ...current[idx],
+        ...companyData,
+        id: companyId,
+        updatedAt: new Date().toISOString()
+      };
+    } else {
+      companyToSave = {
+        ...companyData,
+        id: companyId,
+        updatedAt: new Date().toISOString()
+      } as Company;
+    }
+
+    await this.saveCompany(companyToSave);
+  }
+
+  public static async cascadeUpdateCallLogsCompanyName(companyId: string, newCompanyName: string): Promise<void> {
+    if (!companyId || !newCompanyName) return;
+
+    try {
+      const allLogs = await getFromLocalStore<any>('activity_logs');
+      let hasChanges = false;
+      const updatedLogs = allLogs.map((log) => {
+        if (log.company_id === companyId && log.company_name !== newCompanyName) {
+          hasChanges = true;
+          // CRITICAL: ONLY update company_name, NEVER overwrite log.phone or log.contact_phone
+          return {
+            ...log,
+            company_name: newCompanyName,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return log;
+      });
+
+      if (hasChanges) {
+        await saveToLocalStore('activity_logs', updatedLogs);
+
+        const affectedLogs = updatedLogs.filter(
+          (log) => log.company_id === companyId && log.company_name === newCompanyName
+        );
+
+        for (const log of affectedLogs) {
+          if (log.id) {
+            await syncEngine.enqueue('activity_logs', 'set', log.id, log);
+            try {
+              await safeUpdateDoc('activity_logs', log.id, {
+                company_name: newCompanyName,
+                updatedAt: new Date().toISOString()
+              });
+            } catch (e) {
+              try {
+                await safeUpdateDoc('call_logs', log.id, {
+                  company_name: newCompanyName,
+                  updatedAt: new Date().toISOString()
+                });
+              } catch (err) {
+                // Ignore silent fail
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[CompanyRepository] Cascade update call logs failed:', e);
+    }
   }
 
   public static async softDeleteCompany(id: string, user?: { uid: string; name: string }): Promise<void> {

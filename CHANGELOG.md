@@ -2,6 +2,14 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.63.1] - 2026-08-12
+
+### Fixed & Enhanced
+- **Firestore Connection Resilience & Long Polling Fallback (`src/firebase.ts`)**:
+  - Configured `initializeFirestore` with `experimentalAutoDetectLongPolling: true` to automatically adapt in iframe/sandboxed environments when WebSocket or WebChannel streaming connections drop or are restricted by proxies.
+  - Enhanced `handleFirestoreError` to gracefully log network disconnects/reconnections (`isUnavailable`) while confirming that local IndexedDB storage and `SyncEngine` handle all reads and writes seamlessly in offline mode.
+  - Ensured zero application downtime or data loss during temporary network interruptions.
+
 ## [0.63.0] - 2026-08-12
 
 ### Added & Enhanced

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Company, Contact, Enquiry, UserProfile, LegalSuffix, Workspace, getContactPhones, getContactEmails, getCompanyPhones, getCompanyEmails, LabeledPhone, LabeledEmail, PhoneCategory, DropdownOption, CallLogEntry, Salesperson, ContactMethod } from '../types';
 import { getReferenceId } from '../utils/refId';
 import { recordAuditLog } from '../utils/auditLogger';
+import { CompanyRepository } from '../services/repositories/CompanyRepository';
 import ContactModal from './ContactModal';
 import ContactDetailModal from './ContactDetailModal';
 import CallLogDetailModal from './CallLogDetailModal';
@@ -525,7 +526,14 @@ export default function CompanyModal({
 
   const handleOpenEditCompany = (comp: Company) => {
     setEditingCompany(comp);
-    setCanonicalName(comp.canonical_name);
+    let baseName = comp.display_name || comp.canonical_name || '';
+    if (comp.legal_suffix && comp.legal_suffix !== 'None / Other' && comp.legal_suffix !== 'None / To Be Added Later') {
+      const suffixWithSpace = ` ${comp.legal_suffix}`;
+      if (baseName.endsWith(suffixWithSpace)) {
+        baseName = baseName.slice(0, -suffixWithSpace.length);
+      }
+    }
+    setCanonicalName(baseName);
     setLegalSuffix(comp.legal_suffix);
     setCountry(comp.country);
     setCity(comp.city);
@@ -535,25 +543,25 @@ export default function CompanyModal({
     const existingPhones = getCompanyPhones(comp);
     const mappedPhones: ContactMethod[] = existingPhones.map((p) => ({
       id: p.id || generateCmId(),
-      label: p.label || 'Landline',
+      label: p.label || 'Main',
       value: p.value || p.number || ''
     }));
     setCompanyPhones(
       mappedPhones.length > 0
         ? mappedPhones
-        : [{ id: generateCmId(), label: 'Landline', value: comp.general_phone || comp.phone || '' }]
+        : [{ id: generateCmId(), label: 'Main', value: comp.general_phone || comp.phone || '' }]
     );
 
     const existingEmails = getCompanyEmails(comp);
     const mappedEmails: ContactMethod[] = existingEmails.map((e) => ({
       id: e.id || generateCmId(),
-      label: e.label || 'Work',
+      label: e.label || 'Main',
       value: e.value || e.email || ''
     }));
     setCompanyEmails(
       mappedEmails.length > 0
         ? mappedEmails
-        : [{ id: generateCmId(), label: 'Work', value: comp.general_email || comp.email || '' }]
+        : [{ id: generateCmId(), label: 'Main', value: comp.general_email || comp.email || '' }]
     );
 
     setRelationship(comp.relationship || 'Prospect');
@@ -638,16 +646,28 @@ export default function CompanyModal({
     try {
       if (editingCompany && editingCompany.id) {
         const updatedComp: Company = { id: editingCompany.id, ...rawCompany };
-        await safeUpdateDoc('companies', editingCompany.id, rawCompany);
+        await CompanyRepository.updateCompany(editingCompany.id, updatedComp);
         await logAudit(editingCompany.id, 'company', 'update', editingCompany, rawCompany);
 
         if (setCompanies) {
           setCompanies((prev) => prev.map((c) => (c.id === editingCompany.id ? updatedComp : c)));
         }
+
+        if (setCallLogs) {
+          const newName = updatedComp.display_name || updatedComp.canonical_name;
+          setCallLogs((prevLogs) =>
+            prevLogs.map((log) =>
+              log.company_id === editingCompany.id
+                ? { ...log, company_name: newName, updatedAt: new Date().toISOString() }
+                : log
+            )
+          );
+        }
       } else {
         const res = await safeAddDoc('companies', rawCompany);
         const newId = res?.id || ('comp_' + Date.now());
         const newComp: Company = { id: newId, ...rawCompany };
+        await CompanyRepository.saveCompany(newComp);
         await logAudit(newId, 'company', 'create', null, rawCompany);
 
         if (setCompanies) {
@@ -1422,15 +1442,15 @@ export default function CompanyModal({
                                 {getReferenceId('CMP', c, companies)}
                               </td>
                               <td className="p-3">
-                                <div className="font-bold text-slate-100 font-sans">{c.display_name}</div>
-                                <div className="text-slate-400 text-xs flex items-center space-x-1">
+                                <div className="font-bold text-slate-900 dark:text-slate-100 font-sans">{c.display_name}</div>
+                                <div className="text-slate-500 dark:text-slate-400 text-xs flex items-center space-x-1">
                                   <MapPin className="w-3 h-3 text-slate-400" />
-                                  <span className="text-slate-400 text-xs">{c.city}, {c.country}</span>
+                                  <span className="text-slate-600 dark:text-slate-400 text-xs">{c.city}, {c.country}</span>
                                 </div>
                               </td>
                               <td className="p-3 whitespace-nowrap space-y-1">
                                 <div>
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
                                     {relVal}
                                   </span>
                                 </div>
@@ -1444,14 +1464,14 @@ export default function CompanyModal({
                                   </span>
                                 </div>
                               </td>
-                              <td className="p-3 text-xs font-mono text-slate-200">
+                              <td className="p-3 text-xs font-mono text-slate-800 dark:text-slate-200">
                                 {phones.length > 0 && (
-                                  <div className="truncate max-w-[180px] text-slate-200 font-mono text-xs" title={phones[0].number}>
+                                  <div className="truncate max-w-[180px] text-slate-900 dark:text-slate-200 font-mono text-xs font-semibold" title={phones[0].number}>
                                     {phones[0].number}
                                   </div>
                                 )}
                                 {emails.length > 0 && (
-                                  <div className="truncate max-w-[180px] text-slate-400 text-xs font-mono" title={emails[0].email}>
+                                  <div className="truncate max-w-[180px] text-slate-600 dark:text-slate-400 text-xs font-mono" title={emails[0].email}>
                                     {emails[0].email}
                                   </div>
                                 )}
@@ -2633,7 +2653,7 @@ export default function CompanyModal({
                     </label>
                     <button
                       type="button"
-                      onClick={() => setCompanyPhones(prev => [...prev, { id: generateCmId(), label: 'Landline', value: '' }])}
+                      onClick={() => setCompanyPhones(prev => [...prev, { id: generateCmId(), label: 'Main', value: '' }])}
                       className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -2650,7 +2670,7 @@ export default function CompanyModal({
                         }}
                         className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
                       >
-                        {['Landline', 'Mobile', 'WhatsApp', 'Direct Line', 'Support', 'Fax', 'Other'].map(lbl => (
+                        {['Main', 'Mobile', 'Landline', 'Support', 'Billing', 'Direct Line', 'WhatsApp', 'Fax', 'Other'].map(lbl => (
                           <option key={lbl} value={lbl}>{lbl}</option>
                         ))}
                       </select>
@@ -2685,7 +2705,7 @@ export default function CompanyModal({
                     </label>
                     <button
                       type="button"
-                      onClick={() => setCompanyEmails(prev => [...prev, { id: generateCmId(), label: 'Work', value: '' }])}
+                      onClick={() => setCompanyEmails(prev => [...prev, { id: generateCmId(), label: 'Main', value: '' }])}
                       className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -2702,7 +2722,7 @@ export default function CompanyModal({
                         }}
                         className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
                       >
-                        {['Work', 'Personal', 'Info', 'Billing', 'Support', 'Other'].map(lbl => (
+                        {['Main', 'Support', 'Billing', 'Work', 'Personal', 'Info', 'Sales', 'Inquiries', 'Other'].map(lbl => (
                           <option key={lbl} value={lbl}>{lbl}</option>
                         ))}
                       </select>
@@ -2993,7 +3013,7 @@ export default function CompanyModal({
                 ? canonicalName.trim()
                 : `${canonicalName.trim()} ${legalSuffix}`;
             const computedCanonicalName = computeCanonicalName(displayName) || canonicalName.trim().toLowerCase();
-            const validPhones = companyPhones.filter(p => p.number.trim() !== '');
+            const validPhones = companyPhones.filter(p => (p.value || p.number || '').trim() !== '');
             const searchTerms = generateCompanySearchTerms(displayName, city, validPhones.length > 0 ? validPhones : [{ number: generalPhone }]);
 
             const updatedData: Partial<Company> = {
@@ -3010,11 +3030,23 @@ export default function CompanyModal({
               last_modified_by_name: user?.full_name || user?.username || user?.email || 'Unknown User',
               updatedAt: new Date().toISOString()
             };
-            await safeUpdateDoc('companies', targetId, updatedData);
+            await CompanyRepository.updateCompany(targetId, updatedData);
             if (setCompanies) {
               setCompanies((prev) =>
                 prev.map((c) => (c.id === targetId ? { ...c, ...updatedData } : c))
               );
+            }
+            if (setCallLogs) {
+              const newName = updatedData.display_name || updatedData.canonical_name;
+              if (newName) {
+                setCallLogs((prevLogs) =>
+                  prevLogs.map((log) =>
+                    log.company_id === targetId
+                      ? { ...log, company_name: newName, updatedAt: new Date().toISOString() }
+                      : log
+                  )
+                );
+              }
             }
             setSelectedCompanyId(targetId);
             setDuplicateMatchResult(null);

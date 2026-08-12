@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import {
+  initializeFirestore,
   getFirestore,
   collection,
   doc,
@@ -18,7 +19,9 @@ import firebaseConfig from '../firebase-applet-config.json';
 import { syncEngine } from './services/SyncEngine';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true
+}, firebaseConfig.firestoreDatabaseId || '(default)'); /* CRITICAL: The app will break without this line */
 export const auth = getAuth();
 export const storage = getStorage(app);
 
@@ -51,6 +54,7 @@ export interface FirestoreErrorInfo {
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errMsg = error instanceof Error ? error.message : String(error);
   const isQuotaError = errMsg.includes('Quota limit exceeded') || errMsg.includes('quota') || errMsg.includes('resource-exhausted') || (error as any)?.code === 'resource-exhausted';
+  const isUnavailable = errMsg.includes('unavailable') || errMsg.includes('Could not reach Cloud Firestore backend') || errMsg.includes('Connection failed') || (error as any)?.code === 'unavailable';
 
   const errInfo: FirestoreErrorInfo = {
     error: errMsg,
@@ -71,6 +75,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
   if (isQuotaError) {
     console.warn(`[Firestore Quota Exceeded - Operating in High-Speed Local Storage Mode] Operation: ${operationType}, Path: ${path}`);
+  } else if (isUnavailable) {
+    console.warn(`[Firestore Network Offline / Reconnecting - Operating in High-Speed Local Storage Mode] Operation: ${operationType}, Path: ${path}`);
   } else {
     console.warn('Firestore Operation Warning: ', JSON.stringify(errInfo));
   }
