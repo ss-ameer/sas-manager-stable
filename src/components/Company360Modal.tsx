@@ -195,36 +195,42 @@ export default function Company360Modal({
 
               {/* Labeled Phones & Emails Display */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300 mt-2 pt-2 border-t border-slate-800">
-                {compPhones.map((ph, idx) => (
-                  <span key={idx} className="flex items-center space-x-1.5 font-mono">
-                    <Phone className="w-3.5 h-3.5 text-blue-400" />
-                    <a
-                      href={`tel:${ph.number}`}
-                      onClick={(e) => handleOutboundInteraction(e, 'Call', null, `tel:${ph.number}`)}
-                      className="hover:underline font-bold text-blue-300 cursor-pointer"
-                    >
-                      {ph.number}
-                    </a>
-                    <span className="text-[10px] bg-slate-800 px-1.5 py-0.2 rounded text-slate-400">
-                      {ph.label || 'Telephone'}
+                {compPhones.map((ph, idx) => {
+                  const phoneVal = ph.value || ph.number || '';
+                  return (
+                    <span key={idx} className="flex items-center space-x-1.5 font-mono">
+                      <Phone className="w-3.5 h-3.5 text-blue-400" />
+                      <a
+                        href={`tel:${phoneVal}`}
+                        onClick={(e) => handleOutboundInteraction(e, 'Call', null, `tel:${phoneVal}`)}
+                        className="hover:underline font-bold text-blue-300 cursor-pointer"
+                      >
+                        {phoneVal}
+                      </a>
+                      <span className="text-[10px] bg-slate-800 text-blue-300 px-1.5 py-0.5 rounded-md font-sans border border-slate-700">
+                        {ph.label || 'Landline'}
+                      </span>
                     </span>
-                  </span>
-                ))}
-                {compEmails.map((em, idx) => (
-                  <span key={idx} className="flex items-center space-x-1.5 font-sans">
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    <a
-                      href={`mailto:${em.email}`}
-                      onClick={(e) => handleOutboundInteraction(e, 'Email', null, `mailto:${em.email}`)}
-                      className="hover:underline text-slate-200 cursor-pointer"
-                    >
-                      {em.email}
-                    </a>
-                    <span className="text-[10px] bg-slate-800 px-1.5 py-0.2 rounded text-slate-400">
-                      {em.label || 'General'}
+                  );
+                })}
+                {compEmails.map((em, idx) => {
+                  const emailVal = em.value || em.email || '';
+                  return (
+                    <span key={idx} className="flex items-center space-x-1.5 font-sans">
+                      <Mail className="w-3.5 h-3.5 text-slate-400" />
+                      <a
+                        href={`mailto:${emailVal}`}
+                        onClick={(e) => handleOutboundInteraction(e, 'Email', null, `mailto:${emailVal}`)}
+                        className="hover:underline text-slate-200 cursor-pointer"
+                      >
+                        {emailVal}
+                      </a>
+                      <span className="text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded-md font-sans border border-slate-700">
+                        {em.label || 'Work'}
+                      </span>
                     </span>
-                  </span>
-                ))}
+                  );
+                })}
               </div>
 
               {company.aliases && company.aliases.length > 0 && (
@@ -443,21 +449,22 @@ export default function Company360Modal({
                         {/* Phone numbers list */}
                         <div className="text-xs space-y-1 pt-1 border-t border-slate-100">
                           {cPhones.map((p, pIdx) => {
-                            const cleanPhone = p.number.replace(/[^0-9]/g, '');
+                            const phoneVal = p.value || p.number || '';
+                            const cleanPhone = phoneVal.replace(/[^0-9]/g, '');
                             const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}` : '';
                             return (
                               <div key={pIdx} className="flex items-center justify-between text-blue-700 font-mono py-0.5">
                                 <div className="flex items-center space-x-2">
                                   <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                                   <a
-                                    href={`tel:${p.number}`}
-                                    onClick={(ev) => handleOutboundInteraction(ev, 'Call', contact, `tel:${p.number}`)}
+                                    href={`tel:${phoneVal}`}
+                                    onClick={(ev) => handleOutboundInteraction(ev, 'Call', contact, `tel:${phoneVal}`)}
                                     className="hover:underline font-bold cursor-pointer"
                                   >
-                                    {p.number}
+                                    {phoneVal}
                                   </a>
-                                  <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[9px] font-sans font-semibold border border-slate-200">
-                                    {p.label}
+                                  <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-sans font-semibold border border-blue-200">
+                                    {p.label || 'Mobile'}
                                   </span>
                                 </div>
                                 {cleanPhone && (
@@ -476,23 +483,26 @@ export default function Company360Modal({
                           })}
 
                           {/* Emails list */}
-                          {cEmails.map((e, eIdx) => (
-                            <div key={eIdx} className="flex items-center space-x-2 text-slate-600 font-sans truncate py-0.5">
-                              <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <a
-                                href={`mailto:${e.email}`}
-                                onClick={(ev) => handleOutboundInteraction(ev, 'Email', contact, `mailto:${e.email}`)}
-                                className="hover:underline truncate text-slate-800 font-medium cursor-pointer"
-                              >
-                                {e.email}
-                              </a>
-                              {e.label && (
-                                <span className="px-1.5 py-0.2 bg-slate-100 text-slate-500 rounded text-[9px] font-semibold shrink-0 border border-slate-200">
-                                  {e.label}
-                                </span>
-                              )}
-                            </div>
-                          ))}
+                          {cEmails.map((e, eIdx) => {
+                            const emailVal = e.value || e.email || '';
+                            return (
+                              <div key={eIdx} className="flex items-center space-x-2 text-slate-600 font-sans truncate py-0.5">
+                                <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <a
+                                  href={`mailto:${emailVal}`}
+                                  onClick={(ev) => handleOutboundInteraction(ev, 'Email', contact, `mailto:${emailVal}`)}
+                                  className="hover:underline truncate text-slate-800 dark:text-slate-200 font-medium cursor-pointer"
+                                >
+                                  {emailVal}
+                                </a>
+                                {e.label && (
+                                  <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold shrink-0 border border-slate-200">
+                                    {e.label}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );

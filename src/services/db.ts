@@ -54,6 +54,10 @@ function getDB(): Promise<IDBDatabase> {
 export async function saveToLocalStore(storeName: string, items: any[]): Promise<void> {
   try {
     const db = await getDB();
+    if (!db.objectStoreNames.contains(storeName)) {
+      localStorage.setItem(`omni_idb_fallback_${storeName}`, JSON.stringify(items));
+      return;
+    }
     const tx = db.transaction(storeName, 'readwrite');
     const store = tx.objectStore(storeName);
     store.clear();
@@ -73,6 +77,10 @@ export async function saveToLocalStore(storeName: string, items: any[]): Promise
 export async function getFromLocalStore<T>(storeName: string): Promise<T[]> {
   try {
     const db = await getDB();
+    if (!db.objectStoreNames.contains(storeName)) {
+      const saved = localStorage.getItem(`omni_idb_fallback_${storeName}`);
+      return saved ? JSON.parse(saved) : [];
+    }
     return new Promise((resolve) => {
       const tx = db.transaction(storeName, 'readonly');
       const store = tx.objectStore(storeName);
@@ -150,7 +158,7 @@ function saveFallbackQueue(queue: MutationItem[]) {
 export async function clearAllLocalStores(): Promise<void> {
   try {
     const db = await getDB();
-    const stores = ['enquiries', 'companies', 'contacts', 'call_logs', 'products', 'metadata', 'mutation_queue'];
+    const stores = ['enquiries', 'companies', 'contacts', 'call_logs', 'activity_logs', 'products', 'metadata', 'mutation_queue'];
     for (const storeName of stores) {
       if (db.objectStoreNames.contains(storeName)) {
         try {

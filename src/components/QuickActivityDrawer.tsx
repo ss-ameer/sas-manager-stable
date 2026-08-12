@@ -1000,7 +1000,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       onClick={() => {
                         const newStatus = st.id as CallStatus;
                         setStatus(newStatus);
-                        if (newStatus === 'Scheduled' && !followupDate) {
+                        if (newStatus === 'Busy') {
+                          setOutcome('Busy');
+                        } else if (newStatus === 'No Answer') {
+                          setOutcome('No Answer');
+                        } else if (newStatus === 'Scheduled' && !followupDate) {
                           setFollowupDate(getOffsetDateString(1));
                         }
                       }}

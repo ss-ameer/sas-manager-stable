@@ -125,6 +125,24 @@ export class ActivityLogRepository {
     const phoneVal = contactPhone?.trim() || undefined;
     const emailVal = contactEmail?.trim() || undefined;
 
+    // Strict query against existing companies to prevent duplicate registration
+    const normalizedInputName = cleanCompanyName.toLowerCase();
+    let existingCompanies = await CompanyRepository.getCompaniesLocal();
+    if (!existingCompanies || existingCompanies.length === 0) {
+      existingCompanies = await CompanyRepository.fetchWorkspaceCompaniesFromCloud(workspaceId);
+    }
+    const duplicateCompany = (existingCompanies || []).find((c) => {
+      if (c.is_deleted) return false;
+      const canonical = (c.canonical_name || '').trim().toLowerCase();
+      const display = (c.display_name || '').trim().toLowerCase();
+      return (canonical === normalizedInputName || display === normalizedInputName) && 
+        (!c.workspace_id || c.workspace_id === workspaceId || workspaceId === 'ws_default');
+    });
+
+    if (duplicateCompany) {
+      throw new Error(`Duplicate Company Record: A company named "${duplicateCompany.display_name || duplicateCompany.canonical_name}" already exists in this workspace.`);
+    }
+
     const newCompany: Company = {
       id: companyId,
       workspace_id: workspaceId,

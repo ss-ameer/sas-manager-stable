@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Company, Contact, Enquiry, UserProfile, LegalSuffix, Workspace, getContactPhones, getContactEmails, getCompanyPhones, getCompanyEmails, LabeledPhone, LabeledEmail, PhoneCategory, DropdownOption, CallLogEntry, Salesperson } from '../types';
+import { Company, Contact, Enquiry, UserProfile, LegalSuffix, Workspace, getContactPhones, getContactEmails, getCompanyPhones, getCompanyEmails, LabeledPhone, LabeledEmail, PhoneCategory, DropdownOption, CallLogEntry, Salesperson, ContactMethod } from '../types';
 import { getReferenceId } from '../utils/refId';
 import { recordAuditLog } from '../utils/auditLogger';
 import ContactModal from './ContactModal';
@@ -435,8 +435,8 @@ export default function CompanyModal({
   const [city, setCity] = useState('');
   const [generalPhone, setGeneralPhone] = useState('');
   const [generalEmail, setGeneralEmail] = useState('');
-  const [companyPhones, setCompanyPhones] = useState<LabeledPhone[]>([{ number: '', label: 'Telephone' }]);
-  const [companyEmails, setCompanyEmails] = useState<LabeledEmail[]>([{ email: '', label: 'General' }]);
+  const [companyPhones, setCompanyPhones] = useState<ContactMethod[]>([{ id: 'init_p1', label: 'Landline', value: '' }]);
+  const [companyEmails, setCompanyEmails] = useState<ContactMethod[]>([{ id: 'init_e1', label: 'Work', value: '' }]);
   const [relationship, setRelationship] = useState<string>('Prospect');
   const [temperature, setTemperature] = useState<string>('Cold');
   const [notes, setNotes] = useState('');
@@ -477,6 +477,8 @@ export default function CompanyModal({
     reason: string;
   } | null>(null);
 
+  const generateCmId = () => `cm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
   const closeCompanyModal = () => {
     setShowAddCompany(false);
     setEditingCompany(null);
@@ -486,8 +488,8 @@ export default function CompanyModal({
     setCity('');
     setGeneralPhone('');
     setGeneralEmail('');
-    setCompanyPhones([{ number: '', label: 'Telephone' }]);
-    setCompanyEmails([{ email: '', label: 'General' }]);
+    setCompanyPhones([{ id: generateCmId(), label: 'Landline', value: '' }]);
+    setCompanyEmails([{ id: generateCmId(), label: 'Work', value: '' }]);
     setRelationship('Prospect');
     setTemperature('Cold');
     setNotes('');
@@ -504,8 +506,8 @@ export default function CompanyModal({
     setCity('');
     setGeneralPhone('');
     setGeneralEmail('');
-    setCompanyPhones([{ number: '', label: 'Telephone' }]);
-    setCompanyEmails([{ email: '', label: 'General' }]);
+    setCompanyPhones([{ id: generateCmId(), label: 'Landline', value: '' }]);
+    setCompanyEmails([{ id: generateCmId(), label: 'Work', value: '' }]);
     setRelationship('Prospect');
     setTemperature('Cold');
     setNotes('');
@@ -521,21 +523,31 @@ export default function CompanyModal({
     setLegalSuffix(comp.legal_suffix);
     setCountry(comp.country);
     setCity(comp.city);
-    setGeneralPhone(comp.general_phone || '');
-    setGeneralEmail(comp.general_email || '');
+    setGeneralPhone(comp.general_phone || comp.phone || '');
+    setGeneralEmail(comp.general_email || comp.email || '');
 
     const existingPhones = getCompanyPhones(comp);
+    const mappedPhones: ContactMethod[] = existingPhones.map((p) => ({
+      id: p.id || generateCmId(),
+      label: p.label || 'Landline',
+      value: p.value || p.number || ''
+    }));
     setCompanyPhones(
-      existingPhones.length > 0
-        ? existingPhones
-        : [{ number: comp.general_phone || '', label: 'Telephone' }]
+      mappedPhones.length > 0
+        ? mappedPhones
+        : [{ id: generateCmId(), label: 'Landline', value: comp.general_phone || comp.phone || '' }]
     );
 
     const existingEmails = getCompanyEmails(comp);
+    const mappedEmails: ContactMethod[] = existingEmails.map((e) => ({
+      id: e.id || generateCmId(),
+      label: e.label || 'Work',
+      value: e.value || e.email || ''
+    }));
     setCompanyEmails(
-      existingEmails.length > 0
-        ? existingEmails
-        : [{ email: comp.general_email || '', label: 'General' }]
+      mappedEmails.length > 0
+        ? mappedEmails
+        : [{ id: generateCmId(), label: 'Work', value: comp.general_email || comp.email || '' }]
     );
 
     setRelationship(comp.relationship || 'Prospect');
@@ -577,11 +589,17 @@ export default function CompanyModal({
       throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
     }
 
-    const validPhones = companyPhones.filter(p => p.number.trim() !== '');
-    const validEmails = companyEmails.filter(e => e.email.trim() !== '');
+    const validPhones = companyPhones.filter((p) => p.value.trim() !== '');
+    const validEmails = companyEmails.filter((e) => e.value.trim() !== '');
+
+    const legacyPhones = validPhones.map((p) => ({ id: p.id, label: p.label, number: p.value }));
+    const legacyEmails = validEmails.map((e) => ({ id: e.id, label: e.label, email: e.value }));
+
+    const primaryPhoneVal = validPhones[0]?.value || generalPhone.trim();
+    const primaryEmailVal = validEmails[0]?.value || generalEmail.trim();
 
     const computedCanonicalName = computeCanonicalName(displayName) || canonicalName.trim().toLowerCase();
-    const searchTerms = generateCompanySearchTerms(displayName, city, validPhones.length > 0 ? validPhones : [{ number: generalPhone }]);
+    const searchTerms = generateCompanySearchTerms(displayName, city, legacyPhones.length > 0 ? legacyPhones : [{ number: primaryPhoneVal }]);
 
     const rawCompany: Omit<Company, 'id'> = {
       workspace_id: activeWorkspace.id,
@@ -591,10 +609,14 @@ export default function CompanyModal({
       aliases: aliasesArr,
       country: country.trim(),
       city: city.trim(),
-      general_phone: validPhones[0]?.number || generalPhone.trim(),
-      general_email: validEmails[0]?.email || generalEmail.trim(),
-      phones: validPhones,
-      emails: validEmails,
+      general_phone: primaryPhoneVal,
+      general_email: primaryEmailVal,
+      phone: primaryPhoneVal,
+      email: primaryEmailVal,
+      general_phones: validPhones,
+      general_emails: validEmails,
+      phones: legacyPhones as any,
+      emails: legacyEmails as any,
       relationship,
       temperature,
       notes: notes.trim(),
@@ -2436,22 +2458,22 @@ export default function CompanyModal({
 
       {/* MODAL: ADD COMPANY WITH DUPLICATE FUZZY WARNING */}
       {showAddCompany && (
-        <div id="company-form-modal" className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-2xl relative animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+        <div id="company-form-modal" className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-2xl relative animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-slate-50">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0 bg-slate-950/50">
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-50 border border-blue-100 rounded-xl text-blue-600">
+                <div className="p-2 bg-indigo-950/60 border border-indigo-800/60 rounded-xl text-indigo-400">
                   <Building2 className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 font-sans">
+                <h3 className="text-lg font-bold text-slate-100 font-sans">
                   {editingCompany ? 'Edit Canonical Company' : 'Add Canonical Company'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={closeCompanyModal}
-                className="text-slate-400 hover:text-slate-800 transition p-1.5 rounded-lg hover:bg-slate-200/60"
+                className="text-slate-400 hover:text-slate-200 transition p-1.5 rounded-lg hover:bg-slate-800/60"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2470,7 +2492,7 @@ export default function CompanyModal({
                       placeholder="e.g. Veolia Water Solutions"
                       value={canonicalName}
                       onChange={(e) => setCanonicalName(e.target.value)}
-                      className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none"
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none placeholder-slate-600"
                     />
                   </div>
                   <div>
@@ -2480,7 +2502,7 @@ export default function CompanyModal({
                     <select
                       value={legalSuffix}
                       onChange={(e) => setLegalSuffix(e.target.value as LegalSuffix)}
-                      className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-700 focus:outline-none font-sans"
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none font-sans"
                     >
                       {['None / To Be Added Later', 'LLC', 'FZE', 'FZC', 'Co. LLC', 'Ltd', 'W.L.L.', 'Est.', 'None / Other'].map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -2498,9 +2520,9 @@ export default function CompanyModal({
                     placeholder="e.g. Veolia Water, Veolia Solutions, VWS"
                     value={aliasesInput}
                     onChange={(e) => setAliasesInput(e.target.value)}
-                    className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none placeholder-slate-600"
                   />
-                  <span className="text-[10px] text-slate-400 font-mono mt-1 block leading-normal">
+                  <span className="text-[10px] text-slate-500 font-mono mt-1 block leading-normal">
                     Helps the fuzzy matching index search variants to block subsequent duplicates.
                   </span>
                 </div>
@@ -2516,7 +2538,7 @@ export default function CompanyModal({
                       placeholder="e.g. Sharjah"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none"
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none placeholder-slate-600"
                     />
                   </div>
                   <div>
@@ -2529,7 +2551,7 @@ export default function CompanyModal({
                       placeholder="e.g. UAE"
                       value={country}
                       onChange={(e) => setCountry(e.target.value)}
-                      className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none"
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none placeholder-slate-600"
                     />
                   </div>
                 </div>
@@ -2542,7 +2564,7 @@ export default function CompanyModal({
                     <select
                       value={relationship}
                       onChange={(e) => setRelationship(e.target.value)}
-                      className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none font-sans font-semibold"
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none font-sans font-semibold"
                     >
                       {(companyRelationships || []).map((r) => (
                         <option key={r.id} value={r.name}>{r.name}</option>
@@ -2556,7 +2578,7 @@ export default function CompanyModal({
                     <select
                       value={temperature}
                       onChange={(e) => setTemperature(e.target.value)}
-                      className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none font-sans font-semibold"
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none font-sans font-semibold"
                     >
                       {(companyTemperatures || []).map((t) => (
                         <option key={t.id} value={t.name}>{t.name}</option>
@@ -2565,49 +2587,50 @@ export default function CompanyModal({
                   </div>
                 </div>
 
-                <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="space-y-3 pt-2 border-t border-slate-800">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest">
                       Company Phone Numbers
                     </label>
                     <button
                       type="button"
-                      onClick={() => setCompanyPhones(prev => [...prev, { number: '', label: 'Telephone' }])}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                      onClick={() => setCompanyPhones(prev => [...prev, { id: generateCmId(), label: 'Landline', value: '' }])}
+                      className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer"
                     >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Number</span>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Add Phone</span>
                     </button>
                   </div>
                   {companyPhones.map((ph, idx) => (
-                    <div key={idx} className="flex items-center space-x-2">
+                    <div key={ph.id || idx} className="flex items-center space-x-2">
                       <select
                         value={ph.label}
                         onChange={(e) => {
-                          const val = e.target.value as PhoneCategory;
+                          const val = e.target.value;
                           setCompanyPhones(prev => prev.map((item, i) => i === idx ? { ...item, label: val } : item));
                         }}
-                        className="w-28 px-2 py-1.5 text-xs border border-slate-200 rounded-xl bg-white font-semibold shrink-0"
+                        className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
                       >
-                        {['Mobile', 'Telephone', 'Direct', 'WhatsApp', 'Work', 'Fax', 'Other'].map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
+                        {['Landline', 'Mobile', 'WhatsApp', 'Direct Line', 'Support', 'Fax', 'Other'].map(lbl => (
+                          <option key={lbl} value={lbl}>{lbl}</option>
                         ))}
                       </select>
                       <input
                         type="text"
                         placeholder="Phone number..."
-                        value={ph.number}
+                        value={ph.value}
                         onChange={(e) => {
                           const val = e.target.value;
-                          setCompanyPhones(prev => prev.map((item, i) => i === idx ? { ...item, number: val } : item));
+                          setCompanyPhones(prev => prev.map((item, i) => i === idx ? { ...item, value: val } : item));
                         }}
-                        className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-xl font-mono"
+                        className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-xl font-mono bg-slate-950 text-slate-100 focus:border-indigo-500 focus:outline-none placeholder-slate-600"
                       />
                       {companyPhones.length > 1 && (
                         <button
                           type="button"
                           onClick={() => setCompanyPhones(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1.5 text-slate-400 hover:text-red-600"
+                          className="p-1.5 text-slate-400 hover:text-rose-400 transition rounded-lg hover:bg-slate-800/60 cursor-pointer"
+                          title="Remove Phone"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -2616,47 +2639,50 @@ export default function CompanyModal({
                   ))}
                 </div>
 
-                <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="space-y-3 pt-2 border-t border-slate-800">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-widest">
                       Company Email Addresses
                     </label>
                     <button
                       type="button"
-                      onClick={() => setCompanyEmails(prev => [...prev, { email: '', label: 'General' }])}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                      onClick={() => setCompanyEmails(prev => [...prev, { id: generateCmId(), label: 'Work', value: '' }])}
+                      className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer"
                     >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Email</span>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Add Email</span>
                     </button>
                   </div>
                   {companyEmails.map((em, idx) => (
-                    <div key={idx} className="flex items-center space-x-2">
-                      <input
-                        type="text"
-                        placeholder="Label (e.g. Sales, Info)..."
-                        value={em.label || ''}
+                    <div key={em.id || idx} className="flex items-center space-x-2">
+                      <select
+                        value={em.label}
                         onChange={(e) => {
                           const val = e.target.value;
                           setCompanyEmails(prev => prev.map((item, i) => i === idx ? { ...item, label: val } : item));
                         }}
-                        className="w-28 px-2 py-1.5 text-xs border border-slate-200 rounded-xl bg-white font-semibold shrink-0"
-                      />
+                        className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
+                      >
+                        {['Work', 'Personal', 'Info', 'Billing', 'Support', 'Other'].map(lbl => (
+                          <option key={lbl} value={lbl}>{lbl}</option>
+                        ))}
+                      </select>
                       <input
                         type="email"
                         placeholder="Email address..."
-                        value={em.email}
+                        value={em.value}
                         onChange={(e) => {
                           const val = e.target.value;
-                          setCompanyEmails(prev => prev.map((item, i) => i === idx ? { ...item, email: val } : item));
+                          setCompanyEmails(prev => prev.map((item, i) => i === idx ? { ...item, value: val } : item));
                         }}
-                        className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-xl font-sans"
+                        className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-xl font-sans bg-slate-950 text-slate-100 focus:border-indigo-500 focus:outline-none placeholder-slate-600"
                       />
                       {companyEmails.length > 1 && (
                         <button
                           type="button"
                           onClick={() => setCompanyEmails(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1.5 text-slate-400 hover:text-red-600"
+                          className="p-1.5 text-slate-400 hover:text-rose-400 transition rounded-lg hover:bg-slate-800/60 cursor-pointer"
+                          title="Remove Email"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -2674,14 +2700,14 @@ export default function CompanyModal({
                     placeholder="Provide any client profiles, special conditions..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none font-sans"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none font-sans placeholder-slate-600"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSavingCompany || !activeWorkspace?.id}
-                  className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center space-x-2"
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center space-x-2 cursor-pointer shadow-md"
                 >
                   {isSavingCompany && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>{isSavingCompany ? 'Saving Record...' : 'Save Canonical Record'}</span>
@@ -2709,25 +2735,25 @@ export default function CompanyModal({
 
       {/* MODAL: MERGE canonical companies */}
       {showMerge && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <button
               onClick={() => {
                 setShowMerge(false);
                 setMergeTargetId(null);
               }}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 transition"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-200 transition p-1"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 font-sans flex items-center space-x-2">
-              <Merge className="w-5 h-5 text-blue-600" />
+            <h3 className="text-lg font-bold text-slate-100 border-b border-slate-800 pb-3 font-sans flex items-center space-x-2">
+              <Merge className="w-5 h-5 text-indigo-400" />
               <span>Administrative Merge Consolidation</span>
             </h3>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 leading-normal font-sans space-y-1">
-              <span className="font-bold text-slate-800 block">Merging Action:</span>
+            <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 text-xs text-slate-300 leading-normal font-sans space-y-1">
+              <span className="font-bold text-slate-100 block">Merging Action:</span>
               <p>
                 All contacts and enquiries currently pointing to the **Source** company will be updated in a single transaction batch to reference the **Target** company. The source company's canonical name will be appended as an alias of the target to maintain future fuzzy lookups, and the source document will be softly deleted.
               </p>
@@ -2738,7 +2764,7 @@ export default function CompanyModal({
                 <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block mb-1">
                   Source Company (Will be merged and removed)
                 </span>
-                <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-sm font-semibold text-rose-700 font-sans">
+                <div className="p-3 bg-rose-950/40 border border-rose-800/50 rounded-xl text-sm font-semibold text-rose-300 font-sans">
                   {selectedCompany.display_name}
                 </div>
               </div>
@@ -2750,7 +2776,7 @@ export default function CompanyModal({
                 <select
                   value={mergeTargetId || ''}
                   onChange={(e) => setMergeTargetId(e.target.value)}
-                  className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-3 px-4 text-sm text-slate-700 focus:outline-none font-sans"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-3 px-4 text-sm text-slate-100 focus:outline-none font-sans"
                 >
                   <option value="">-- Choose Canonical Target --</option>
                   {companies
@@ -2766,7 +2792,7 @@ export default function CompanyModal({
               <button
                 onClick={executeMerge}
                 disabled={merging || !mergeTargetId}
-                className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 font-semibold text-white rounded-xl text-sm transition"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 font-semibold text-white rounded-xl text-sm transition cursor-pointer shadow-md"
               >
                 {merging ? 'Consolidating records...' : 'Execute Merge batch'}
               </button>
@@ -2777,56 +2803,56 @@ export default function CompanyModal({
 
       {/* Company Deletion Choice Modal */}
       {companyToDelete && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 overflow-hidden animate-in zoom-in-95 duration-150 font-sans">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl p-6 overflow-hidden animate-in zoom-in-95 duration-150 font-sans">
             <div className="flex items-center space-x-3 mb-3">
-              <div className="p-2.5 bg-rose-100 text-rose-600 rounded-xl">
+              <div className="p-2.5 bg-rose-950/60 text-rose-400 border border-rose-800/50 rounded-xl">
                 <Trash2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Delete Company</h3>
-                <p className="text-xs text-slate-500 font-medium">{companyToDelete.name}</p>
+                <h3 className="text-base font-bold text-slate-100">Delete Company</h3>
+                <p className="text-xs text-slate-400 font-medium">{companyToDelete.name}</p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
               Are you sure you want to delete this company?
               {companyToDelete.contactCount > 0 ? (
-                <span> This company currently has <strong className="text-slate-900">{companyToDelete.contactCount} associated contact(s)</strong>. Please choose how to handle them:</span>
+                <span> This company currently has <strong className="text-slate-100">{companyToDelete.contactCount} associated contact(s)</strong>. Please choose how to handle them:</span>
               ) : (
                 <span> This action cannot be undone.</span>
               )}
             </p>
 
             {companyToDelete.contactCount > 0 && (
-              <div className="space-y-2 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-                <label className="flex items-start space-x-2.5 cursor-pointer p-2 rounded-lg hover:bg-white transition border border-transparent hover:border-slate-200">
+              <div className="space-y-2 mb-6 bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-xs">
+                <label className="flex items-start space-x-2.5 cursor-pointer p-2 rounded-lg hover:bg-slate-800/60 transition border border-transparent">
                   <input
                     type="radio"
                     name="deleteContactChoice"
                     value="unlink"
                     checked={deleteContactChoice === 'unlink'}
                     onChange={() => setDeleteContactChoice('unlink')}
-                    className="mt-0.5 text-blue-600 focus:ring-blue-500"
+                    className="mt-0.5 text-indigo-500 focus:ring-indigo-500"
                   />
                   <div>
-                    <span className="font-bold text-slate-900 block">Keep contacts (unlink company)</span>
-                    <span className="text-[11px] text-slate-500 block">Contacts will remain in People Directory, but their company field will be cleared.</span>
+                    <span className="font-bold text-slate-100 block">Keep contacts (unlink company)</span>
+                    <span className="text-[11px] text-slate-400 block">Contacts will remain in People Directory, but their company field will be cleared.</span>
                   </div>
                 </label>
 
-                <label className="flex items-start space-x-2.5 cursor-pointer p-2 rounded-lg hover:bg-white transition border border-transparent hover:border-slate-200">
+                <label className="flex items-start space-x-2.5 cursor-pointer p-2 rounded-lg hover:bg-slate-800/60 transition border border-transparent">
                   <input
                     type="radio"
                     name="deleteContactChoice"
                     value="cascade"
                     checked={deleteContactChoice === 'cascade'}
                     onChange={() => setDeleteContactChoice('cascade')}
-                    className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                    className="mt-0.5 text-rose-500 focus:ring-rose-500"
                   />
                   <div>
-                    <span className="font-bold text-rose-700 block">Delete associated contacts too</span>
-                    <span className="text-[11px] text-slate-500 block">All {companyToDelete.contactCount} associated contact persons will also be deleted.</span>
+                    <span className="font-bold text-rose-400 block">Delete associated contacts too</span>
+                    <span className="text-[11px] text-slate-400 block">All {companyToDelete.contactCount} associated contact persons will also be deleted.</span>
                   </div>
                 </label>
               </div>
@@ -2837,7 +2863,7 @@ export default function CompanyModal({
                 type="button"
                 onClick={() => setCompanyToDelete(null)}
                 disabled={isDeletingCompany}
-                className="py-2 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition cursor-pointer"
+                className="py-2 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 transition cursor-pointer"
               >
                 Cancel
               </button>
@@ -2845,7 +2871,7 @@ export default function CompanyModal({
                 type="button"
                 onClick={handleExecuteCompanyDelete}
                 disabled={isDeletingCompany}
-                className="py-2 px-4 bg-rose-600 hover:bg-rose-700 rounded-xl text-xs font-bold text-white transition cursor-pointer shadow-md flex items-center space-x-1.5"
+                className="py-2 px-4 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold text-white transition cursor-pointer shadow-md flex items-center space-x-1.5"
               >
                 {isDeletingCompany ? (
                   <span>Deleting...</span>
@@ -2863,15 +2889,15 @@ export default function CompanyModal({
 
       {/* Custom Confirmation Dialog Overlay */}
       {confirmDialog.isOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 overflow-hidden animate-in zoom-in-95 duration-150">
-            <h3 className="text-lg font-bold text-slate-900 font-sans mb-2">{confirmDialog.title}</h3>
-            <p className="text-sm text-slate-500 font-sans mb-6">{confirmDialog.message}</p>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl p-6 overflow-hidden animate-in zoom-in-95 duration-150">
+            <h3 className="text-lg font-bold text-slate-100 font-sans mb-2">{confirmDialog.title}</h3>
+            <p className="text-sm text-slate-400 font-sans mb-6">{confirmDialog.message}</p>
             <div className="flex items-center justify-end space-x-3 font-sans">
               <button
                 type="button"
                 onClick={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
-                className="py-2 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition cursor-pointer"
+                className="py-2 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 transition cursor-pointer"
               >
                 {confirmDialog.cancelText || 'Cancel'}
               </button>
@@ -2881,10 +2907,10 @@ export default function CompanyModal({
                   confirmDialog.onConfirm();
                   setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
                 }}
-                className={`py-2 px-4 rounded-xl text-xs font-bold text-white transition cursor-pointer ${
+                className={`py-2 px-4 rounded-xl text-xs font-bold text-white transition cursor-pointer shadow-md ${
                   confirmDialog.isDestructive
-                    ? 'bg-rose-600 hover:bg-rose-700'
-                    : 'bg-slate-900 hover:bg-slate-800'
+                    ? 'bg-rose-600 hover:bg-rose-500'
+                    : 'bg-indigo-600 hover:bg-indigo-500'
                 }`}
               >
                 {confirmDialog.confirmText || 'Confirm'}
@@ -2968,31 +2994,31 @@ export default function CompanyModal({
 
       {/* Bulk Reassign Modal */}
       {showBulkReassignModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 space-y-4 font-sans animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl p-6 space-y-4 font-sans animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center space-x-2">
-                <Building2 className="w-5 h-5 text-blue-600" />
-                <h3 className="font-bold text-slate-900 text-sm">
+                <Building2 className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-bold text-slate-100 text-sm">
                   Bulk Reassign {selectedContactIds.length} Contact(s)
                 </h3>
               </div>
               <button
                 onClick={() => setShowBulkReassignModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800/60 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-slate-300">
               Select the target company account to associate with all {selectedContactIds.length} selected contacts:
             </p>
 
             <select
               value={bulkReassignCompanyId}
               onChange={(e) => setBulkReassignCompanyId(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-blue-500 bg-white"
+              className="w-full px-3 py-2 text-xs border border-slate-800 rounded-xl focus:border-indigo-500 bg-slate-950 text-slate-100"
             >
               <option value="">-- Choose Target Company --</option>
               {companies.map((comp) => (
@@ -3002,11 +3028,11 @@ export default function CompanyModal({
               ))}
             </select>
 
-            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setShowBulkReassignModal(false)}
-                className="px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                className="px-3 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800/60 rounded-xl cursor-pointer"
               >
                 Cancel
               </button>
@@ -3014,7 +3040,7 @@ export default function CompanyModal({
                 type="button"
                 disabled={!bulkReassignCompanyId}
                 onClick={handleExecuteBulkReassign}
-                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-xs cursor-pointer"
+                className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-xl shadow-xs cursor-pointer"
               >
                 Apply Reassignment
               </button>
@@ -3047,47 +3073,47 @@ export default function CompanyModal({
 
       {/* Delete Contact Confirmation Modal */}
       {contactToDeleteConfirm && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 space-y-4 font-sans animate-in zoom-in-95 duration-150">
-            <div className="flex items-center space-x-3 text-rose-600">
-              <div className="p-2 bg-rose-50 border border-rose-100 rounded-xl">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-2xl max-w-md w-full border border-slate-800 shadow-2xl p-6 space-y-4 font-sans animate-in zoom-in-95 duration-150">
+            <div className="flex items-center space-x-3 text-rose-400">
+              <div className="p-2 bg-rose-950/60 border border-rose-800/50 rounded-xl">
                 <AlertTriangle className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-bold text-slate-900">Delete Personnel Contact</h3>
+              <h3 className="text-base font-bold text-slate-100">Delete Personnel Contact</h3>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Are you sure you want to delete contact <strong className="text-slate-900">{contactToDeleteConfirm.contact.full_name}</strong>?
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Are you sure you want to delete contact <strong className="text-slate-100">{contactToDeleteConfirm.contact.full_name}</strong>?
             </p>
 
             {contactToDeleteConfirm.linkedEnquiriesCount > 0 ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
+              <div className="p-3 bg-amber-950/40 border border-amber-800/50 rounded-xl text-xs text-amber-200 space-y-1">
                 <p className="font-bold flex items-center space-x-1">
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span>Linked Records Impact ({contactToDeleteConfirm.linkedEnquiriesCount} enquiries)</span>
                 </p>
-                <p className="text-[11px] text-amber-800">
+                <p className="text-[11px] text-amber-300">
                   This contact person is referenced in {contactToDeleteConfirm.linkedEnquiriesCount} active or historical enquiries. Deleting them will safely unassign the contact ID and mark their name as "(Deleted)" in those enquiries so record integrity is preserved.
                 </p>
               </div>
             ) : (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 This contact has no linked active enquiries. This action cannot be undone.
               </p>
             )}
 
-            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setContactToDeleteConfirm(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                className="px-4 py-2 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={executeDeleteContact}
-                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-xs flex items-center space-x-1 cursor-pointer"
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-xl transition shadow-xs flex items-center space-x-1 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Confirm Delete</span>

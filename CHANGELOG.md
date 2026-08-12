@@ -2,6 +2,36 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.62.0] - 2026-08-12
+
+### Added & Enhanced
+- **Activity Log Call Disposition State Sync (`QuickActivityDrawer.tsx`)**:
+  - Bound the Call Status buttons ('Busy', 'No Answer') to automatically sync and populate the `outcome` text state with matching disposition labels upon click, preventing redundant manual typing for salespeople.
+- **Duplicate Company Guard & Batch Write Safety (`CallLogRepository.ts`, `LeadConversionModal.tsx`)**:
+  - Implemented a strict query check against existing workspace companies prior to executing the lead conversion batch write in `ActivityLogRepository.convertUnsavedLeadToClient`.
+  - Throws a explicit hard error if a company with the same canonical or display name already exists in the active workspace context, aborting batch execution and protecting against duplicate company creation.
+  - Handled the duplicate company error gracefully in `LeadConversionModal` with a high-visibility warning banner while keeping the submission button locked during `isSubmitting`.
+- **IndexedDB Object Store Health & Fallback Safety (`db.ts`)**:
+  - Verified and guaranteed explicit registration for `companies`, `contacts`, `activity_logs`, `call_logs`, `enquiries`, `products`, `metadata`, and `mutation_queue` object stores in IndexedDB initialization.
+  - Added safety checks in `saveToLocalStore`, `getFromLocalStore`, and `clearAllLocalStores` to guard against `NotFoundError` IDBDatabase transaction failures when accessing dynamic stores, gracefully falling back to local storage when object stores are unmounted or pending upgrades.
+- **Premium Dark UI Theme Unification (`CompanyModal.tsx`, `ContactModal.tsx`)**:
+  - Refactored all sub-modals across `CompanyModal.tsx` and `ContactModal.tsx` to the Slate Dark design standard (`bg-slate-900`, `border-slate-800`, `bg-slate-950`, `text-slate-100`/`text-slate-300`, `indigo-600`/`blue-600` primary action CTAs).
+  - Applied the dark theme consistently across the Add/Edit Company Form, Merge Canonical Companies, Company Deletion Choice, Custom Confirmation Dialogs, Duplicate Fuzzy Match Warning, Bulk Reassign Modal, Delete Contact Confirmation, and Contact Management sub-modals.
+
+## [0.61.0] - 2026-08-11
+
+### Added & Enhanced
+- **"Unsaved Lead" to "CRM Client" Atomic Conversion Workflow (`CallLogDetailModal.tsx`, `LeadConversionModal.tsx`, `ActivityLogRepository.ts`)**:
+  - **Conversion UI Trigger**: Added a prominent primary "🚀 Convert to CRM Client" button in `CallLogDetailModal` when inspecting activity logs with unlinked leads (missing `company_id`).
+  - **Lead Conversion Modal**: Built `LeadConversionModal` pre-filling form inputs with `unlinked_name` and `unlinked_contact_info`. Supports required inputs for New Company Name, Legal Suffix, Phone, Email, and Contact Person Name. Strictly enforces `activeWorkspace.id`.
+  - **Atomic Transaction (`ActivityLogRepository.ts`)**: Added `convertLeadToClient` repository method executing a Firestore `writeBatch` that atomically creates a new `companies` document, creates an associated `contacts` document, and updates all matching activity logs in `call_logs` with the new `company_id`, `company_name`, `contact_id`, and `contact_name`.
+- **Enterprise CRM Restructure for Companies & Contacts (`types.ts`, `CompanyModal.tsx`, `ContactModal.tsx`, `Company360Modal.tsx`)**:
+  - **Standardized `ContactMethod` Interface**: Introduced reusable `ContactMethod` interface (`{ id: string; label: string; value: string; }`) supporting multiple phone numbers and email addresses per record.
+  - **Company & Contact Schema Update**: Added `general_phones` and `general_emails` arrays to `Company`, and `phones`, `emails`, and `designation` to `Contact`, while maintaining backward-compatible legacy string fields (`phone`, `email`, `mobile`, `landline`).
+  - **Dynamic Array Builders**: Replaced singular phone/email text inputs in `CompanyModal.tsx` and `ContactModal.tsx` with dynamic array builders featuring custom label dropdowns, value inputs, trash removal buttons, and "+ Add Phone" / "+ Add Email" controls.
+  - **On-Mount Legacy Migration**: Configured modal initialization logic to automatically detect and map legacy string fields into the new `ContactMethod[]` format without data loss.
+  - **Refactored Company 360° View**: Updated `Company360Modal.tsx` to render labeled phone and email array badges for general company info and associated contact personnel, with fallback support for legacy string fields.
+
 ## [0.60.0] - 2026-08-11
 
 ### Added & Enhanced

@@ -96,6 +96,12 @@ export interface SoftDeleteFields {
   search_terms?: string[];
 }
 
+export type ContactMethod = {
+  id: string;
+  label: string;
+  value: string;
+};
+
 export interface Company extends SoftDeleteFields {
   id?: string;
   workspace_id?: string | 'unassigned';
@@ -105,10 +111,14 @@ export interface Company extends SoftDeleteFields {
   aliases: string[];
   country: string;
   city: string;
+  phone?: string;
+  email?: string;
   general_phone?: string;
   general_email?: string;
-  phones?: LabeledPhone[];
-  emails?: LabeledEmail[];
+  general_phones?: ContactMethod[];
+  general_emails?: ContactMethod[];
+  phones?: ContactMethod[] | LabeledPhone[] | any[];
+  emails?: ContactMethod[] | LabeledEmail[] | any[];
   relationship?: CompanyRelationship;
   temperature?: CompanyTemperature;
   notes?: string;
@@ -127,9 +137,10 @@ export interface Contact extends SoftDeleteFields {
   designation?: string;
   mobile?: string;
   landline?: string;
+  phone?: string;
   email?: string;
-  phones?: LabeledPhone[];
-  emails?: LabeledEmail[];
+  phones?: ContactMethod[] | LabeledPhone[] | any[];
+  emails?: ContactMethod[] | LabeledEmail[] | any[];
   handles?: LabeledHandle[];
   is_primary?: boolean;
   is_dnc?: boolean;
@@ -138,23 +149,38 @@ export interface Contact extends SoftDeleteFields {
   updatedAt?: string;
 }
 
-export function getContactPhones(contact?: Partial<Contact> | null): LabeledPhone[] {
+export function getContactPhones(contact?: Partial<Contact> | null): Array<LabeledPhone & { value: string; id?: string }> {
   if (!contact) return [];
   if (contact.phones && contact.phones.length > 0) {
-    return contact.phones.filter((p) => p.number && p.number.trim() !== '');
+    return (contact.phones as any[])
+      .map((p: any) => ({
+        id: p.id,
+        number: p.number || p.value || '',
+        value: p.value || p.number || '',
+        label: p.label || 'Mobile'
+      }))
+      .filter((p) => p.value && p.value.trim() !== '');
   }
-  const result: LabeledPhone[] = [];
-  if (contact.mobile) result.push({ number: contact.mobile, label: 'Mobile' });
-  if (contact.landline) result.push({ number: contact.landline, label: 'Telephone' });
+  const result: Array<LabeledPhone & { value: string; id?: string }> = [];
+  if (contact.mobile) result.push({ number: contact.mobile, value: contact.mobile, label: 'Mobile' });
+  if (contact.landline) result.push({ number: contact.landline, value: contact.landline, label: 'Landline' });
+  if (contact.phone) result.push({ number: contact.phone, value: contact.phone, label: 'Direct Line' });
   return result;
 }
 
-export function getContactEmails(contact?: Partial<Contact> | null): LabeledEmail[] {
+export function getContactEmails(contact?: Partial<Contact> | null): Array<LabeledEmail & { value: string; id?: string }> {
   if (!contact) return [];
   if (contact.emails && contact.emails.length > 0) {
-    return contact.emails.filter((e) => e.email && e.email.trim() !== '');
+    return (contact.emails as any[])
+      .map((e: any) => ({
+        id: e.id,
+        email: e.email || e.value || '',
+        value: e.value || e.email || '',
+        label: e.label || 'Work'
+      }))
+      .filter((e) => e.value && e.value.trim() !== '');
   }
-  if (contact.email) return [{ email: contact.email, label: 'Primary' }];
+  if (contact.email) return [{ email: contact.email, value: contact.email, label: 'Work' }];
   return [];
 }
 
@@ -166,21 +192,57 @@ export function getContactHandles(contact?: Partial<Contact> | null): LabeledHan
   return [];
 }
 
-export function getCompanyPhones(company?: Partial<Company> | null): LabeledPhone[] {
+export function getCompanyPhones(company?: Partial<Company> | null): Array<LabeledPhone & { value: string; id?: string }> {
   if (!company) return [];
-  if (company.phones && company.phones.length > 0) {
-    return company.phones.filter((p) => p.number && p.number.trim() !== '');
+  if (company.general_phones && company.general_phones.length > 0) {
+    return company.general_phones
+      .map((p) => ({
+        id: p.id,
+        number: p.value,
+        value: p.value,
+        label: p.label || 'Landline'
+      }))
+      .filter((p) => p.value && p.value.trim() !== '');
   }
-  if (company.general_phone) return [{ number: company.general_phone, label: 'Telephone' }];
+  if (company.phones && company.phones.length > 0) {
+    return (company.phones as any[])
+      .map((p: any) => ({
+        id: p.id,
+        number: p.number || p.value || '',
+        value: p.value || p.number || '',
+        label: p.label || 'Landline'
+      }))
+      .filter((p) => p.value && p.value.trim() !== '');
+  }
+  const ph = company.general_phone || company.phone;
+  if (ph) return [{ number: ph, value: ph, label: 'Landline' }];
   return [];
 }
 
-export function getCompanyEmails(company?: Partial<Company> | null): LabeledEmail[] {
+export function getCompanyEmails(company?: Partial<Company> | null): Array<LabeledEmail & { value: string; id?: string }> {
   if (!company) return [];
-  if (company.emails && company.emails.length > 0) {
-    return company.emails.filter((e) => e.email && e.email.trim() !== '');
+  if (company.general_emails && company.general_emails.length > 0) {
+    return company.general_emails
+      .map((e) => ({
+        id: e.id,
+        email: e.value,
+        value: e.value,
+        label: e.label || 'Work'
+      }))
+      .filter((e) => e.value && e.value.trim() !== '');
   }
-  if (company.general_email) return [{ email: company.general_email, label: 'General' }];
+  if (company.emails && company.emails.length > 0) {
+    return (company.emails as any[])
+      .map((e: any) => ({
+        id: e.id,
+        email: e.email || e.value || '',
+        value: e.value || e.email || '',
+        label: e.label || 'Work'
+      }))
+      .filter((e) => e.value && e.value.trim() !== '');
+  }
+  const em = company.general_email || company.email;
+  if (em) return [{ email: em, value: em, label: 'Work' }];
   return [];
 }
 

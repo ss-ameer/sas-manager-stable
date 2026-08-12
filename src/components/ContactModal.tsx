@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Building2, Phone, Mail, Plus, Trash2, ShieldAlert, Check, ArrowRightLeft, Sparkles } from 'lucide-react';
-import { Company, Contact, LabeledPhone, LabeledEmail, LabeledHandle, PhoneCategory, UserProfile, getContactPhones, getContactEmails, getContactHandles, getCompanyPhones, getCompanyEmails } from '../types';
+import { Company, Contact, ContactMethod, LabeledPhone, LabeledEmail, LabeledHandle, UserProfile, getContactPhones, getContactEmails, getContactHandles, getCompanyPhones, getCompanyEmails } from '../types';
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc } from '../firebase';
 import { generateContactSearchTerms } from '../utils/defaults';
 import { recordAuditLog } from '../utils/auditLogger';
@@ -20,15 +20,10 @@ interface ContactModalProps {
   onSaved?: (savedContact: Contact) => void;
 }
 
-const PHONE_LABEL_OPTIONS: PhoneCategory[] = [
-  'Mobile',
-  'Telephone',
-  'Direct',
-  'WhatsApp',
-  'Work',
-  'Fax',
-  'Other'
-];
+const PHONE_LABEL_OPTIONS = ['Landline', 'Mobile', 'WhatsApp', 'Direct Line', 'Support', 'Fax', 'Other'];
+const EMAIL_LABEL_OPTIONS = ['Work', 'Personal', 'Info', 'Billing', 'Support', 'Other'];
+
+const generateCtId = () => `ct_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
 export default function ContactModal({
   isOpen,
@@ -51,8 +46,8 @@ export default function ContactModal({
   const [isDnc, setIsDnc] = useState<boolean>(false);
   const [dncReason, setDncReason] = useState<string>('');
 
-  const [phones, setPhones] = useState<LabeledPhone[]>([{ number: '', label: 'Mobile' }]);
-  const [emails, setEmails] = useState<LabeledEmail[]>([{ email: '', label: 'Work' }]);
+  const [phones, setPhones] = useState<ContactMethod[]>([{ id: 'ct_init_p1', label: 'Mobile', value: '' }]);
+  const [emails, setEmails] = useState<ContactMethod[]>([{ id: 'ct_init_e1', label: 'Work', value: '' }]);
   const [handles, setHandles] = useState<LabeledHandle[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -60,25 +55,28 @@ export default function ContactModal({
   const availableCompanyPhones = selectedCompany ? getCompanyPhones(selectedCompany) : [];
   const availableCompanyEmails = selectedCompany ? getCompanyEmails(selectedCompany) : [];
 
-  const claimCompanyPhone = async (phoneObj: LabeledPhone) => {
+  const claimCompanyPhone = async (phoneObj: any) => {
     if (!selectedCompany) return;
-    setPhones((prev) => [...prev.filter((p) => p.number.trim() !== ''), phoneObj]);
+    const phoneVal = phoneObj.value || phoneObj.number || '';
+    if (!phoneVal) return;
+
+    setPhones((prev) => [...prev.filter((p) => p.value.trim() !== ''), { id: generateCtId(), label: phoneObj.label || 'Landline', value: phoneVal }]);
 
     const currentCompPhones = getCompanyPhones(selectedCompany);
     const updatedPhones = currentCompPhones.filter(
-      (p) => p.number.trim().toLowerCase() !== phoneObj.number.trim().toLowerCase()
+      (p) => (p.value || p.number || '').trim().toLowerCase() !== phoneVal.trim().toLowerCase()
     );
 
     const updatedCompany: Company = {
       ...selectedCompany,
-      phones: updatedPhones,
-      general_phone: updatedPhones[0]?.number || ''
+      phones: updatedPhones as any,
+      general_phone: updatedPhones[0]?.value || updatedPhones[0]?.number || ''
     };
 
     try {
       await safeUpdateDoc('companies', selectedCompany.id, {
         phones: updatedPhones,
-        general_phone: updatedPhones[0]?.number || '',
+        general_phone: updatedPhones[0]?.value || updatedPhones[0]?.number || '',
         last_modified_by_uid: user?.uid || '',
         last_modified_by_name: user?.full_name || user?.username || user?.email || 'Unknown User',
         updatedAt: new Date().toISOString()
@@ -91,25 +89,28 @@ export default function ContactModal({
     }
   };
 
-  const claimCompanyEmail = async (emailObj: LabeledEmail) => {
+  const claimCompanyEmail = async (emailObj: any) => {
     if (!selectedCompany) return;
-    setEmails((prev) => [...prev.filter((e) => e.email.trim() !== ''), emailObj]);
+    const emailVal = emailObj.value || emailObj.email || '';
+    if (!emailVal) return;
+
+    setEmails((prev) => [...prev.filter((e) => e.value.trim() !== ''), { id: generateCtId(), label: emailObj.label || 'Work', value: emailVal }]);
 
     const currentCompEmails = getCompanyEmails(selectedCompany);
     const updatedEmails = currentCompEmails.filter(
-      (e) => e.email.trim().toLowerCase() !== emailObj.email.trim().toLowerCase()
+      (e) => (e.value || e.email || '').trim().toLowerCase() !== emailVal.trim().toLowerCase()
     );
 
     const updatedCompany: Company = {
       ...selectedCompany,
-      emails: updatedEmails,
-      general_email: updatedEmails[0]?.email || ''
+      emails: updatedEmails as any,
+      general_email: updatedEmails[0]?.value || updatedEmails[0]?.email || ''
     };
 
     try {
       await safeUpdateDoc('companies', selectedCompany.id, {
         emails: updatedEmails,
-        general_email: updatedEmails[0]?.email || '',
+        general_email: updatedEmails[0]?.value || updatedEmails[0]?.email || '',
         last_modified_by_uid: user?.uid || '',
         last_modified_by_name: user?.full_name || user?.username || user?.email || 'Unknown User',
         updatedAt: new Date().toISOString()
@@ -134,11 +135,21 @@ export default function ContactModal({
 
         // Populate phones
         const existingPhones = getContactPhones(contact);
-        setPhones(existingPhones.length > 0 ? existingPhones : [{ number: '', label: 'Mobile' }]);
+        const mappedPhones: ContactMethod[] = existingPhones.map((p) => ({
+          id: p.id || generateCtId(),
+          label: p.label || 'Mobile',
+          value: p.value || p.number || ''
+        }));
+        setPhones(mappedPhones.length > 0 ? mappedPhones : [{ id: generateCtId(), label: 'Mobile', value: contact.mobile || contact.phone || '' }]);
 
         // Populate emails
         const existingEmails = getContactEmails(contact);
-        setEmails(existingEmails.length > 0 ? existingEmails : [{ email: '', label: 'Work' }]);
+        const mappedEmails: ContactMethod[] = existingEmails.map((e) => ({
+          id: e.id || generateCtId(),
+          label: e.label || 'Work',
+          value: e.value || e.email || ''
+        }));
+        setEmails(mappedEmails.length > 0 ? mappedEmails : [{ id: generateCtId(), label: 'Work', value: contact.email || '' }]);
 
         // Populate handles
         const existingHandles = getContactHandles(contact);
@@ -150,8 +161,8 @@ export default function ContactModal({
         setIsPrimary(false);
         setIsDnc(false);
         setDncReason('');
-        setPhones([{ number: '', label: 'Mobile' }]);
-        setEmails([{ email: '', label: 'Work' }]);
+        setPhones([{ id: generateCtId(), label: 'Mobile', value: '' }]);
+        setEmails([{ id: generateCtId(), label: 'Work', value: '' }]);
         setHandles([]);
       }
     }
@@ -160,14 +171,14 @@ export default function ContactModal({
   if (!isOpen) return null;
 
   const handleAddPhone = () => {
-    setPhones((prev) => [...prev, { number: '', label: 'Mobile' }]);
+    setPhones((prev) => [...prev, { id: generateCtId(), label: 'Mobile', value: '' }]);
   };
 
   const handleRemovePhone = (index: number) => {
     setPhones((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handlePhoneChange = (index: number, field: 'number' | 'label', val: string) => {
+  const handlePhoneChange = (index: number, field: 'value' | 'label', val: string) => {
     setPhones((prev) => {
       const copy = [...prev];
       copy[index] = { ...copy[index], [field]: val };
@@ -176,14 +187,14 @@ export default function ContactModal({
   };
 
   const handleAddEmail = () => {
-    setEmails((prev) => [...prev, { email: '', label: 'Work' }]);
+    setEmails((prev) => [...prev, { id: generateCtId(), label: 'Work', value: '' }]);
   };
 
   const handleRemoveEmail = (index: number) => {
     setEmails((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleEmailChange = (index: number, field: 'email' | 'label', val: string) => {
+  const handleEmailChange = (index: number, field: 'value' | 'label', val: string) => {
     setEmails((prev) => {
       const copy = [...prev];
       copy[index] = { ...copy[index], [field]: val };
@@ -216,13 +227,16 @@ export default function ContactModal({
 
     setIsSaving(true);
 
-    const validPhones = phones.filter((p) => p.number.trim() !== '');
-    const validEmails = emails.filter((e) => e.email.trim() !== '');
+    const validPhones = phones.filter((p) => p.value.trim() !== '');
+    const validEmails = emails.filter((e) => e.value.trim() !== '');
     const validHandles = handles.filter((h) => h.handle.trim() !== '');
 
-    const primaryMobile = validPhones.find((p) => p.label === 'Mobile')?.number || validPhones[0]?.number || '';
-    const primaryLandline = validPhones.find((p) => p.label === 'Telephone' || p.label === 'Direct')?.number || '';
-    const primaryEmail = validEmails[0]?.email || '';
+    const legacyPhones = validPhones.map((p) => ({ id: p.id, label: p.label, number: p.value, value: p.value }));
+    const legacyEmails = validEmails.map((e) => ({ id: e.id, label: e.label, email: e.value, value: e.value }));
+
+    const primaryMobile = validPhones.find((p) => p.label === 'Mobile')?.value || validPhones[0]?.value || '';
+    const primaryLandline = validPhones.find((p) => p.label === 'Landline' || p.label === 'Direct Line' || p.label === 'Telephone')?.value || '';
+    const primaryEmail = validEmails[0]?.value || '';
 
     const userUid = user?.uid || '';
     const userName = user?.full_name || user?.username || user?.email || 'Unknown User';
@@ -239,14 +253,15 @@ export default function ContactModal({
       designation: designation.trim(),
       mobile: primaryMobile,
       landline: primaryLandline,
+      phone: primaryMobile || primaryLandline,
       email: primaryEmail,
-      phones: validPhones,
-      emails: validEmails,
+      phones: legacyPhones as any,
+      emails: legacyEmails as any,
       handles: validHandles,
       is_primary: isPrimary,
       is_dnc: isDnc,
       dnc_reason: isDnc ? dncReason.trim() : '',
-      search_terms: generateContactSearchTerms(fullName.trim(), primaryEmail, validPhones),
+      search_terms: generateContactSearchTerms(fullName.trim(), primaryEmail, legacyPhones),
       created_by_uid: contact?.created_by_uid || userUid,
       created_by_name: contact?.created_by_name || userName,
       last_modified_by_uid: userUid,
@@ -363,19 +378,19 @@ export default function ContactModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 shadow-2xl p-6 overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-slate-900 rounded-2xl max-w-xl w-full border border-slate-800 shadow-2xl p-6 overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+            <div className="p-2.5 bg-indigo-950/60 border border-indigo-800/60 text-indigo-400 rounded-xl">
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 font-sans">
+              <h2 className="text-base font-bold text-slate-100 font-sans">
                 {isEditing ? 'Edit Contact Person' : 'Create New Contact Person'}
               </h2>
-              <p className="text-xs text-slate-500 font-sans">
+              <p className="text-xs text-slate-400 font-sans">
                 {selectedCompany
                   ? `Linking personnel directly to ${selectedCompany.display_name}`
                   : 'Specify contact details'}
@@ -384,7 +399,7 @@ export default function ContactModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition"
+            className="p-1.5 text-slate-400 hover:text-slate-200 rounded-xl hover:bg-slate-800/60 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -394,14 +409,14 @@ export default function ContactModal({
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-4 space-y-4 font-sans pr-1">
           {/* Company Selection */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-slate-300 mb-1">
               Associated Company
             </label>
             <div className="relative">
               <select
                 value={companyId}
                 onChange={(e) => setCompanyId(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-blue-500 bg-white"
+                className="w-full px-3 py-2 text-xs border border-slate-800 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100"
               >
                 <option value="">(Unassigned / Independent Contact)</option>
                 {companies.map((comp) => (
@@ -415,8 +430,8 @@ export default function ContactModal({
 
           {/* Full Name */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Full Name <span className="text-rose-500">*</span>
+            <label className="block text-xs font-bold text-slate-300 mb-1">
+              Full Name <span className="text-rose-400">*</span>
             </label>
             <input
               type="text"
@@ -424,30 +439,30 @@ export default function ContactModal({
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. John Doe"
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-xs border border-slate-800 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 placeholder-slate-600"
             />
           </div>
 
           {/* Designation */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Designation / Role</label>
+            <label className="block text-xs font-bold text-slate-300 mb-1">Designation / Role</label>
             <input
               type="text"
               value={designation}
               onChange={(e) => setDesignation(e.target.value)}
               placeholder="e.g. Procurement Manager"
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-xs border border-slate-800 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 placeholder-slate-600"
             />
           </div>
 
           {/* Phones Section */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-slate-700">Phone Numbers</label>
+              <label className="block text-xs font-bold text-slate-300">Phone Numbers</label>
               <button
                 type="button"
                 onClick={handleAddPhone}
-                className="text-xs text-blue-600 font-bold hover:underline flex items-center space-x-1"
+                className="text-xs text-indigo-400 font-bold hover:underline flex items-center space-x-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Phone</span>
@@ -456,9 +471,9 @@ export default function ContactModal({
 
             {/* Smart Reclaimable Company Phone Numbers */}
             {selectedCompany && availableCompanyPhones.length > 0 && (
-              <div className="p-2.5 bg-blue-50/60 border border-blue-100 rounded-xl text-xs space-y-1.5">
-                <span className="font-semibold text-blue-900 flex items-center space-x-1">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+              <div className="p-2.5 bg-indigo-950/30 border border-indigo-800/40 rounded-xl text-xs space-y-1.5">
+                <span className="font-semibold text-indigo-300 flex items-center space-x-1">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                   <span>Unassigned Company Phone Numbers:</span>
                 </span>
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -467,11 +482,11 @@ export default function ContactModal({
                       key={idx}
                       type="button"
                       onClick={() => claimCompanyPhone(p)}
-                      className="px-2 py-1 bg-white border border-blue-200 hover:border-blue-400 text-blue-700 rounded-lg text-[11px] font-mono flex items-center space-x-1 shadow-2xs hover:bg-blue-50 transition"
+                      className="px-2 py-1 bg-slate-900 border border-indigo-700/50 hover:border-indigo-500 text-indigo-300 rounded-lg text-[11px] font-mono flex items-center space-x-1 shadow-2xs hover:bg-slate-800 transition cursor-pointer"
                       title="Claim this phone number for this personnel"
                     >
                       <span>{p.number}</span>
-                      <span className="text-[9px] text-blue-400 font-sans">({p.label})</span>
+                      <span className="text-[9px] text-indigo-400 font-sans">({p.label})</span>
                       <ArrowRightLeft className="w-2.5 h-2.5 ml-1" />
                     </button>
                   ))}
@@ -480,11 +495,11 @@ export default function ContactModal({
             )}
 
             {phones.map((p, idx) => (
-              <div key={idx} className="flex items-center space-x-2">
+              <div key={p.id || idx} className="flex items-center space-x-2">
                 <select
                   value={p.label}
-                  onChange={(e) => handlePhoneChange(idx, 'label', e.target.value as PhoneCategory)}
-                  className="px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500 bg-white"
+                  onChange={(e) => handlePhoneChange(idx, 'label', e.target.value)}
+                  className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-semibold shrink-0"
                 >
                   {PHONE_LABEL_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>
@@ -494,16 +509,17 @@ export default function ContactModal({
                 </select>
                 <input
                   type="text"
-                  value={p.number}
-                  onChange={(e) => handlePhoneChange(idx, 'number', e.target.value)}
+                  value={p.value}
+                  onChange={(e) => handlePhoneChange(idx, 'value', e.target.value)}
                   placeholder="e.g. +971 50 123 4567"
-                  className="flex-1 px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500 font-mono"
+                  className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 font-mono text-slate-100 placeholder-slate-600"
                 />
                 {phones.length > 1 && (
                   <button
                     type="button"
                     onClick={() => handleRemovePhone(idx)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                    className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800/60 transition cursor-pointer"
+                    title="Remove Phone"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -515,22 +531,22 @@ export default function ContactModal({
           {/* Emails Section */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-slate-700">Email Addresses</label>
+              <label className="block text-xs font-bold text-slate-300">Email Addresses</label>
               <button
                 type="button"
                 onClick={handleAddEmail}
-                className="text-xs text-blue-600 font-bold hover:underline flex items-center space-x-1"
+                className="text-xs text-indigo-400 font-bold hover:underline flex items-center space-x-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add Email</span>
+                <span>+ Add Email</span>
               </button>
             </div>
 
             {/* Smart Reclaimable Company Email Addresses */}
             {selectedCompany && availableCompanyEmails.length > 0 && (
-              <div className="p-2.5 bg-blue-50/60 border border-blue-100 rounded-xl text-xs space-y-1.5">
-                <span className="font-semibold text-blue-900 flex items-center space-x-1">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+              <div className="p-2.5 bg-indigo-950/30 border border-indigo-800/40 rounded-xl text-xs space-y-1.5">
+                <span className="font-semibold text-indigo-300 flex items-center space-x-1">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                   <span>Unassigned Company Email Addresses:</span>
                 </span>
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -539,11 +555,11 @@ export default function ContactModal({
                       key={idx}
                       type="button"
                       onClick={() => claimCompanyEmail(e)}
-                      className="px-2 py-1 bg-white border border-blue-200 hover:border-blue-400 text-blue-700 rounded-lg text-[11px] font-mono flex items-center space-x-1 shadow-2xs hover:bg-blue-50 transition"
+                      className="px-2 py-1 bg-slate-900 border border-indigo-700/50 hover:border-indigo-500 text-indigo-300 rounded-lg text-[11px] font-mono flex items-center space-x-1 shadow-2xs hover:bg-slate-800 transition cursor-pointer"
                       title="Claim this email address for this personnel"
                     >
-                      <span>{e.email}</span>
-                      <span className="text-[9px] text-blue-400 font-sans">({e.label})</span>
+                      <span>{e.value || e.email}</span>
+                      <span className="text-[9px] text-indigo-400 font-sans">({e.label})</span>
                       <ArrowRightLeft className="w-2.5 h-2.5 ml-1" />
                     </button>
                   ))}
@@ -552,26 +568,31 @@ export default function ContactModal({
             )}
 
             {emails.map((e, idx) => (
-              <div key={idx} className="flex items-center space-x-2">
-                <input
-                  type="text"
+              <div key={e.id || idx} className="flex items-center space-x-2">
+                <select
                   value={e.label}
                   onChange={(eVal) => handleEmailChange(idx, 'label', eVal.target.value)}
-                  placeholder="Label (e.g. Work)"
-                  className="w-28 px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500 bg-white"
-                />
+                  className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-semibold shrink-0"
+                >
+                  {EMAIL_LABEL_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
                 <input
                   type="email"
-                  value={e.email}
-                  onChange={(eVal) => handleEmailChange(idx, 'email', eVal.target.value)}
+                  value={e.value}
+                  onChange={(eVal) => handleEmailChange(idx, 'value', eVal.target.value)}
                   placeholder="e.g. john@company.com"
-                  className="flex-1 px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500"
+                  className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-sans placeholder-slate-600"
                 />
                 {emails.length > 1 && (
                   <button
                     type="button"
                     onClick={() => handleRemoveEmail(idx)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                    className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800/60 transition cursor-pointer"
+                    title="Remove Email"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -583,11 +604,11 @@ export default function ContactModal({
           {/* Messaging & Social Handles Section */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-slate-700">Messaging & Social Handles</label>
+              <label className="block text-xs font-bold text-slate-300">Messaging & Social Handles</label>
               <button
                 type="button"
                 onClick={handleAddHandle}
-                className="text-xs text-blue-600 font-bold hover:underline flex items-center space-x-1"
+                className="text-xs text-indigo-400 font-bold hover:underline flex items-center space-x-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Handle</span>
@@ -595,7 +616,7 @@ export default function ContactModal({
             </div>
 
             {handles.length === 0 && (
-              <p className="text-[11px] text-slate-400 italic">No messaging handles added. Click "Add Handle" to add WhatsApp, Telegram, LinkedIn, etc.</p>
+              <p className="text-[11px] text-slate-500 italic">No messaging handles added. Click "Add Handle" to add WhatsApp, Telegram, LinkedIn, etc.</p>
             )}
 
             {handles.map((h, idx) => (
@@ -603,7 +624,7 @@ export default function ContactModal({
                 <select
                   value={h.platform}
                   onChange={(e) => handleHandleChange(idx, 'platform', e.target.value)}
-                  className="w-32 px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500 bg-white font-medium"
+                  className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-medium"
                 >
                   <option value="WhatsApp">WhatsApp</option>
                   <option value="Telegram">Telegram</option>
@@ -618,12 +639,12 @@ export default function ContactModal({
                   value={h.handle}
                   onChange={(e) => handleHandleChange(idx, 'handle', e.target.value)}
                   placeholder="e.g. +971501234567 or @username"
-                  className="flex-1 px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500 font-mono"
+                  className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 font-mono text-slate-100 placeholder-slate-600"
                 />
                 <button
                   type="button"
                   onClick={() => handleRemoveHandle(idx)}
-                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
+                  className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800/60 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -632,28 +653,28 @@ export default function ContactModal({
           </div>
 
           {/* Additional Controls */}
-          <div className="space-y-3 border-t border-slate-100 pt-4">
+          <div className="space-y-3 border-t border-slate-800 pt-4">
             <label className="flex items-center space-x-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isPrimary}
                 onChange={(e) => setIsPrimary(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                className="w-4 h-4 text-indigo-600 bg-slate-950 border-slate-700 rounded focus:ring-indigo-500"
               />
-              <span className="text-xs font-bold text-slate-800">
+              <span className="text-xs font-bold text-slate-200">
                 Set as Primary Contact Person for this company
               </span>
             </label>
 
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
               <label className="flex items-center space-x-2.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={isDnc}
                   onChange={(e) => setIsDnc(e.target.checked)}
-                  className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500"
+                  className="w-4 h-4 text-rose-600 bg-slate-950 border-slate-700 rounded focus:ring-rose-500"
                 />
-                <span className="text-xs font-bold text-rose-700 flex items-center space-x-1">
+                <span className="text-xs font-bold text-rose-400 flex items-center space-x-1">
                   <ShieldAlert className="w-3.5 h-3.5" />
                   <span>Flag as Do Not Call (DNC)</span>
                 </span>
@@ -665,21 +686,21 @@ export default function ContactModal({
                   value={dncReason}
                   onChange={(e) => setDncReason(e.target.value)}
                   placeholder="Reason for DNC request..."
-                  className="w-full px-3 py-1.5 text-xs border border-rose-200 bg-white rounded-lg text-rose-900 focus:ring-1 focus:ring-rose-500"
+                  className="w-full px-3 py-1.5 text-xs border border-rose-900/60 bg-slate-900 rounded-lg text-rose-200 placeholder-rose-800/60 focus:ring-1 focus:ring-rose-500"
                 />
               )}
             </div>
           </div>
 
           {/* Footer Buttons */}
-          <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+          <div className="flex items-center justify-between border-t border-slate-800 pt-4">
             <div>
               {isEditing && (
                 <button
                   type="button"
                   onClick={handleDeleteContact}
                   disabled={isSaving}
-                  className="px-3 py-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
+                  className="px-3 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Delete Contact</span>
@@ -690,14 +711,14 @@ export default function ContactModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
+                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving || !activeWorkspaceId}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center space-x-2 disabled:opacity-50"
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>{isSaving ? 'Saving...' : isEditing ? 'Update Contact' : 'Save Contact'}</span>

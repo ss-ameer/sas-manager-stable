@@ -1,5 +1,50 @@
 # Development Ledger
 
+## Session: 2026-08-12 (Activity Logic Sync, Duplicate Guards, IndexedDB Safety & Premium UI Unification)
+
+### Goals
+- Auto-sync Call Status buttons ('Busy', 'No Answer') with `outcome` text state in `QuickActivityDrawer.tsx`.
+- Implement strict duplicate company name guard in `ActivityLogRepository.convertUnsavedLeadToClient` to prevent duplicate company creation during lead conversion.
+- Register all required object stores explicitly in `db.ts` and guard transaction calls against unmounted stores with fallback to local storage.
+- Apply Premium Slate Dark UI design system to all sub-modals in `CompanyModal.tsx` and `ContactModal.tsx`.
+- Bump package version to `0.62.0` and verify clean compilation with `tsc --noEmit` and `compile_applet`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/QuickActivityDrawer.tsx` | Bound 'Busy' and 'No Answer' Call Status buttons to automatically update the `outcome` text state with matching labels upon selection. |
+| `/src/services/repositories/CallLogRepository.ts` | Added strict query for existing company names in `convertUnsavedLeadToClient` before batch execution to throw a hard duplicate error. |
+| `/src/services/db.ts` | Ensured `companies`, `contacts`, `activity_logs`, `call_logs`, `enquiries`, `products`, `metadata`, and `mutation_queue` object stores are registered and guarded against transaction errors. |
+| `/src/components/LeadConversionModal.tsx` | Handled duplicate company error gracefully in UI and enforced submit button locking during `isSubmitting`. |
+| `/src/components/CompanyModal.tsx` | Refactored all sub-modals (Add/Edit, Merge, Delete Choice, Confirmation, Duplicate Warning, Bulk Reassign) to Slate Dark UI. |
+| `/src/components/ContactModal.tsx` | Refactored Add/Edit Contact Modal to Slate Dark UI. |
+| `/package.json` | Bumped version to `0.62.0`. |
+| `/CHANGELOG.md` | Documented 0.62.0 release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
+## Session: 2026-08-11 (Unsaved Lead Conversion Workflow & Enterprise CRM Restructure for Companies & Contacts)
+
+### Goals
+- Implement "Unsaved Lead" to "CRM Client" Conversion Workflow with `LeadConversionModal.tsx` and atomic repository transaction `convertLeadToClient` in `ActivityLogRepository.ts`.
+- Execute Enterprise CRM Restructure for Companies & Contacts with reusable `ContactMethod` type, dynamic array builders, on-mount legacy data migration, and refactored Company 360° view.
+- Bump package version to `0.61.0` and verify clean build with `tsc --noEmit` and `compile_applet`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/types.ts` | Defined reusable `ContactMethod` interface (`{ id: string; label: string; value: string; }`). Updated `Company` and `Contact` interfaces with array contact fields and overloaded helper functions (`getCompanyPhones`, `getCompanyEmails`, `getContactPhones`, `getContactEmails`). |
+| `/src/services/repositories/ActivityLogRepository.ts` | Added `convertLeadToClient` repository method executing an atomic `writeBatch` to create Company and Contact documents while linking all matching activity logs in `call_logs`. |
+| `/src/components/CallLogDetailModal.tsx` | Added prominent "🚀 Convert to CRM Client" button for unsaved leads (missing `company_id`) and opened `LeadConversionModal`. |
+| `/src/components/LeadConversionModal.tsx` | Created modal form for converting unsaved leads into CRM Clients with pre-filled lead data and workspace scoping. |
+| `/src/components/CompanyModal.tsx` | Replaced singular phone/email inputs with dynamic array builders, label dropdowns, trash icons, and on-mount legacy data migration logic. |
+| `/src/components/ContactModal.tsx` | Updated state and UI to use `ContactMethod` for `phones` and `emails`, with dynamic label selection, trash controls, company phone/email reclaim actions, and on-mount legacy string migration. |
+| `/src/components/Company360Modal.tsx` | Updated Company 360° view header and contact list to render labeled phone/email badges for both general company info and associated personnel, with fallback for legacy string fields. |
+| `/package.json` | Bumped version to `0.61.0`. |
+| `/CHANGELOG.md` | Documented 0.61.0 release notes. |
+| `/development_ledger.md` | Logged development goals and modifications table. |
+
 ## Session: 2026-08-11 (God Mode Direct Workspace Lifecycle Management & Global Users Management)
 
 ### Goals
