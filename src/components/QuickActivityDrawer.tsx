@@ -1063,7 +1063,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
       let finalStatus: CallStatus = status || 'Completed';
       let completedAtIso: string | undefined = undefined;
 
-      if (finalStatus === 'Completed' || (activeLog?.status === 'Scheduled' && finalStatus !== 'Scheduled')) {
+      const isPrevScheduled = activeLog?.status === 'Scheduled' || activeLog?.status === 'Scheduled / Planned';
+      const isCurScheduled = finalStatus === 'Scheduled' || finalStatus === 'Scheduled / Planned';
+      if (finalStatus === 'Completed' || (isPrevScheduled && !isCurScheduled)) {
         finalStatus = 'Completed';
         completedAtIso = nowIso;
       }
@@ -2106,7 +2108,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
                 {[
                   { id: 'Completed', label: 'Completed Log' },
-                  { id: 'Scheduled', label: 'Scheduled / Planned' },
+                  { id: 'Scheduled / Planned', label: 'Scheduled / Planned' },
                   { id: 'No Answer', label: 'No Answer' },
                   { id: 'Busy', label: 'Busy' },
                   { id: 'Invalid Number', label: 'Invalid Number' }
@@ -2123,7 +2125,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                         setOutcome('No Answer');
                       } else if (newStatus === 'Invalid Number') {
                         setOutcome('Wrong Number / Invalid');
-                      } else if (newStatus === 'Scheduled') {
+                      } else if (newStatus === 'Scheduled' || newStatus === 'Scheduled / Planned') {
                         if (!outcome || outcome === 'Interested' || outcome === 'Line Busy' || outcome === 'No Answer') {
                           setOutcome('Follow-Up Scheduled');
                         }
@@ -2134,9 +2136,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       }
                     }}
                     className={`py-2 px-2 rounded-lg text-xs font-medium transition-all text-center ${
-                      status === st.id
+                      status === st.id || (st.id === 'Scheduled / Planned' && status === 'Scheduled')
                         ? 'bg-slate-800 text-blue-400 border border-blue-500/40 shadow-xs'
-                        : 'text-slate-400 hover:text-slate-200'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                     }`}
                   >
                     {st.label}

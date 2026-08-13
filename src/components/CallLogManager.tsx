@@ -178,7 +178,7 @@ export default function CallLogManager({
     if (callStatuses && callStatuses.length > 0) {
       raw = callStatuses.map((s) => s.name);
     } else {
-      raw = ['Scheduled', 'No Answer', 'Busy', 'Voicemail', 'Invalid Number', 'Connected'];
+      raw = ['Scheduled / Planned', 'Completed', 'No Answer', 'Busy', 'Voicemail', 'Invalid Number', 'Connected'];
     }
     const seen = new Set<string>();
     const unique: string[] = [];
@@ -379,11 +379,11 @@ export default function CallLogManager({
       );
     }
 
-    if (s === 'scheduled') {
+    if (s === 'scheduled' || s === 'scheduled / planned' || s.includes('scheduled')) {
       return (
-        <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-          <Clock className="w-3 h-3" />
-          <span>Scheduled</span>
+        <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+          <Clock className="w-3 h-3 text-amber-400" />
+          <span>Scheduled / Planned</span>
         </span>
       );
     } else if (s === 'completed' || s === 'connected') {
@@ -531,7 +531,7 @@ export default function CallLogManager({
   const allScheduledQueueItems = useMemo(() => {
     return workspaceCallLogs
       .filter((entry) => {
-        if (entry.status !== 'Scheduled') return false;
+        if (entry.status !== 'Scheduled' && entry.status !== 'Scheduled / Planned') return false;
         if (isEntrySuppressedByDNC(entry)) return false; // Hard DNC Suppression
         return true;
       })
@@ -659,7 +659,7 @@ export default function CallLogManager({
         const nextCallObj = {
           workspace_id: activeWorkspace.id,
           date: fastNextFollowup,
-          status: 'Scheduled' as const,
+          status: 'Scheduled / Planned' as const,
           company_id: selectedEntry.company_id || '',
           company_name: finalCompanyName,
           contact_id: selectedEntry.contact_id || '',
@@ -755,7 +755,7 @@ export default function CallLogManager({
   const [logFormEmailAddress, setLogFormEmailAddress] = useState<string>('');
   const [logFormMessagePlatform, setLogFormMessagePlatform] = useState<string>('WhatsApp');
   const [logFormDate, setLogFormDate] = useState(todayStr);
-  const [logFormStatus, setLogFormStatus] = useState<string>('Scheduled');
+  const [logFormStatus, setLogFormStatus] = useState<string>('Scheduled / Planned');
   const [logFormOutcome, setLogFormOutcome] = useState('');
   const [logFormPhone, setLogFormPhone] = useState('');
   const [logFormCompanyId, setLogFormCompanyId] = useState('');
@@ -1152,7 +1152,15 @@ export default function CallLogManager({
   // Filtered History List
   const filteredHistoryLogs = useMemo(() => {
     return workspaceCallLogs.filter((l) => {
-      if (statusFilter !== 'all' && l.status !== statusFilter) return false;
+      if (statusFilter !== 'all') {
+        const normFilter = statusFilter.toLowerCase().trim();
+        const normLogStatus = (l.status || '').toLowerCase().trim();
+        if (normFilter === 'scheduled' || normFilter === 'scheduled / planned') {
+          if (normLogStatus !== 'scheduled' && normLogStatus !== 'scheduled / planned') return false;
+        } else if (normLogStatus !== normFilter) {
+          return false;
+        }
+      }
       if (outcomeFilter !== 'all' && l.outcome !== outcomeFilter) return false;
       if (geographyFilter !== 'all' && l.geography !== geographyFilter) return false;
 
@@ -3142,7 +3150,11 @@ export default function CallLogManager({
       {/* Call Log Detail Modal */}
       <CallLogDetailModal
         entry={selectedDetailEntry}
-        onClose={() => setSelectedDetailEntry(null)}
+        onClose={() => {
+          setSelectedDetailEntry(null);
+          setShowLogModal(false);
+          setShowFastQueueDrawer(false);
+        }}
         callLogs={callLogs}
         activeWorkspace={activeWorkspace}
         triggerToast={triggerToast}
@@ -3157,36 +3169,16 @@ export default function CallLogManager({
             setCallLogs((prev) => prev.map((l) => (l.id === updatedEntry.id ? updatedEntry : l)));
           }
           setSelectedDetailEntry(updatedEntry);
+          setShowLogModal(false);
+          setShowFastQueueDrawer(false);
         }}
         onEdit={(entry) => {
-          if (onOpenActivityDrawer) {
-            onOpenActivityDrawer({
-              existingLog: entry,
-              companyId: entry.company_id,
-              companyName: entry.company_name,
-              contactId: entry.contact_id,
-              contactName: entry.contact_name,
-              contactPhone: entry.contact_phone,
-              enquiryId: entry.enquiry_id,
-              channel: (entry.channel as any) || 'Call',
-              initialStatus: entry.status
-            });
-          } else {
-            setSelectedEntry(entry);
-            setLogFormDate(entry.date);
-            setLogFormStatus(entry.status);
-            setLogFormOutcome(entry.outcome || '');
-            setLogFormPhone(entry.contact_phone || '');
-            setLogFormCompanyId(entry.company_id || '');
-            setLogFormCompanyName(entry.company_name || '');
-            setLogFormContactId(entry.contact_id || '');
-            setLogFormContactName(entry.contact_name || '');
-            setLogFormEnquiryId(entry.enquiry_id || '');
-            setLogFormGeography(entry.geography || activeWorkspace.geography_options?.[0] || 'Dubai, UAE');
-            setLogFormNotes(entry.requirement_notes || '');
-            setLogFormFollowupDate(entry.next_followup_date || '');
-            setShowLogModal(true);
+          if (setCallLogs) {
+            setCallLogs((prev) => prev.map((l) => (l.id === entry.id ? entry : l)));
           }
+          setSelectedDetailEntry(entry);
+          setShowLogModal(false);
+          setShowFastQueueDrawer(false);
         }}
         onDelete={async (id) => {
           const confirmDelete = await askConfirm(
@@ -3200,13 +3192,20 @@ export default function CallLogManager({
             if (setCallLogs) {
               setCallLogs((prev) => prev.filter((x) => x.id !== id));
             }
+            setSelectedDetailEntry(null);
+            setShowLogModal(false);
+            setShowFastQueueDrawer(false);
             triggerToast('Call log entry deleted', 'info');
           }
         }}
         onOpenCompany360={(companyId) => {
+          setSelectedDetailEntry(null);
+          setShowLogModal(false);
+          setShowFastQueueDrawer(false);
           setSelected360CompanyId(companyId);
         }}
         onLogFollowup={(entry) => {
+          setSelectedDetailEntry(null);
           setSelectedEntry(null);
           setLogFormDate(todayStr);
           setLogFormCompanyId(entry.company_id || '');
@@ -3214,7 +3213,7 @@ export default function CallLogManager({
           setLogFormContactId(entry.contact_id || '');
           setLogFormContactName(entry.contact_name || '');
           setLogFormPhone(entry.contact_phone || '');
-          setLogFormStatus('Scheduled');
+          setLogFormStatus('Scheduled / Planned');
           setLogFormOutcome('Follow-Up Required');
           setLogFormNotes(`Follow-up to previous call on ${entry.date}: ${entry.requirement_notes || ''}`);
           setLogFormGeography(entry.geography || activeWorkspace.geography_options?.[0] || 'Dubai, UAE');
@@ -3222,6 +3221,7 @@ export default function CallLogManager({
           setLogFormEnquiryId(entry.enquiry_id || '');
           setResolutionState({ matchedType: 'none', message: '' });
           setShowInlineCompanyCreate(false);
+          setShowFastQueueDrawer(false);
           setShowLogModal(true);
         }}
         companies={workspaceCompanies}
