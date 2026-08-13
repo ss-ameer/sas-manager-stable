@@ -1483,14 +1483,29 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       <label className="block text-xs font-medium text-slate-300 mb-1.5">
                         Phone Number
                       </label>
-                      <input
-                        type="text"
-                        list="crm-phone-suggestions"
-                        value={selectedContactPhone}
-                        onChange={(e) => setSelectedContactPhone(e.target.value)}
-                        placeholder="Type or select Phone..."
-                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          list="crm-phone-suggestions"
+                          value={selectedContactPhone}
+                          onChange={(e) => setSelectedContactPhone(e.target.value)}
+                          placeholder="Type or select Phone..."
+                          className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                        />
+                        {selectedContactPhone.trim() && (
+                          <a
+                            href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer"
+                            title={`Call ${selectedContactPhone}`}
+                          >
+                            <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                            <span className="hidden sm:inline">Call Now</span>
+                          </a>
+                        )}
+                      </div>
                       <datalist id="crm-phone-suggestions">
                         {(() => {
                           const selComp = companies.find((c) => c.id === selectedCompanyId);
