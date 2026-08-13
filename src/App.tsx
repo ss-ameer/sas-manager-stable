@@ -253,7 +253,13 @@ export default function App() {
 
   // Quick Activity Drawer State
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
-  const [companyEditContext, setCompanyEditContext] = useState<{ id: string; openEdit: boolean } | null>(null);
+  const [companyEditContext, setCompanyEditContext] = useState<{ id: string; openEdit: boolean; timestamp?: number } | null>(null);
+
+  const handleEditCompanyFrom360 = (company: Company) => {
+    setSelected360CompanyId(null);
+    setCompanyEditContext({ id: company.id, openEdit: true, timestamp: Date.now() });
+    setCurrentTab('companies');
+  };
   const [activityDrawerContext, setActivityDrawerContext] = useState<{
     companyId?: string;
     companyName?: string;
@@ -1358,6 +1364,7 @@ export default function App() {
               setEnquiries={setEnquiries}
               companyRelationships={companyRelationships}
               companyTemperatures={companyTemperatures}
+              onEditCompany={handleEditCompanyFrom360}
               onOpenActivityDrawer={(ctx) => {
                 setActivityDrawerContext(ctx || {});
                 setIsActivityDrawerOpen(true);
@@ -1419,6 +1426,7 @@ export default function App() {
             onOpenCompany360={(companyId) => setSelected360CompanyId(companyId)}
             initialSelectedCompanyId={companyEditContext?.id}
             initialOpenEdit={companyEditContext?.openEdit}
+            companyEditTrigger={companyEditContext?.timestamp}
             onOpenActivityDrawer={(context) => {
               setActivityDrawerContext(context);
               setIsActivityDrawerOpen(true);
@@ -1540,11 +1548,7 @@ export default function App() {
             setIsActivityDrawerOpen(true);
           }}
           onOpenEnquiry={(enquiryId) => setSelectedEnquiryId(enquiryId)}
-          onEditCompany={(company) => {
-            setSelected360CompanyId(null);
-            setCompanyEditContext({ id: company.id, openEdit: true });
-            setCurrentTab('companies');
-          }}
+          onEditCompany={handleEditCompanyFrom360}
         />
       )}
 

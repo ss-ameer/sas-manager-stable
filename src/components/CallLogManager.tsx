@@ -116,6 +116,7 @@ interface CallLogManagerProps {
     existingLog?: any;
     logToEdit?: any;
   }) => void;
+  onEditCompany?: (company: Company) => void;
 }
 
 export default function CallLogManager({
@@ -137,7 +138,8 @@ export default function CallLogManager({
   setCallOutcomes,
   setEnquiries,
   onSelectEnquiry,
-  onOpenActivityDrawer
+  onOpenActivityDrawer,
+  onEditCompany
 }: CallLogManagerProps) {
   const [subTab, setSubTab] = useState<'queue' | 'log'>(initialSubTab);
 
@@ -3201,6 +3203,9 @@ export default function CallLogManager({
         onClose={() => setSelected360CompanyId(null)}
         onEditCompany={(company) => {
           setSelected360CompanyId(null);
+          if (onEditCompany) {
+            onEditCompany(company);
+          }
         }}
         onOpenActivityDrawer={onOpenActivityDrawer}
         onLogCallForCompany={(company) => {

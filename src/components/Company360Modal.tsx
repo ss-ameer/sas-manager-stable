@@ -82,6 +82,15 @@ export default function Company360Modal({
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [selectedContactToEdit, setSelectedContactToEdit] = useState<Contact | null>(null);
 
+  const company = companies.find((c) => c.id === companyId);
+  const [temperatureVal, setTemperatureVal] = useState<'Cold' | 'Warm' | 'Hot'>('Cold');
+
+  useEffect(() => {
+    if (company) {
+      setTemperatureVal((company.temperature as any) || 'Cold');
+    }
+  }, [company?.temperature]);
+
   const handleDeleteContact = async (c: Contact) => {
     const targetId = c?.id || (c as any)?._id;
     if (!c || !targetId) {
@@ -108,10 +117,7 @@ export default function Company360Modal({
     }
   };
 
-  if (!companyId) return null;
-
-  const company = companies.find((c) => c.id === companyId);
-  if (!company) return null;
+  if (!companyId || !company) return null;
 
   const companyContacts = contacts.filter((c) => c.company_id === company.id);
   const companyCallLogs = callLogs.filter(
@@ -140,11 +146,6 @@ export default function Company360Modal({
   };
 
   const relationshipVal = company.relationship || 'Prospect';
-  const [temperatureVal, setTemperatureVal] = useState<'Cold' | 'Warm' | 'Hot'>((company.temperature as any) || 'Cold');
-
-  useEffect(() => {
-    setTemperatureVal((company.temperature as any) || 'Cold');
-  }, [company.temperature]);
 
   const handleCycleTemperature = async () => {
     const nextTemp: 'Cold' | 'Warm' | 'Hot' =

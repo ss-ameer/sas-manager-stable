@@ -73,6 +73,7 @@ interface CompanyModalProps {
   onOpenCompany360?: (companyId: string) => void;
   initialSelectedCompanyId?: string | null;
   initialOpenEdit?: boolean;
+  companyEditTrigger?: number;
   onOpenActivityDrawer?: (context: {
     companyId?: string;
     companyName?: string;
@@ -125,22 +126,11 @@ export default function CompanyModal({
   onOpenCompany360,
   initialSelectedCompanyId,
   initialOpenEdit,
+  companyEditTrigger,
   onOpenActivityDrawer
 }: CompanyModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (initialSelectedCompanyId) {
-      setSelectedCompanyId(initialSelectedCompanyId);
-      if (initialOpenEdit) {
-        const comp = companies.find((c) => c.id === initialSelectedCompanyId);
-        if (comp) {
-          handleOpenEditCompany(comp);
-        }
-      }
-    }
-  }, [initialSelectedCompanyId, initialOpenEdit]);
 
   const handleCycleCompanyTemperature = async (comp: Company) => {
     const curTemp = comp.temperature || 'Cold';
@@ -623,6 +613,18 @@ export default function CompanyModal({
     setPendingBypass(false);
     setShowAddCompany(true);
   };
+
+  useEffect(() => {
+    if (initialSelectedCompanyId) {
+      setSelectedCompanyId(initialSelectedCompanyId);
+      if (initialOpenEdit) {
+        const comp = companies.find((c) => c.id === initialSelectedCompanyId);
+        if (comp) {
+          handleOpenEditCompany(comp);
+        }
+      }
+    }
+  }, [initialSelectedCompanyId, initialOpenEdit, companyEditTrigger]);
 
   const submitCompany = async (e: React.FormEvent) => {
     e.preventDefault();
