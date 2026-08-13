@@ -449,7 +449,7 @@ export function normalizeAttributes(attributes: any): ProductAttribute[] {
   return [];
 }
 
-export type CallStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'Follow-Up Required' | 'No Answer / Voicemail' | string;
+export type CallStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'Follow-Up Required' | 'No Answer / Voicemail' | 'Invalid Number' | string;
 
 export type CallOutcome =
   | 'Connected'

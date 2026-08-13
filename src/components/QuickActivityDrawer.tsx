@@ -2029,12 +2029,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
                 Call Status / Disposition
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
                 {[
                   { id: 'Completed', label: 'Completed Log' },
                   { id: 'Scheduled', label: 'Scheduled / Planned' },
                   { id: 'No Answer', label: 'No Answer' },
-                  { id: 'Busy', label: 'Busy' }
+                  { id: 'Busy', label: 'Busy' },
+                  { id: 'Invalid Number', label: 'Invalid Number' }
                 ].map((st) => (
                   <button
                     key={st.id}
@@ -2046,6 +2047,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                         setOutcome('Line Busy');
                       } else if (newStatus === 'No Answer') {
                         setOutcome('No Answer');
+                      } else if (newStatus === 'Invalid Number') {
+                        setOutcome('Wrong Number / Invalid');
                       } else if (newStatus === 'Scheduled') {
                         if (!outcome || outcome === 'Interested' || outcome === 'Line Busy' || outcome === 'No Answer') {
                           setOutcome('Follow-Up Scheduled');

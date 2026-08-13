@@ -4,7 +4,8 @@ export const SYSTEM_CALL_STATUSES = [
   'Completed',
   'Scheduled / Planned',
   'No Answer',
-  'Busy'
+  'Busy',
+  'Invalid Number'
 ];
 
 export const SYSTEM_CALL_OUTCOMES = [
@@ -40,6 +41,7 @@ export const SYSTEM_CALL_STATUS_DESCRIPTIONS: Record<string, string> = {
   'Scheduled': 'Call is planned for a future time',
   'No Answer': 'Rang but no one picked up',
   'Busy': 'Line was engaged / call waiting',
+  'Invalid Number': 'Number does not work, is disconnected, or is wrong',
   'Voicemail / Left Message': 'Reached voicemail and a message was left (or attempted)',
   'Invalid Number / Disconnected': 'Number does not work, is disconnected, or is wrong',
   'Connected': 'Someone answered the phone'

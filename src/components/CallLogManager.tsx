@@ -392,11 +392,11 @@ export default function CallLogManager({
           <span>{status}</span>
         </span>
       );
-    } else if (s === 'cancelled') {
+    } else if (s === 'cancelled' || s.includes('invalid') || s.includes('wrong')) {
       return (
         <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
           <XCircle className="w-3 h-3" />
-          <span>Cancelled</span>
+          <span>{status}</span>
         </span>
       );
     } else if (s.includes('no answer') || s.includes('voicemail')) {

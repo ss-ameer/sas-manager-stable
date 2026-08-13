@@ -516,6 +516,7 @@ export default function CallLogDetailModal({
                   <option value="Scheduled">Scheduled</option>
                   <option value="No Answer">No Answer</option>
                   <option value="Busy">Busy</option>
+                  <option value="Invalid Number">Invalid Number</option>
                   <option value="Cancelled">Cancelled</option>
                 </select>
               </div>
