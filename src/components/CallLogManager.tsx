@@ -1468,18 +1468,7 @@ export default function CallLogManager({
                         {canEditOrDeleteRecord(user, item) && (
                           <button
                             onClick={() => {
-                              if (onOpenActivityDrawer) {
-                                onOpenActivityDrawer({
-                                  existingLog: item,
-                                  channel: (item.interaction_type === 'email' ? 'Email' : item.interaction_type === 'message' ? 'WhatsApp' : 'Call'),
-                                  companyId: item.company_id,
-                                  companyName: item.company_name,
-                                  contactId: item.contact_id,
-                                  contactName: item.contact_name,
-                                  contactPhone: item.contact_phone,
-                                  enquiryId: item.enquiry_id
-                                });
-                              }
+                              setSelectedDetailEntry(item);
                             }}
                             className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition flex items-center justify-center bg-white"
                             title="Edit Log"
@@ -1820,18 +1809,7 @@ export default function CallLogManager({
                               {canEditOrDeleteRecord(user, log) && (
                                 <button
                                   onClick={() => {
-                                    if (onOpenActivityDrawer) {
-                                      onOpenActivityDrawer({
-                                        existingLog: log,
-                                        channel: (log.interaction_type === 'email' ? 'Email' : log.interaction_type === 'message' ? 'WhatsApp' : 'Call'),
-                                        companyId: log.company_id,
-                                        companyName: log.company_name,
-                                        contactId: log.contact_id,
-                                        contactName: log.contact_name,
-                                        contactPhone: log.contact_phone,
-                                        enquiryId: log.enquiry_id
-                                      });
-                                    }
+                                    setSelectedDetailEntry(log);
                                   }}
                                   className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition"
                                   title="Edit Log"

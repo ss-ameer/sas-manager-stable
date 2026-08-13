@@ -123,11 +123,15 @@ export default function CallLogDetailModal({
     try {
       const selectedComp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
       const isCompanyMainline = editTargetType === 'company_mainline';
+      const resolvedWorkspaceId = entry.workspace_id || activeWorkspace?.id || 'ws_default';
+      const resolvedCompId = editCompanyId || entry.company_id || selectedComp?.id;
+      const resolvedCompName = editCompanyName || entry.company_name || selectedComp?.display_name || selectedComp?.canonical_name || '';
 
       const updatedEntry: CallLogEntry = {
         ...entry,
-        company_id: editCompanyId || undefined,
-        company_name: editCompanyName || selectedComp?.display_name || selectedComp?.canonical_name || '',
+        workspace_id: resolvedWorkspaceId,
+        company_id: resolvedCompId,
+        company_name: resolvedCompName,
         contact_id: isCompanyMainline ? undefined : (editContactId || undefined),
         contact_name: isCompanyMainline ? '' : editContactName,
         contact_phone: editContactPhone,
@@ -142,6 +146,7 @@ export default function CallLogDetailModal({
 
       if (entry.id) {
         await safeUpdateDoc('call_logs', entry.id, {
+          workspace_id: resolvedWorkspaceId,
           company_id: updatedEntry.company_id || null,
           company_name: updatedEntry.company_name || null,
           contact_id: updatedEntry.contact_id || null,
@@ -163,6 +168,9 @@ export default function CallLogDetailModal({
         const scheduledEntry: CallLogEntry = {
           ...updatedEntry,
           id: scheduledLogId,
+          workspace_id: resolvedWorkspaceId,
+          company_id: resolvedCompId,
+          company_name: resolvedCompName,
           date: editNextFollowupDate,
           status: 'Scheduled / Planned' as CallStatus,
           outcome: 'Follow-Up Scheduled',

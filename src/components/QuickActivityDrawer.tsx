@@ -258,6 +258,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [selectedCompanyName, setSelectedCompanyName] = useState<string>(companyName || '');
   const [selectedContactId, setSelectedContactId] = useState<string>(contactId || '');
   const [selectedContactName, setSelectedContactName] = useState<string>(contactName || '');
+  const [newContactDesignation, setNewContactDesignation] = useState<string>('');
   const [selectedContactPhone, setSelectedContactPhone] = useState<string>(contactPhone || '');
   const [selectedContactEmail, setSelectedContactEmail] = useState<string>('');
   const [selectedEnquiryId, setSelectedEnquiryId] = useState<string>(enquiryId || '');
@@ -883,6 +884,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   company_id: selectedCompanyId,
                   workspace_id: activeWorkspaceId,
                   full_name: contactTrim,
+                  designation: newContactDesignation ? newContactDesignation.trim() : undefined,
                   mobile: selectedContactPhone ? selectedContactPhone.trim() : '',
                   email: selectedContactEmail ? selectedContactEmail.trim() : '',
                   is_primary: false,
@@ -1130,6 +1132,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         const scheduledEntry: CallLogEntry = {
           ...payload,
           id: scheduledLogId,
+          workspace_id: activeWorkspaceId || payload.workspace_id || 'ws_default',
+          company_id: resolvedCompanyId || payload.company_id,
+          company_name: resolvedCompanyName || payload.company_name,
           date: followupIsoDate,
           status: 'Scheduled / Planned' as CallStatus,
           outcome: 'Follow-Up Scheduled',
@@ -1419,152 +1424,154 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
                 {/* Contact, Phone & Email Creatable Hybrid Inputs */}
                 {selectedCompanyId && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                    {crmTargetType === 'contact' ? (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {crmTargetType === 'contact' ? (
+                        <div>
+                          <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                            Contact Person
+                          </label>
+                          <input
+                            type="text"
+                            list="crm-contact-suggestions"
+                            value={selectedContactName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSelectedContactName(val);
+                              const matched = availableCompanyContacts.find((c) => (c.full_name || '').toLowerCase() === val.toLowerCase());
+                              if (matched) {
+                                setSelectedContactId(matched.id);
+                                const phones = getContactPhones(matched);
+                                if (matched.mobile || matched.landline || phones[0]?.number) {
+                                  setSelectedContactPhone(matched.mobile || matched.landline || phones[0]?.number || '');
+                                }
+                                if (matched.email) setSelectedContactEmail(matched.email);
+                                setNewContactDesignation(matched.designation || '');
+                              } else {
+                                setSelectedContactId('');
+                              }
+                            }}
+                            placeholder="Type or select Contact Person..."
+                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                          />
+                          <datalist id="crm-contact-suggestions">
+                            {availableCompanyContacts.map((c, idx) => (
+                              <option key={c.id ? `${c.id}_${idx}` : `cnt_${idx}`} value={c.full_name}>
+                                {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}
+                              </option>
+                            ))}
+                          </datalist>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-medium text-amber-300 mb-1.5 flex items-center justify-between">
+                            <span>Phone Tag / Label</span>
+                            <span className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Company Line</span>
+                          </label>
+                          <input
+                            type="text"
+                            list="mainline-tag-suggestions"
+                            value={mainlineTag}
+                            onChange={(e) => setMainlineTag(e.target.value)}
+                            placeholder="e.g. Front Desk, Support, Main..."
+                            className="w-full rounded-lg bg-slate-950 border border-amber-500/40 px-3 py-2 text-xs text-amber-100 placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400 font-medium"
+                          />
+                          <datalist id="mainline-tag-suggestions">
+                            <option value="Front Desk" />
+                            <option value="Main / Reception" />
+                            <option value="Support / Helpdesk" />
+                            <option value="Sales Line" />
+                            <option value="Boardroom / HQ" />
+                          </datalist>
+                        </div>
+                      )}
+
                       <div>
                         <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                          Contact Person
+                          Phone Number
                         </label>
-                        <input
-                          type="text"
-                          list="crm-contact-suggestions"
-                          value={selectedContactName}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setSelectedContactName(val);
-                            const matched = availableCompanyContacts.find((c) => (c.full_name || '').toLowerCase() === val.toLowerCase());
-                            if (matched) {
-                              setSelectedContactId(matched.id);
-                              const phones = getContactPhones(matched);
-                              if (matched.mobile || matched.landline || phones[0]?.number) {
-                                setSelectedContactPhone(matched.mobile || matched.landline || phones[0]?.number || '');
-                              }
-                              if (matched.email) setSelectedContactEmail(matched.email);
-                            } else {
-                              setSelectedContactId('');
-                            }
-                          }}
-                          placeholder="Type or select Contact Person..."
-                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                        />
-                        <datalist id="crm-contact-suggestions">
-                          {availableCompanyContacts.map((c, idx) => (
-                            <option key={c.id ? `${c.id}_${idx}` : `cnt_${idx}`} value={c.full_name}>
-                              {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}
-                            </option>
-                          ))}
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            list="crm-phone-suggestions"
+                            value={selectedContactPhone}
+                            onChange={(e) => setSelectedContactPhone(e.target.value)}
+                            placeholder="Type or select Phone..."
+                            className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                          />
+                          {selectedContactPhone.trim() && (
+                            <a
+                              href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                              title={`Call ${selectedContactPhone}`}
+                            >
+                              <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                              <span>Call</span>
+                            </a>
+                          )}
+                        </div>
+                        <datalist id="crm-phone-suggestions">
+                          {(() => {
+                            const selComp = companies.find((c) => c.id === selectedCompanyId);
+                            const compPhones = selComp ? getCompanyPhones(selComp) : [];
+                            const contactPhones = availableCompanyContacts.flatMap((c) => {
+                              const cPhones = getContactPhones(c);
+                              const list: Array<{ number: string; label: string }> = [];
+                              if (c.mobile) list.push({ number: c.mobile, label: `${c.full_name} (Mobile)` });
+                              if (c.landline) list.push({ number: c.landline, label: `${c.full_name} (Landline)` });
+                              cPhones.forEach(p => list.push({ number: p.number, label: `${c.full_name} (${p.label || 'Direct'})` }));
+                              return list;
+                            });
+                            const allPhones = [
+                              ...compPhones.map(p => ({ number: p.number, label: `Company ${p.label || 'Main'}` })),
+                              ...contactPhones
+                            ];
+                            const seen = new Set<string>();
+                            const unique = allPhones.filter(p => {
+                              if (!p.number || seen.has(p.number)) return false;
+                              seen.add(p.number);
+                              return true;
+                            });
+                            return unique.map((p, idx) => (
+                              <option key={`p_${idx}`} value={p.number}>
+                                {p.number} - {p.label}
+                              </option>
+                            ));
+                          })()}
                         </datalist>
-                      </div>
-                    ) : (
-                      <div>
-                        <label className="block text-xs font-medium text-amber-300 mb-1.5 flex items-center justify-between">
-                          <span>Phone Tag / Label</span>
-                          <span className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Company Line</span>
-                        </label>
-                        <input
-                          type="text"
-                          list="mainline-tag-suggestions"
-                          value={mainlineTag}
-                          onChange={(e) => setMainlineTag(e.target.value)}
-                          placeholder="e.g. Front Desk, Support, Main..."
-                          className="w-full rounded-lg bg-slate-950 border border-amber-500/40 px-3 py-2 text-xs text-amber-100 placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400 font-medium"
-                        />
-                        <datalist id="mainline-tag-suggestions">
-                          <option value="Front Desk" />
-                          <option value="Main / Reception" />
-                          <option value="Support / Helpdesk" />
-                          <option value="Sales Line" />
-                          <option value="Boardroom / HQ" />
-                        </datalist>
-                      </div>
-                    )}
 
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                        Phone Number
-                      </label>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          list="crm-phone-suggestions"
-                          value={selectedContactPhone}
-                          onChange={(e) => setSelectedContactPhone(e.target.value)}
-                          placeholder="Type or select Phone..."
-                          className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
-                        />
-                        {selectedContactPhone.trim() && (
-                          <a
-                            href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer"
-                            title={`Call ${selectedContactPhone}`}
-                          >
-                            <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                            <span className="hidden sm:inline">Call Now</span>
-                          </a>
-                        )}
-                      </div>
-                      <datalist id="crm-phone-suggestions">
+                        {/* Company-Level Phone Selector Pills */}
                         {(() => {
                           const selComp = companies.find((c) => c.id === selectedCompanyId);
                           const compPhones = selComp ? getCompanyPhones(selComp) : [];
-                          const contactPhones = availableCompanyContacts.flatMap((c) => {
-                            const cPhones = getContactPhones(c);
-                            const list: Array<{ number: string; label: string }> = [];
-                            if (c.mobile) list.push({ number: c.mobile, label: `${c.full_name} (Mobile)` });
-                            if (c.landline) list.push({ number: c.landline, label: `${c.full_name} (Landline)` });
-                            cPhones.forEach(p => list.push({ number: p.number, label: `${c.full_name} (${p.label || 'Direct'})` }));
-                            return list;
-                          });
-                          const allPhones = [
-                            ...compPhones.map(p => ({ number: p.number, label: `Company ${p.label || 'Main'}` })),
-                            ...contactPhones
-                          ];
-                          const seen = new Set<string>();
-                          const unique = allPhones.filter(p => {
-                            if (!p.number || seen.has(p.number)) return false;
-                            seen.add(p.number);
-                            return true;
-                          });
-                          return unique.map((p, idx) => (
-                            <option key={`p_${idx}`} value={p.number}>
-                              {p.number} - {p.label}
-                            </option>
-                          ));
+                          if (compPhones.length === 0) return null;
+                          return (
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Company Lines:</span>
+                              {compPhones.map((p, idx) => (
+                                <button
+                                  key={`cp_${idx}`}
+                                  type="button"
+                                  onClick={() => setSelectedContactPhone(p.number)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 hover:bg-blue-950/80 text-blue-200 hover:text-white border border-slate-800 hover:border-blue-500/50 shadow-2xs transition cursor-pointer group"
+                                  title={`Set Phone to ${p.label || 'Front Desk'}: ${p.number}`}
+                                >
+                                  <span className="text-slate-400 group-hover:text-blue-300 text-[11px] font-medium">{p.label || 'Front Desk'}:</span>
+                                  <span className="font-mono font-bold text-blue-300 group-hover:text-blue-200">{p.number}</span>
+                                </button>
+                              ))}
+                            </div>
+                          );
                         })()}
-                      </datalist>
+                      </div>
 
-                      {/* Company-Level Phone Selector Pills */}
-                      {(() => {
-                        const selComp = companies.find((c) => c.id === selectedCompanyId);
-                        const compPhones = selComp ? getCompanyPhones(selComp) : [];
-                        if (compPhones.length === 0) return null;
-                        return (
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                            <span className="text-[10px] text-slate-400 font-medium">Company Lines:</span>
-                            {compPhones.map((p, idx) => (
-                              <button
-                                key={`cp_${idx}`}
-                                type="button"
-                                onClick={() => setSelectedContactPhone(p.number)}
-                                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 hover:bg-blue-900/40 text-blue-300 font-mono border border-slate-700/80 transition cursor-pointer flex items-center gap-1"
-                                title={`Set Phone to ${p.label || 'Front Desk'}: ${p.number}`}
-                              >
-                                <span className="opacity-75">{p.label || 'Front Desk'}:</span>
-                                <span className="font-bold">{p.number}</span>
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                        Email Address
-                      </label>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                          Email Address
+                        </label>
                       <input
                         type="email"
                         list="crm-email-suggestions"
@@ -1586,6 +1593,32 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       </datalist>
                     </div>
                   </div>
+
+                  {/* Inline New Contact Creation: Reveal Designation/Role field when contact name does not exist in company */}
+                  {crmTargetType === 'contact' && selectedContactName.trim() && !availableCompanyContacts.some((c) => (c.full_name || '').trim().toLowerCase() === selectedContactName.trim().toLowerCase()) && (
+                    <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2">
+                        <UserPlus className="w-4 h-4 text-blue-400 shrink-0" />
+                        <div>
+                          <span className="font-bold text-white">New Contact Detected:</span>{" "}
+                          <span className="font-semibold text-blue-300">{selectedContactName.trim()}</span> will be created and assigned to company.
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                        <label className="text-[11px] font-bold text-blue-300 uppercase tracking-wider whitespace-nowrap">
+                          Role / Designation:
+                        </label>
+                        <input
+                          type="text"
+                          value={newContactDesignation}
+                          onChange={(e) => setNewContactDesignation(e.target.value)}
+                          placeholder="e.g. Sales Manager, CTO..."
+                          className="w-full sm:w-48 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-blue-500/50 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
                 )}
 
                 {/* Linked Enquiry / Quote Reference Selector */}
