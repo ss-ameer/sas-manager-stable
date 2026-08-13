@@ -8,6 +8,7 @@ export const SYSTEM_CALL_STATUSES = [
 ];
 
 export const SYSTEM_CALL_OUTCOMES = [
+  'Connected',
   'Interested',
   'Interested - Quote Requested',
   'Left Voicemail',
@@ -22,6 +23,19 @@ export const SYSTEM_CALL_OUTCOMES = [
   'Do Not Call (DNC)'
 ];
 
+export const SYSTEM_CALL_PURPOSES = [
+  'Validation',
+  'Prospecting / Intro',
+  'Quote Follow-up',
+  'Technical Review',
+  'Commercial Negotiation',
+  'Payment / Invoicing',
+  'Customer Care',
+  'Relationship Maintenance / Courtesy Call',
+  'Complaint / Issue Resolution',
+  'General Inquiry'
+];
+
 export const SYSTEM_CALL_STATUS_DESCRIPTIONS: Record<string, string> = {
   'Scheduled': 'Call is planned for a future time',
   'No Answer': 'Rang but no one picked up',
@@ -32,6 +46,7 @@ export const SYSTEM_CALL_STATUS_DESCRIPTIONS: Record<string, string> = {
 };
 
 export const SYSTEM_CALL_OUTCOME_DESCRIPTIONS: Record<string, string> = {
+  'Connected': 'Call connected successfully with recipient',
   'Reached – Decision Maker': 'Spoke with the correct / concerned person',
   'Reached – Wrong Person': 'Spoke with someone, but not the decision maker or concerned party',
   'Interested – Follow-up Requested': 'Positive interest; they want a later call or meeting',

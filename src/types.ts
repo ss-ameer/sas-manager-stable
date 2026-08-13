@@ -452,6 +452,7 @@ export function normalizeAttributes(attributes: any): ProductAttribute[] {
 export type CallStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'Follow-Up Required' | 'No Answer / Voicemail' | string;
 
 export type CallOutcome =
+  | 'Connected'
   | 'Reached - Interested'
   | 'Reached - Not Interested'
   | 'No Answer / Voicemail'

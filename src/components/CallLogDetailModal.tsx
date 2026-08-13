@@ -546,7 +546,7 @@ export default function CallLogDetailModal({
                   type="text"
                   value={editPurpose}
                   onChange={(e) => setEditPurpose(e.target.value)}
-                  placeholder="e.g. Prospecting / Intro..."
+                  placeholder="e.g. Validation, Prospecting / Intro..."
                   className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none"
                 />
               </div>

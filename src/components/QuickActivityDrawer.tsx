@@ -101,6 +101,14 @@ export interface ExpressEmailItem {
 
 const PRESET_CHIPS: PresetChip[] = [
   {
+    id: 'connected',
+    label: 'Connected',
+    channel: 'Call',
+    outcome: 'Connected',
+    notes: 'Call connected successfully with contact.',
+    followUpDays: 1
+  },
+  {
     id: 'quote_req',
     label: 'Interested / Send Quote',
     channel: 'Call',
@@ -2071,6 +2079,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   onChange={(e) => setOutcome(e.target.value)}
                   className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                 >
+                  <option value="Connected">Connected</option>
                   <option value="Interested">Interested</option>
                   <option value="Interested - Quote Requested">Interested - Quote Requested</option>
                   <option value="Left Voicemail">Left Voicemail</option>
@@ -2099,6 +2108,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   onChange={(e) => setPurpose(e.target.value)}
                   className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                 >
+                  <option value="Validation">Validation</option>
                   <option value="Prospecting / Intro">Prospecting / Intro</option>
                   <option value="Quote Follow-up">Quote Follow-up</option>
                   <option value="Technical Review">Technical Review</option>

@@ -1947,6 +1947,7 @@ export default function CallLogManager({
                 
                 <div className="flex flex-wrap gap-1.5">
                   {[
+                    { label: 'Connected', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
                     { label: 'Reached - Interested', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
                     { label: 'Deal / Order Won', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
                     { label: 'Proposal Sent', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
@@ -2768,6 +2769,7 @@ export default function CallLogManager({
                   onChange={(e) => setLogFormPurpose(e.target.value)}
                   className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl font-semibold bg-white focus:ring-2 focus:ring-blue-500"
                 >
+                  <option value="Validation">Validation</option>
                   <option value="Prospecting / Cold Outreach">Prospecting / Cold Outreach</option>
                   <option value="Quote / Proposal Follow-Up">Quote / Proposal Follow-Up</option>
                   <option value="Order / PO Confirmation">Order / PO Confirmation</option>
