@@ -47,6 +47,8 @@ import {
 import { CallLogRepository } from '../services/repositories/CallLogRepository';
 import { CompanyRepository } from '../services/repositories/CompanyRepository';
 import { findDuplicateCompany } from '../utils/fuzzyMatch';
+import { generateNextRefId } from '../utils/refId';
+import { CustomLabelSelect, PHONE_LABEL_DEFAULT_OPTIONS, EMAIL_LABEL_DEFAULT_OPTIONS } from './CustomLabelSelect';
 import GeminiKeyModal from './GeminiKeyModal';
 
 export interface QuickActivityDrawerProps {
@@ -186,7 +188,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   enquiries = []
 }) => {
   const [channel, setChannel] = useState<ActivityChannel>(initialChannel || 'Call');
-  const [outcome, setOutcome] = useState<string>('Connected');
+  const [outcome, setOutcome] = useState<string>('Interested');
   const [status, setStatus] = useState<CallStatus>(initialStatus || 'Completed');
   const [purpose, setPurpose] = useState<string>('Prospecting / Intro');
   const [notes, setNotes] = useState<string>('');
@@ -205,12 +207,21 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const makeExpressId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   const [expressCompanyName, setExpressCompanyName] = useState<string>('');
+  const [expressLegalSuffix, setExpressLegalSuffix] = useState<string>('LLC');
+  const [expressCity, setExpressCity] = useState<string>('Dubai');
+  const [expressCountry, setExpressCountry] = useState<string>('United Arab Emirates');
   const [expressCompanyPhones, setExpressCompanyPhones] = useState<ExpressPhoneItem[]>(() => [
     { id: makeExpressId('ecp'), label: 'Main', number: '' }
   ]);
   const [expressCompanyEmails, setExpressCompanyEmails] = useState<ExpressEmailItem[]>(() => [
     { id: makeExpressId('ece'), label: 'Main', email: '' }
   ]);
+
+  const expressCompanyDup = useMemo(() => {
+    if (!expressCompanyName || expressCompanyName.trim().length < 2) return null;
+    const matchRes = findDuplicateCompany(expressCompanyName.trim(), companies);
+    return matchRes ? matchRes.match : null;
+  }, [expressCompanyName, companies]);
 
   const [expressContactName, setExpressContactName] = useState<string>('');
   const [expressContactRole, setExpressContactRole] = useState<string>('');
@@ -848,7 +859,6 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 const newContact: Contact = {
                   id: newContactId,
                   company_id: selectedCompanyId,
-                  company_name: selectedCompanyName || targetComp.display_name || targetComp.canonical_name,
                   workspace_id: activeWorkspaceId,
                   full_name: contactTrim,
                   mobile: selectedContactPhone ? selectedContactPhone.trim() : '',
@@ -859,7 +869,6 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 };
 
                 await safeSetDoc('contacts', newContactId, newContact);
-                await ContactRepository.saveContact(newContact);
                 resolvedContactId = newContactId;
               } else if (!resolvedContactId) {
                 resolvedContactId = existingContact.id;
@@ -1474,6 +1483,61 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       placeholder="e.g. Acme Industrial Solutions FZE"
                       className="w-full rounded-lg bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
                     />
+                    {expressCompanyDup && (
+                      <div className="mt-2 p-2 rounded-lg bg-amber-950/70 border border-amber-600/50 flex items-center gap-2 text-xs text-amber-300">
+                        <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
+                        <span>⚠️ Existing Company Detected: <strong>{expressCompanyDup.canonical_name || expressCompanyDup.display_name}</strong> - Log details will append to this record</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Legal Suffix, City, Country Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Legal Suffix
+                      </label>
+                      <select
+                        value={expressLegalSuffix}
+                        onChange={(e) => setExpressLegalSuffix(e.target.value)}
+                        className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 focus:border-amber-500 focus:outline-none"
+                      >
+                        <option value="LLC">LLC</option>
+                        <option value="FZE">FZE</option>
+                        <option value="FZC">FZC</option>
+                        <option value="Inc">Inc</option>
+                        <option value="Ltd">Ltd</option>
+                        <option value="PJSC">PJSC</option>
+                        <option value="WLL">WLL</option>
+                        <option value="Branch">Branch</option>
+                        <option value="Group">Group</option>
+                        <option value="None / To Be Added Later">None / To Be Added Later</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        City
+                      </label>
+                      <input
+                        type="text"
+                        value={expressCity}
+                        onChange={(e) => setExpressCity(e.target.value)}
+                        placeholder="e.g. Dubai"
+                        className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Country
+                      </label>
+                      <input
+                        type="text"
+                        value={expressCountry}
+                        onChange={(e) => setExpressCountry(e.target.value)}
+                        placeholder="e.g. United Arab Emirates"
+                        className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
                   </div>
 
                   {/* Company Phones */}
@@ -1483,13 +1547,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     </label>
                     {expressCompanyPhones.map((phoneItem, idx) => (
                       <div key={phoneItem.id ? `${phoneItem.id}_${idx}` : `ecp_${idx}`} className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          list="express-phone-tags"
+                        <CustomLabelSelect
                           value={phoneItem.label}
-                          onChange={(e) => handleCompanyPhoneChange(phoneItem.id, 'label', e.target.value)}
-                          placeholder="Tag / Dept..."
-                          className="w-28 sm:w-32 shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:outline-hidden"
+                          onChange={(val) => handleCompanyPhoneChange(phoneItem.id, 'label', val)}
+                          options={PHONE_LABEL_DEFAULT_OPTIONS}
+                          className="w-28 sm:w-32"
                         />
                         <input
                           type="text"
@@ -1540,13 +1602,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     </label>
                     {expressCompanyEmails.map((emailItem, idx) => (
                       <div key={emailItem.id ? `${emailItem.id}_${idx}` : `ece_${idx}`} className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          list="express-email-tags"
+                        <CustomLabelSelect
                           value={emailItem.label}
-                          onChange={(e) => handleCompanyEmailChange(emailItem.id, 'label', e.target.value)}
-                          placeholder="Tag..."
-                          className="w-28 sm:w-32 shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-amber-500 focus:outline-hidden"
+                          onChange={(val) => handleCompanyEmailChange(emailItem.id, 'label', val)}
+                          options={EMAIL_LABEL_DEFAULT_OPTIONS}
+                          className="w-28 sm:w-32"
                         />
                         <input
                           type="email"
@@ -1621,13 +1681,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     </label>
                     {expressContactPhones.map((phoneItem, idx) => (
                       <div key={phoneItem.id ? `${phoneItem.id}_${idx}` : `ctp_${idx}`} className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          list="express-phone-tags"
+                        <CustomLabelSelect
                           value={phoneItem.label}
-                          onChange={(e) => handleContactPhoneChange(phoneItem.id, 'label', e.target.value)}
-                          placeholder="Tag..."
-                          className="w-28 sm:w-32 shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
+                          onChange={(val) => handleContactPhoneChange(phoneItem.id, 'label', val)}
+                          options={PHONE_LABEL_DEFAULT_OPTIONS}
+                          className="w-28 sm:w-32"
                         />
                         <input
                           type="text"
@@ -1678,13 +1736,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     </label>
                     {expressContactEmails.map((emailItem, idx) => (
                       <div key={emailItem.id ? `${emailItem.id}_${idx}` : `cte_${idx}`} className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          list="express-email-tags"
+                        <CustomLabelSelect
                           value={emailItem.label}
-                          onChange={(e) => handleContactEmailChange(emailItem.id, 'label', e.target.value)}
-                          placeholder="Tag..."
-                          className="w-28 sm:w-32 shrink-0 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
+                          onChange={(val) => handleContactEmailChange(emailItem.id, 'label', val)}
+                          options={EMAIL_LABEL_DEFAULT_OPTIONS}
+                          className="w-28 sm:w-32"
                         />
                         <input
                           type="email"
@@ -1771,16 +1827,16 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       const newStatus = st.id as CallStatus;
                       setStatus(newStatus);
                       if (newStatus === 'Busy') {
-                        setOutcome('Busy');
+                        setOutcome('Line Busy');
                       } else if (newStatus === 'No Answer') {
                         setOutcome('No Answer');
                       } else if (newStatus === 'Scheduled') {
-                        if (!outcome || outcome === 'Connected' || outcome === 'Busy' || outcome === 'No Answer') {
-                          setOutcome('Pending');
+                        if (!outcome || outcome === 'Interested' || outcome === 'Line Busy' || outcome === 'No Answer') {
+                          setOutcome('Follow-Up Scheduled');
                         }
                       } else if (newStatus === 'Completed') {
-                        if (!outcome || outcome === 'Pending') {
-                          setOutcome('Connected');
+                        if (!outcome || outcome === 'Follow-Up Scheduled' || outcome === 'Line Busy' || outcome === 'No Answer') {
+                          setOutcome('Interested');
                         }
                       }
                     }}
@@ -1807,12 +1863,16 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   onChange={(e) => setOutcome(e.target.value)}
                   className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value="Connected">Connected / Reached</option>
+                  <option value="Interested">Interested</option>
                   <option value="Interested - Quote Requested">Interested - Quote Requested</option>
                   <option value="Left Voicemail">Left Voicemail</option>
+                  <option value="Follow-Up Scheduled">Follow-Up Scheduled</option>
+                  <option value="Proposal / Quote Requested">Proposal / Quote Requested</option>
+                  <option value="Deal Closed / Won">Deal Closed / Won</option>
+                  <option value="General Support / Inquiry">General Support / Inquiry</option>
                   <option value="Call Back Later">Call Back Later</option>
                   <option value="Call Dropped / Disconnected">Call Dropped / Disconnected</option>
-                  <option value="Busy">Line Busy</option>
+                  <option value="Line Busy">Line Busy</option>
                   <option value="No Answer">No Answer / Unreachable</option>
                   <option value="Not Interested">Not Interested</option>
                   <option value="Wrong Number / Invalid">Wrong Number / Invalid</option>

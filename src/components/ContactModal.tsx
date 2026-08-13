@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CustomLabelSelect, PHONE_LABEL_DEFAULT_OPTIONS, EMAIL_LABEL_DEFAULT_OPTIONS } from './CustomLabelSelect';
 import { X, User, Building2, Phone, Mail, Plus, Trash2, ShieldAlert, Check, ArrowRightLeft, Sparkles } from 'lucide-react';
 import { Company, Contact, ContactMethod, LabeledPhone, LabeledEmail, LabeledHandle, UserProfile, getContactPhones, getContactEmails, getContactHandles, getCompanyPhones, getCompanyEmails } from '../types';
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc } from '../firebase';

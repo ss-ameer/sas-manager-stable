@@ -193,8 +193,20 @@ export default function CallLogReportModal({
 
   // Calculate Key Metrics
   const totalCalls = filteredLogs.length;
-  // Completed/connected calls
-  const completedCalls = filteredLogs.filter((l) => l.status === 'Completed' || l.status === 'Connected').length;
+
+  const isFailureOutcomeOrStatus = (l: CallLogEntry) => {
+    const st = (l.status || '').toLowerCase();
+    const oc = (l.outcome || '').toLowerCase();
+    return (
+      st.includes('no answer') || st.includes('busy') || st.includes('invalid') || st.includes('disconnected') ||
+      oc.includes('no answer') || oc.includes('busy') || oc.includes('invalid') || oc.includes('disconnected') || oc.includes('voicemail') || oc.includes('dnc')
+    );
+  };
+
+  // Completed / Connected calls (excluding connection failures & unanswered attempts)
+  const completedCalls = filteredLogs.filter(
+    (l) => (l.status === 'Completed' || l.status === 'Connected') && !isFailureOutcomeOrStatus(l)
+  ).length;
   const scheduledQueue = filteredLogs.filter((l) => l.status === 'Scheduled').length;
   const interestedCount = filteredLogs.filter(
     (l) => l.outcome && (
@@ -294,7 +306,7 @@ export default function CallLogReportModal({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Call Operations Report - ${activeWorkspace.name}</title>
+          <title>Activities Log Report - ${activeWorkspace.name}</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; padding: 24px; margin: 0; }
             .header { border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
@@ -319,7 +331,7 @@ export default function CallLogReportModal({
         <body>
           <div className="header">
             <div>
-              <h1 className="title">Call Operations & Queue Report</h1>
+              <h1 className="title">Activities Log Report</h1>
               <div className="subtitle">
                 Workspace: <strong>${activeWorkspace.name}</strong> | Generated on ${new Date().toLocaleString()}
               </div>
@@ -466,7 +478,7 @@ export default function CallLogReportModal({
               <Printer className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold tracking-tight">Export Call Operations Report</h2>
+              <h2 className="text-lg font-bold tracking-tight">Export Activities Log Report</h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 Generate printable PDF summaries or export CSV data for workspace records.
               </p>

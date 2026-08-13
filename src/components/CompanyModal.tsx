@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { CustomLabelSelect, PHONE_LABEL_DEFAULT_OPTIONS, EMAIL_LABEL_DEFAULT_OPTIONS } from './CustomLabelSelect';
 import { Company, Contact, Enquiry, UserProfile, LegalSuffix, Workspace, getContactPhones, getContactEmails, getCompanyPhones, getCompanyEmails, LabeledPhone, LabeledEmail, PhoneCategory, DropdownOption, CallLogEntry, Salesperson, ContactMethod } from '../types';
 import { getReferenceId } from '../utils/refId';
 import { recordAuditLog } from '../utils/auditLogger';
@@ -1955,7 +1956,7 @@ export default function CompanyModal({
                                         <div className="flex items-center justify-between gap-2">
                                           <div className="flex items-center space-x-1.5">
                                             <PhoneCall className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                            <span className="font-bold text-slate-900 font-mono">{log.date}</span>
+                                            <span className="font-bold text-slate-900 font-mono">{formatHistoryDate(log.date)}</span>
                                           </div>
                                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
                                             {log.status}
@@ -2727,16 +2728,13 @@ export default function CompanyModal({
                   </div>
                   {companyPhones.map((ph, idx) => (
                     <div key={ph.id || idx} className="flex items-center space-x-2">
-                      <input
-                        type="text"
-                        list="company-phone-label-suggestions"
-                        placeholder="Label..."
+                      <CustomLabelSelect
                         value={ph.label}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        onChange={(val) => {
                           setCompanyPhones(prev => prev.map((item, i) => i === idx ? { ...item, label: val } : item));
                         }}
-                        className="w-36 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
+                        options={PHONE_LABEL_DEFAULT_OPTIONS}
+                        className="w-36 shrink-0"
                       />
                       <input
                         type="text"
@@ -2778,16 +2776,13 @@ export default function CompanyModal({
                   </div>
                   {companyEmails.map((em, idx) => (
                     <div key={em.id || idx} className="flex items-center space-x-2">
-                      <input
-                        type="text"
-                        list="company-email-label-suggestions"
-                        placeholder="Label..."
+                      <CustomLabelSelect
                         value={em.label}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        onChange={(val) => {
                           setCompanyEmails(prev => prev.map((item, i) => i === idx ? { ...item, label: val } : item));
                         }}
-                        className="w-36 px-2.5 py-1.5 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-100 font-semibold shrink-0 focus:border-indigo-500 focus:outline-none"
+                        options={EMAIL_LABEL_DEFAULT_OPTIONS}
+                        className="w-36 shrink-0"
                       />
                       <input
                         type="email"

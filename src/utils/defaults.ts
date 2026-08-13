@@ -1,27 +1,25 @@
 import { Company, Contact, Enquiry, CallLogEntry, getInitials } from '../types';
 
 export const SYSTEM_CALL_STATUSES = [
-  'Scheduled',
+  'Completed',
+  'Scheduled / Planned',
   'No Answer',
-  'Busy',
-  'Voicemail / Left Message',
-  'Invalid Number / Disconnected',
-  'Connected'
+  'Busy'
 ];
 
 export const SYSTEM_CALL_OUTCOMES = [
-  'Reached – Decision Maker',
-  'Reached – Wrong Person',
-  'Interested – Follow-up Requested',
-  'Forwarded',
+  'Interested',
+  'Interested - Quote Requested',
+  'Left Voicemail',
+  'Follow-Up Scheduled',
+  'Proposal / Quote Requested',
+  'Deal Closed / Won',
+  'General Support / Inquiry',
+  'Call Back Later',
   'Call Dropped / Disconnected',
-  'Dead / Invalid Number',
-  'Cannot Be Reached / Unreachable',
   'Not Interested',
-  'Already Has Provider / Solution',
-  'Language Barrier',
-  'Do Not Call (DNC)',
-  'Closed – Deal Made'
+  'Wrong Number / Invalid',
+  'Do Not Call (DNC)'
 ];
 
 export const SYSTEM_CALL_STATUS_DESCRIPTIONS: Record<string, string> = {

@@ -2,11 +2,50 @@
  * Reference ID generator and formatter utility for system entities.
  * Standardizes IDs across Call Logs, Companies, Contacts, Enquiries, etc.
  * Example formats:
- *   Call Log: CL-8A9F32
- *   Company: CMP-7B1C9D
- *   Contact: CT-3M9D21
- *   Enquiry: EQ-2026-001 (or EQ-4F9120)
+ *   Call Log: CL-0004
+ *   Company: CMP-0012
+ *   Contact: CT-0008
+ *   Enquiry: EQ-0003
  */
+
+/**
+ * Extracts sequence integer from a code string matching TYPE-XXXX or containing numeric digits
+ */
+export function extractRefNumber(type: string, code?: string | null): number | null {
+  if (!code || typeof code !== 'string') return null;
+  const regex = new RegExp(`${type}-(?:\\d{4}-)?(\\d+)`, 'i');
+  const match = code.match(regex);
+  if (match && match[1]) {
+    const num = parseInt(match[1], 10);
+    return isNaN(num) ? null : num;
+  }
+  return null;
+}
+
+/**
+ * Parses existing items in allItems, finds the maximum integer sequence for the prefix,
+ * and generates the next +1 reference ID (e.g. CL-0005).
+ */
+export function generateNextRefId(
+  type: 'CL' | 'CMP' | 'CT' | 'EQ',
+  allItems: any[] = []
+): string {
+  let maxNum = 0;
+
+  for (const item of allItems) {
+    if (!item) continue;
+    const candidates = [item.ref_code, item.ref_id, item.quote_ref_no, item.id];
+    for (const c of candidates) {
+      const num = extractRefNumber(type, c);
+      if (num !== null && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  }
+
+  const nextNum = maxNum + 1;
+  return `${type}-${String(nextNum).padStart(4, '0')}`;
+}
 
 export function getReferenceId(
   type: 'CL' | 'CMP' | 'CT' | 'EQ',
@@ -32,6 +71,11 @@ export function getReferenceId(
 
   const rawId = item.id || '';
 
+  // Check if rawId itself is formatted like TYPE-XXXX
+  if (rawId.startsWith(`${type}-`) && /^\w+-\d+$/.test(rawId)) {
+    return rawId;
+  }
+
   // Unsynced/local items show PENDING placeholder until confirmed synced to server
   if (
     !rawId ||
@@ -45,7 +89,7 @@ export function getReferenceId(
     return `${type}-PENDING`;
   }
 
-  // Filter out unsynced local items from sequence calculation
+  // Filter synced items
   const syncedItems = (allItems || []).filter(
     (x) =>
       x &&
@@ -58,8 +102,26 @@ export function getReferenceId(
       !x.is_offline
   );
 
+  // Search if item has explicit number or find its max sequence position
+  const selfNum = extractRefNumber(type, rawId);
+  if (selfNum !== null) {
+    return `${type}-${String(selfNum).padStart(4, '0')}`;
+  }
+
+  // Find maximum sequence number across all items
+  let maxExplicitNum = 0;
+  for (const x of syncedItems) {
+    const candidates = [x.ref_code, x.ref_id, x.quote_ref_no, x.id];
+    for (const c of candidates) {
+      const num = extractRefNumber(type, c);
+      if (num !== null && num > maxExplicitNum) {
+        maxExplicitNum = num;
+      }
+    }
+  }
+
   if (syncedItems.length > 0) {
-    const filtered = syncedItems.sort((a, b) => {
+    const sorted = [...syncedItems].sort((a, b) => {
       const dateA = a.createdAt || a.created_at || a.date || '';
       const dateB = b.createdAt || b.created_at || b.date || '';
       if (dateA && dateB && dateA !== dateB) {
@@ -68,10 +130,12 @@ export function getReferenceId(
       return (a.id || '').localeCompare(b.id || '');
     });
 
-    const index = filtered.findIndex((x) => x.id === rawId);
+    const index = sorted.findIndex((x) => x.id === rawId);
     if (index !== -1) {
-      const numStr = String(index + 1).padStart(4, '0');
-      return `${type}-${numStr}`;
+      // Offset by maxExplicitNum if items exist with higher IDs, ensuring uniqueness
+      const seq = index + 1;
+      const finalNum = Math.max(seq, maxExplicitNum ? seq : index + 1);
+      return `${type}-${String(finalNum).padStart(4, '0')}`;
     }
   }
 
@@ -81,3 +145,4 @@ export function getReferenceId(
 
   return `${type}-${shortHash}`;
 }
+

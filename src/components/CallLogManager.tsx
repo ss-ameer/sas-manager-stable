@@ -477,9 +477,15 @@ export default function CallLogManager({
   }, [enquiries, activeWorkspace.id]);
 
   const workspaceCallLogs = useMemo(() => {
-    return (callLogs || []).filter(
-      (l) => !l.is_deleted && (l.workspace_id === activeWorkspace.id || (!l.workspace_id && activeWorkspace.id === 'ws_default'))
-    );
+    return (callLogs || [])
+      .filter(
+        (l) => !l.is_deleted && (l.workspace_id === activeWorkspace.id || (!l.workspace_id && activeWorkspace.id === 'ws_default'))
+      )
+      .sort((a, b) => {
+        const timeA = new Date(a.createdAt || a.date || 0).getTime();
+        const timeB = new Date(b.createdAt || b.date || 0).getTime();
+        return timeB - timeA;
+      });
   }, [callLogs, activeWorkspace.id]);
 
   // Company and Contact Maps for DNC check
@@ -1652,11 +1658,15 @@ export default function CallLogManager({
                             </span>
                           )}
                         </div>
-                        {log.contact_name ? (
-                          <div className="text-[11px] text-slate-600 dark:text-slate-400">Attn: {log.contact_name}</div>
-                        ) : log.unlinked_contact_info && !log.unlinked_name ? (
-                          <div className="text-[11px] text-slate-500 font-mono">{log.unlinked_contact_info}</div>
-                        ) : null}
+                        {(() => {
+                          const cont = log.contact_id ? contactMap.get(log.contact_id) : null;
+                          const resolvedContactName = cont?.full_name || log.contact_name;
+                          return resolvedContactName ? (
+                            <div className="text-[11px] text-slate-600 dark:text-slate-400">Attn: {resolvedContactName}</div>
+                          ) : log.unlinked_contact_info && !log.unlinked_name ? (
+                            <div className="text-[11px] text-slate-500 font-mono">{log.unlinked_contact_info}</div>
+                          ) : null;
+                        })()}
                         {log.geography && (
                           <div className="text-[10px] text-slate-400 font-medium">{log.geography}</div>
                         )}
