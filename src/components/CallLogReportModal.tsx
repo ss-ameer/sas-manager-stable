@@ -526,21 +526,23 @@ export default function CallLogReportModal({
             {reportPeriod === 'custom' && (
               <div className="grid grid-cols-2 gap-3 mt-3 p-3 bg-blue-50/50 rounded-xl border border-blue-200">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">From Date</label>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">From Date</label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white"
+                    style={{ colorScheme: 'dark' }}
+                    className="[color-scheme:dark] w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">To Date</label>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">To Date</label>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white"
+                    style={{ colorScheme: 'dark' }}
+                    className="[color-scheme:dark] w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>

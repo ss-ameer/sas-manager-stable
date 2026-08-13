@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Company, Contact, Enquiry, CallLogEntry, UserProfile, Workspace, getContactPhones, getContactEmails, getCompanyPhones, getCompanyEmails, DropdownOption } from '../types';
 import { getReferenceId } from '../utils/refId';
 import ContactModal from './ContactModal';
@@ -22,7 +22,8 @@ import {
   Tag,
   MessageSquare
 } from 'lucide-react';
-import { safeDeleteDoc } from '../firebase';
+import { safeDeleteDoc, safeSetDoc } from '../firebase';
+import { CompanyRepository } from '../services/repositories/CompanyRepository';
 import { recordAuditLog } from '../utils/auditLogger';
 
 interface Company360ModalProps {
@@ -35,7 +36,9 @@ interface Company360ModalProps {
   activeWorkspace?: Workspace;
   companyRelationships?: DropdownOption[];
   companyTemperatures?: DropdownOption[];
+  setCompanies?: React.Dispatch<React.SetStateAction<Company[]>>;
   setContacts?: React.Dispatch<React.SetStateAction<Contact[]>>;
+  setCallLogs?: React.Dispatch<React.SetStateAction<CallLogEntry[]>>;
   onClose: () => void;
   onOpenEnquiry?: (enquiryId: string) => void;
   onLogCallForCompany?: (company: Company) => void;
@@ -65,7 +68,9 @@ export default function Company360Modal({
   activeWorkspace,
   companyRelationships,
   companyTemperatures,
+  setCompanies,
   setContacts,
+  setCallLogs,
   onClose,
   onOpenEnquiry,
   onLogCallForCompany,
@@ -135,7 +140,23 @@ export default function Company360Modal({
   };
 
   const relationshipVal = company.relationship || 'Prospect';
-  const temperatureVal = company.temperature || 'Cold';
+  const [temperatureVal, setTemperatureVal] = useState<'Cold' | 'Warm' | 'Hot'>((company.temperature as any) || 'Cold');
+
+  useEffect(() => {
+    setTemperatureVal((company.temperature as any) || 'Cold');
+  }, [company.temperature]);
+
+  const handleCycleTemperature = async () => {
+    const nextTemp: 'Cold' | 'Warm' | 'Hot' =
+      temperatureVal === 'Cold' ? 'Warm' : temperatureVal === 'Warm' ? 'Hot' : 'Cold';
+    setTemperatureVal(nextTemp);
+    const updated = { ...company, temperature: nextTemp, updatedAt: new Date().toISOString() };
+    await safeSetDoc('companies', company.id, updated);
+    await CompanyRepository.saveCompany(updated);
+    if (setCompanies) {
+      setCompanies((prev) => prev.map((c) => (c.id === company.id ? updated : c)));
+    }
+  };
 
   const getTempBadgeClass = (temp: string) => {
     const t = temp.toLowerCase();
@@ -174,10 +195,15 @@ export default function Company360Modal({
                   <span>{relationshipVal}</span>
                 </span>
 
-                {/* Temperature Badge */}
-                <span className={`px-2.5 py-0.5 rounded-md text-xs uppercase tracking-wider border flex items-center space-x-1 ${getTempBadgeClass(temperatureVal)}`}>
+                {/* Interactive Temperature Pill */}
+                <button
+                  type="button"
+                  onClick={handleCycleTemperature}
+                  className={`px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider border flex items-center space-x-1 cursor-pointer transition hover:scale-105 ${getTempBadgeClass(temperatureVal)}`}
+                  title="Click to cycle Temperature (Cold -> Warm -> Hot)"
+                >
                   <span>{temperatureVal}</span>
-                </span>
+                </button>
 
                 {company.is_dnc && (
                   <span className="px-2.5 py-0.5 rounded-md text-xs font-black bg-red-600 text-white flex items-center space-x-1">
@@ -275,14 +301,16 @@ export default function Company360Modal({
             )}
             {onEditCompany && (
               <button
+                type="button"
                 onClick={() => {
                   onClose();
                   onEditCompany(company);
                 }}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
-                title="Edit Company Profile"
+                className="bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                title="Edit Company Profile in Registry"
               >
-                <Edit2 className="w-4 h-4" />
+                <Edit2 className="w-3.5 h-3.5 text-blue-400" />
+                <span>Edit Company</span>
               </button>
             )}
             <button
@@ -652,6 +680,7 @@ export default function Company360Modal({
         activeWorkspaceId={activeWorkspace?.id || ''}
         user={user}
         setContacts={setContacts}
+        setCallLogs={setCallLogs}
       />
     </div>
   );

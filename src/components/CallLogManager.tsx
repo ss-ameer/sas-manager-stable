@@ -2017,7 +2017,8 @@ export default function CallLogManager({
                   type="date"
                   value={fastNextFollowup}
                   onChange={(e) => setFastNextFollowup(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-xl text-xs font-mono focus:border-blue-500 focus:outline-none"
+                  style={{ colorScheme: 'dark' }}
+                  className="[color-scheme:dark] w-full px-3 py-1.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-xl text-xs font-mono focus:border-blue-500 focus:outline-none"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
                   Setting a follow-up date automatically adds the next item into your Queue.
@@ -2229,6 +2230,30 @@ export default function CallLogManager({
                     placeholder="Enter phone number (e.g. +971 50 123 4567)..."
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+
+                  {/* Company Lines Selector */}
+                  {(() => {
+                    const comp = logFormCompanyId ? companyMap.get(logFormCompanyId) : null;
+                    const compPhones = comp ? getCompanyPhones(comp) : [];
+                    if (compPhones.length === 0) return null;
+                    return (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Company Lines:</span>
+                        {compPhones.map((p, idx) => (
+                          <button
+                            key={`cl_cp_${idx}`}
+                            type="button"
+                            onClick={() => handlePhoneInputChange(p.number)}
+                            className="text-[11px] px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-mono border border-blue-200 transition cursor-pointer flex items-center gap-1 font-bold"
+                            title={`Set phone number to ${p.label || 'Company Line'}: ${p.number}`}
+                          >
+                            <span className="opacity-70 font-normal">{p.label || 'Main'}:</span>
+                            <span>{p.number}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                 {/* Resolution Engine Banner */}
                 {resolutionState.matchedType === 'exact_contact' && (
@@ -2450,7 +2475,7 @@ export default function CallLogManager({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Company (Optional)
+                    Target Company
                   </label>
                   <select
                     value={logFormCompanyId}
@@ -2495,7 +2520,7 @@ export default function CallLogManager({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Contact Person / Line (Optional)
+                    Contact Person
                   </label>
                   <select
                     value={showInlineContactCreate ? 'ADD_NEW_CONTACT' : (logFormContactId || 'COMPANY_DIRECT')}
@@ -2662,7 +2687,8 @@ export default function CallLogManager({
                     required
                     value={logFormDate}
                     onChange={(e) => setLogFormDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-semibold"
+                    style={{ colorScheme: 'dark' }}
+                    className="[color-scheme:dark] w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 rounded-xl font-semibold"
                   />
                 </div>
 
@@ -2876,7 +2902,8 @@ export default function CallLogManager({
                   type="date"
                   value={logFormFollowupDate}
                   onChange={(e) => setLogFormFollowupDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-semibold"
+                  style={{ colorScheme: 'dark' }}
+                  className="[color-scheme:dark] w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 rounded-xl font-semibold"
                 />
               </div>
 
@@ -3172,6 +3199,9 @@ export default function CallLogManager({
         user={user}
         activeWorkspace={activeWorkspace}
         onClose={() => setSelected360CompanyId(null)}
+        onEditCompany={(company) => {
+          setSelected360CompanyId(null);
+        }}
         onOpenActivityDrawer={onOpenActivityDrawer}
         onLogCallForCompany={(company) => {
           setSelectedEntry(null);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CustomLabelSelect, PHONE_LABEL_DEFAULT_OPTIONS, EMAIL_LABEL_DEFAULT_OPTIONS } from './CustomLabelSelect';
 import { Company, Contact, Enquiry, UserProfile, LegalSuffix, Workspace, getContactPhones, getContactEmails, getCompanyPhones, getCompanyEmails, LabeledPhone, LabeledEmail, PhoneCategory, DropdownOption, CallLogEntry, Salesperson, ContactMethod } from '../types';
 import { getReferenceId } from '../utils/refId';
@@ -45,7 +45,8 @@ import {
   ChevronRight,
   History,
   ChevronUp,
-  Zap
+  Zap,
+  Sparkles
 } from 'lucide-react';
 import { isRecordOwner, canUserClickRecord, getSalespersonFullName } from '../utils/permissions';
 import { computeCanonicalName, generateCompanySearchTerms } from '../utils/defaults';
@@ -69,6 +70,9 @@ interface CompanyModalProps {
   activeWorkspace?: Workspace;
   companyRelationships?: DropdownOption[];
   companyTemperatures?: DropdownOption[];
+  onOpenCompany360?: (companyId: string) => void;
+  initialSelectedCompanyId?: string | null;
+  initialOpenEdit?: boolean;
   onOpenActivityDrawer?: (context: {
     companyId?: string;
     companyName?: string;
@@ -118,10 +122,37 @@ export default function CompanyModal({
   activeWorkspace,
   companyRelationships,
   companyTemperatures,
+  onOpenCompany360,
+  initialSelectedCompanyId,
+  initialOpenEdit,
   onOpenActivityDrawer
 }: CompanyModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialSelectedCompanyId) {
+      setSelectedCompanyId(initialSelectedCompanyId);
+      if (initialOpenEdit) {
+        const comp = companies.find((c) => c.id === initialSelectedCompanyId);
+        if (comp) {
+          handleOpenEditCompany(comp);
+        }
+      }
+    }
+  }, [initialSelectedCompanyId, initialOpenEdit]);
+
+  const handleCycleCompanyTemperature = async (comp: Company) => {
+    const curTemp = comp.temperature || 'Cold';
+    const nextTemp: 'Cold' | 'Warm' | 'Hot' =
+      curTemp === 'Cold' ? 'Warm' : curTemp === 'Warm' ? 'Hot' : 'Cold';
+    const updatedComp = { ...comp, temperature: nextTemp, updatedAt: new Date().toISOString() };
+    await safeSetDoc('companies', comp.id, updatedComp);
+    await CompanyRepository.saveCompany(updatedComp);
+    if (setCompanies) {
+      setCompanies((prev) => prev.map((c) => (c.id === comp.id ? updatedComp : c)));
+    }
+  };
   const [viewMode, setViewMode] = useState<'companies' | 'contacts' | 'phones'>('companies');
   const [relationshipFilter, setRelationshipFilter] = useState<string>('ALL');
   const [temperatureFilter, setTemperatureFilter] = useState<string>('ALL');
@@ -1475,13 +1506,21 @@ export default function CompanyModal({
                                   </span>
                                 </div>
                                 <div>
-                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider border inline-block ${
-                                    isHot ? 'bg-rose-500 text-white border-rose-600' :
-                                    isWarm ? 'bg-amber-500 text-slate-950 border-amber-600' :
-                                    'bg-cyan-500 text-slate-950 border-cyan-600'
-                                  }`}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCycleCompanyTemperature(c);
+                                    }}
+                                    className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider border inline-block cursor-pointer transition hover:scale-105 ${
+                                      isHot ? 'bg-rose-500 text-white border-rose-600' :
+                                      isWarm ? 'bg-amber-500 text-slate-950 border-amber-600' :
+                                      'bg-cyan-500 text-slate-950 border-cyan-600'
+                                    }`}
+                                    title="Click to cycle Temperature (Cold -> Warm -> Hot)"
+                                  >
                                     {tempVal}
-                                  </span>
+                                  </button>
                                 </div>
                               </td>
                               <td className="p-3 text-xs font-mono text-slate-800 dark:text-slate-200">
@@ -1597,13 +1636,18 @@ export default function CompanyModal({
                       <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                         {selectedCompany.relationship || 'Prospect'}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-black uppercase border ${
-                        (selectedCompany.temperature || 'Cold').toLowerCase() === 'hot' ? 'bg-rose-500 text-white border-rose-600' :
-                        (selectedCompany.temperature || 'Cold').toLowerCase() === 'warm' ? 'bg-amber-500 text-slate-950 border-amber-600' :
-                        'bg-cyan-500 text-slate-950 border-cyan-600'
-                      }`}>
+                      <button
+                        type="button"
+                        onClick={() => handleCycleCompanyTemperature(selectedCompany)}
+                        className={`px-2 py-0.5 rounded text-[11px] font-black uppercase border cursor-pointer transition hover:scale-105 ${
+                          (selectedCompany.temperature || 'Cold').toLowerCase() === 'hot' ? 'bg-rose-500 text-white border-rose-600' :
+                          (selectedCompany.temperature || 'Cold').toLowerCase() === 'warm' ? 'bg-amber-500 text-slate-950 border-amber-600' :
+                          'bg-cyan-500 text-slate-950 border-cyan-600'
+                        }`}
+                        title="Click to cycle Temperature (Cold -> Warm -> Hot)"
+                      >
                         {selectedCompany.temperature || 'Cold'}
-                      </span>
+                      </button>
                     </div>
                     <p className="text-xs font-mono text-slate-500 uppercase tracking-wider bg-slate-50 px-2 py-0.5 rounded border border-slate-200 w-fit">
                       Canonical Base: {selectedCompany.canonical_name}
@@ -1896,14 +1940,27 @@ export default function CompanyModal({
                           Outreach & History Panel
                         </h4>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsHistorySidePanelExpanded(false)}
-                        className="p-1 text-slate-400 hover:text-slate-600 rounded transition"
-                        title="Collapse Side Panel"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {onOpenCompany360 && selectedCompany?.id && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenCompany360(selectedCompany.id)}
+                            className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1 cursor-pointer bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 transition"
+                            title="Open Company 360° View"
+                          >
+                            <Sparkles className="w-3 h-3 text-blue-500" />
+                            <span>Company 360°</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setIsHistorySidePanelExpanded(false)}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded transition cursor-pointer"
+                          title="Collapse Side Panel"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex-1 p-3.5 overflow-y-auto space-y-4 max-h-[620px]">
@@ -2848,6 +2905,7 @@ export default function CompanyModal({
         user={user}
         setContacts={setContacts}
         setCompanies={setCompanies}
+        setCallLogs={setCallLogs}
       />
 
       {/* MODAL: MERGE canonical companies */}
@@ -3257,6 +3315,14 @@ export default function CompanyModal({
           entry={selectedCallLogDetail}
           currentUser={user}
           onClose={() => setSelectedCallLogDetail(null)}
+          onOpenCompany360={(companyId) => {
+            setSelectedCallLogDetail(null);
+            if (onOpenCompany360) {
+              onOpenCompany360(companyId);
+            } else {
+              setSelectedCompanyId(companyId);
+            }
+          }}
           onEdit={(log) => {
             setSelectedCallLogDetail(null);
             if (onOpenActivityDrawer) {
@@ -3284,9 +3350,6 @@ export default function CompanyModal({
               console.error('Failed to delete call log from CompanyModal:', err);
               alert('Error deleting call log: ' + err.message);
             }
-          }}
-          onOpenCompany360={(cId) => {
-            setSelectedCompanyId(cId);
           }}
           onOpenEnquiry={onSelectEnquiry}
           companies={companies}

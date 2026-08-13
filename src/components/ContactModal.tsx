@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CustomLabelSelect, PHONE_LABEL_DEFAULT_OPTIONS, EMAIL_LABEL_DEFAULT_OPTIONS } from './CustomLabelSelect';
 import { X, User, Building2, Phone, Mail, Plus, Trash2, ShieldAlert, Check, ArrowRightLeft, Sparkles } from 'lucide-react';
-import { Company, Contact, ContactMethod, LabeledPhone, LabeledEmail, LabeledHandle, UserProfile, getContactPhones, getContactEmails, getContactHandles, getCompanyPhones, getCompanyEmails } from '../types';
+import { CallLogEntry, Company, Contact, ContactMethod, LabeledPhone, LabeledEmail, LabeledHandle, UserProfile, getContactPhones, getContactEmails, getContactHandles, getCompanyPhones, getCompanyEmails } from '../types';
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc } from '../firebase';
 import { generateContactSearchTerms } from '../utils/defaults';
 import { recordAuditLog } from '../utils/auditLogger';
@@ -18,6 +18,7 @@ interface ContactModalProps {
   user: UserProfile;
   setContacts?: React.Dispatch<React.SetStateAction<Contact[]>>;
   setCompanies?: React.Dispatch<React.SetStateAction<Company[]>>;
+  setCallLogs?: React.Dispatch<React.SetStateAction<CallLogEntry[]>>;
   onSaved?: (savedContact: Contact) => void;
 }
 
@@ -36,6 +37,7 @@ export default function ContactModal({
   user,
   setContacts,
   setCompanies,
+  setCallLogs,
   onSaved
 }: ContactModalProps) {
   const isEditing = !!contact?.id;
@@ -321,6 +323,21 @@ export default function ContactModal({
             return [finalContactObj, ...list.filter((c) => c.id !== finalContactObj.id)];
           }
         });
+      }
+
+      if (setCallLogs && isEditing && finalContactObj.id) {
+        setCallLogs((prevLogs) =>
+          prevLogs.map((log) =>
+            log.contact_id === finalContactObj.id
+              ? {
+                  ...log,
+                  contact_name: finalContactObj.full_name,
+                  contact_phone: finalContactObj.mobile || finalContactObj.landline || log.contact_phone,
+                  updatedAt: new Date().toISOString()
+                }
+              : log
+          )
+        );
       }
 
       if (onSaved) {

@@ -253,6 +253,7 @@ export default function App() {
 
   // Quick Activity Drawer State
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
+  const [companyEditContext, setCompanyEditContext] = useState<{ id: string; openEdit: boolean } | null>(null);
   const [activityDrawerContext, setActivityDrawerContext] = useState<{
     companyId?: string;
     companyName?: string;
@@ -1415,6 +1416,9 @@ export default function App() {
             activeWorkspace={activeWorkspace}
             companyRelationships={companyRelationships}
             companyTemperatures={companyTemperatures}
+            onOpenCompany360={(companyId) => setSelected360CompanyId(companyId)}
+            initialSelectedCompanyId={companyEditContext?.id}
+            initialOpenEdit={companyEditContext?.openEdit}
             onOpenActivityDrawer={(context) => {
               setActivityDrawerContext(context);
               setIsActivityDrawerOpen(true);
@@ -1536,6 +1540,11 @@ export default function App() {
             setIsActivityDrawerOpen(true);
           }}
           onOpenEnquiry={(enquiryId) => setSelectedEnquiryId(enquiryId)}
+          onEditCompany={(company) => {
+            setSelected360CompanyId(null);
+            setCompanyEditContext({ id: company.id, openEdit: true });
+            setCurrentTab('companies');
+          }}
         />
       )}
 

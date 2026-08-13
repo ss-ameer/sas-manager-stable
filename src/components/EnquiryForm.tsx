@@ -2666,7 +2666,8 @@ Sl. No. Description Qty Unit Price (AED) Total Amount (AED)
                   placeholder="YYYY-MM-DD"
                   value={enquiryDate}
                   onChange={(e) => setEnquiryDate(e.target.value)}
-                  className={`w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500/20 font-mono ${getHighlightClasses('received_date')}`}
+                  style={{ colorScheme: 'dark' }}
+                  className={`[color-scheme:dark] w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500/20 font-mono ${getHighlightClasses('received_date')}`}
                 />
               </div>
 
@@ -3714,7 +3715,8 @@ Sl. No. Description Qty Unit Price (AED) Total Amount (AED)
                   placeholder="YYYY-MM-DD"
                   value={projectedOrderDate}
                   onChange={(e) => setProjectedOrderDate(e.target.value)}
-                  className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none font-mono"
+                  style={{ colorScheme: 'dark' }}
+                  className="[color-scheme:dark] w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none font-mono"
                 />
               </div>
 
@@ -3725,7 +3727,8 @@ Sl. No. Description Qty Unit Price (AED) Total Amount (AED)
                   placeholder="YYYY-MM-DD"
                   value={nextFollowupDate}
                   onChange={(e) => setNextFollowupDate(e.target.value)}
-                  className="w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none font-mono"
+                  style={{ colorScheme: 'dark' }}
+                  className="[color-scheme:dark] w-full bg-white border border-slate-200 focus:border-blue-500 rounded-xl py-2 px-3 text-sm text-slate-800 focus:outline-none font-mono"
                 />
               </div>
 

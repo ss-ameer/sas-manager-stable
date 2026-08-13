@@ -232,6 +232,19 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     { id: makeExpressId('cte'), label: 'Direct', email: '' }
   ]);
 
+  const [expressRelationship, setExpressRelationship] = useState<string>('Prospect');
+  const [expressTemperature, setExpressTemperature] = useState<'Cold' | 'Warm' | 'Hot'>('Cold');
+  const [primaryDialedPhoneId, setPrimaryDialedPhoneId] = useState<string>('');
+  const [crmTargetType, setCrmTargetType] = useState<'contact' | 'company_mainline'>('contact');
+
+  const handleCycleTemperature = () => {
+    setExpressTemperature((prev) => {
+      if (prev === 'Cold') return 'Warm';
+      if (prev === 'Warm') return 'Hot';
+      return 'Cold';
+    });
+  };
+
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companyId || '');
   const [selectedCompanyName, setSelectedCompanyName] = useState<string>(companyName || '');
   const [selectedContactId, setSelectedContactId] = useState<string>(contactId || '');
@@ -886,11 +899,19 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         const validContactPhones = expressContactPhones.filter((p) => p.number.trim() !== '');
         const validContactEmails = expressContactEmails.filter((e) => e.email.trim() !== '');
 
+        // Determine dialed phone based on explicit primaryDialedPhoneId selection
+        const allPhones = [...expressCompanyPhones, ...expressContactPhones];
+        const selectedDialedObj = allPhones.find((p) => p.id === primaryDialedPhoneId && p.number.trim());
+
         const primaryCompPhone = validCompPhones[0]?.number.trim() || validContactPhones[0]?.number.trim() || '';
         const primaryCompEmail = validCompEmails[0]?.email.trim() || validContactEmails[0]?.email.trim() || '';
 
-        const primaryContactPhone = validContactPhones[0]?.number.trim() || primaryCompPhone || '';
-        const primaryContactEmail = validContactEmails[0]?.email.trim() || primaryCompEmail || '';
+        const dialedPhone = selectedDialedObj
+          ? selectedDialedObj.number.trim()
+          : validContactPhones[0]?.number.trim() || primaryCompPhone;
+
+        const primaryContactPhone = dialedPhone || primaryCompPhone;
+        const primaryContactEmail = validContactEmails[0]?.email.trim() || primaryCompEmail;
 
         if (compName) {
           // 1. Check or Create Company
@@ -913,15 +934,16 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
               workspace_id: activeWorkspaceId,
               canonical_name: compName,
               display_name: compName,
-              legal_suffix: 'None / To Be Added Later',
+              legal_suffix: expressLegalSuffix || 'LLC',
               aliases: [],
-              country: 'United Arab Emirates',
-              city: 'Dubai',
+              country: expressCountry || 'United Arab Emirates',
+              city: expressCity || 'Dubai',
               general_phone: primaryCompPhone,
               general_email: primaryCompEmail,
               phones: validCompPhones.map((p) => ({ id: p.id, label: p.label || 'Main', number: p.number.trim() })),
               emails: validCompEmails.map((e) => ({ id: e.id, label: e.label || 'Main', email: e.email.trim() })),
-              relationship: 'Prospect',
+              relationship: expressRelationship || 'Prospect',
+              temperature: expressTemperature || 'Cold',
               createdAt: nowIso,
               updatedAt: nowIso
             };
@@ -930,32 +952,28 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
             await CompanyRepository.saveCompany(newComp);
             targetComp = newComp;
           } else {
-            // Update company if new phones/emails given
-            let updatedComp = { ...targetComp };
-            let compChanged = false;
+            // Existing company found: auto-enrich phones/emails even if Contact Person is left blank
+            const allPhonesToAppend = [
+              ...validCompPhones.map((p) => ({ id: p.id, label: p.label || 'Main', number: p.number.trim() })),
+              ...validContactPhones.map((p) => ({ id: p.id, label: p.label || 'Direct', number: p.number.trim() }))
+            ];
+            const allEmailsToAppend = [
+              ...validCompEmails.map((e) => ({ id: e.id, label: e.label || 'Main', email: e.email.trim() })),
+              ...validContactEmails.map((e) => ({ id: e.id, label: e.label || 'Direct', email: e.email.trim() }))
+            ];
 
-            const existingPhones = getCompanyPhones(targetComp);
-            validCompPhones.forEach((p) => {
-              if (!existingPhones.some((ep) => isSamePhoneNumber(ep.number || ep.value, p.number))) {
-                const newPhoneObj = { id: p.id, label: p.label || 'Main', number: p.number.trim() };
-                updatedComp.phones = [...(updatedComp.phones || []), newPhoneObj];
-                compChanged = true;
+            const enrichedComp = await CompanyRepository.appendPhonesAndEmails(
+              targetCompId!,
+              allPhonesToAppend,
+              allEmailsToAppend
+            );
+            if (enrichedComp) {
+              if (expressRelationship || expressTemperature) {
+                enrichedComp.relationship = expressRelationship || enrichedComp.relationship || 'Prospect';
+                enrichedComp.temperature = expressTemperature || enrichedComp.temperature || 'Cold';
+                await CompanyRepository.saveCompany(enrichedComp);
               }
-            });
-
-            const existingEmails = getCompanyEmails(targetComp);
-            validCompEmails.forEach((e) => {
-              if (!existingEmails.some((ee) => (ee.email || ee.value || '').toLowerCase() === e.email.toLowerCase())) {
-                const newEmailObj = { id: e.id, label: e.label || 'Main', email: e.email.trim() };
-                updatedComp.emails = [...(updatedComp.emails || []), newEmailObj];
-                compChanged = true;
-              }
-            });
-
-            if (compChanged) {
-              updatedComp.updatedAt = nowIso;
-              await safeSetDoc('companies', targetCompId, updatedComp);
-              await CompanyRepository.saveCompany(updatedComp);
+              targetComp = enrichedComp;
             }
           }
 
@@ -1095,6 +1113,25 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         await safeSetDoc('activity_logs', newId, newEntry);
         await safeSetDoc('call_logs', newId, newEntry);
         await CallLogRepository.save(newEntry);
+      }
+
+      // Auto-Schedule Follow-Up Log if next follow-up date is provided
+      if (followupIsoDate && followupIsoDate.trim() !== '') {
+        const scheduledLogId = `act_${Date.now()}_fup_${Math.random().toString(36).substring(2, 7)}`;
+        const scheduledEntry: CallLogEntry = {
+          ...payload,
+          id: scheduledLogId,
+          date: followupIsoDate,
+          status: 'Scheduled / Planned' as CallStatus,
+          outcome: 'Follow-Up Scheduled',
+          requirement_notes: '',
+          next_followup_date: undefined,
+          createdAt: nowIso,
+          updatedAt: nowIso
+        };
+        await safeSetDoc('activity_logs', scheduledLogId, scheduledEntry);
+        await safeSetDoc('call_logs', scheduledLogId, scheduledEntry);
+        await CallLogRepository.save(scheduledEntry);
       }
 
       // Auto-DNC Suppression Trigger
@@ -1325,6 +1362,50 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   </div>
                 )}
 
+                {/* Target Selection Toggle (Contact vs. Company Mainline) */}
+                {selectedCompanyId && (
+                  <div className="flex items-center gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800 my-1">
+                    <button
+                      type="button"
+                      onClick={() => setCrmTargetType('contact')}
+                      className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        crmTargetType === 'contact'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      <span>Log against Contact</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCrmTargetType('company_mainline');
+                        setSelectedContactId('');
+                        setSelectedContactName('');
+                        setSelectedContactEmail('');
+                        const selComp = companies.find((c) => c.id === selectedCompanyId);
+                        if (selComp) {
+                          const compPhones = getCompanyPhones(selComp);
+                          if (compPhones.length > 0) {
+                            setSelectedContactPhone(compPhones[0].number);
+                          } else if (selComp.general_phone) {
+                            setSelectedContactPhone(selComp.general_phone);
+                          }
+                        }
+                      }}
+                      className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        crmTargetType === 'company_mainline'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>Log against Company Mainline</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Contact, Phone & Email Creatable Hybrid Inputs */}
                 {selectedCompanyId && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
@@ -1335,7 +1416,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       <input
                         type="text"
                         list="crm-contact-suggestions"
-                        value={selectedContactName}
+                        disabled={crmTargetType === 'company_mainline'}
+                        value={crmTargetType === 'company_mainline' ? '' : selectedContactName}
                         onChange={(e) => {
                           const val = e.target.value;
                           setSelectedContactName(val);
@@ -1347,10 +1429,12 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                               setSelectedContactPhone(matched.mobile || matched.landline || phones[0]?.number || '');
                             }
                             if (matched.email) setSelectedContactEmail(matched.email);
+                          } else {
+                            setSelectedContactId('');
                           }
                         }}
-                        placeholder="Type or select Contact Person..."
-                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                        placeholder={crmTargetType === 'company_mainline' ? 'Mainline selected (No individual contact)' : 'Type or select Contact Person...'}
+                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <datalist id="crm-contact-suggestions">
                         {availableCompanyContacts.map((c, idx) => (
@@ -1376,14 +1460,56 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       <datalist id="crm-phone-suggestions">
                         {(() => {
                           const selComp = companies.find((c) => c.id === selectedCompanyId);
-                          const phones = selComp ? getCompanyPhones(selComp) : [];
-                          return phones.map((p, idx) => (
+                          const compPhones = selComp ? getCompanyPhones(selComp) : [];
+                          const contactPhones = availableCompanyContacts.flatMap((c) => {
+                            const cPhones = getContactPhones(c);
+                            const list: Array<{ number: string; label: string }> = [];
+                            if (c.mobile) list.push({ number: c.mobile, label: `${c.full_name} (Mobile)` });
+                            if (c.landline) list.push({ number: c.landline, label: `${c.full_name} (Landline)` });
+                            cPhones.forEach(p => list.push({ number: p.number, label: `${c.full_name} (${p.label || 'Direct'})` }));
+                            return list;
+                          });
+                          const allPhones = [
+                            ...compPhones.map(p => ({ number: p.number, label: `Company ${p.label || 'Main'}` })),
+                            ...contactPhones
+                          ];
+                          const seen = new Set<string>();
+                          const unique = allPhones.filter(p => {
+                            if (!p.number || seen.has(p.number)) return false;
+                            seen.add(p.number);
+                            return true;
+                          });
+                          return unique.map((p, idx) => (
                             <option key={`p_${idx}`} value={p.number}>
-                              {p.number} {p.label ? `(${p.label})` : ''}
+                              {p.number} - {p.label}
                             </option>
                           ));
                         })()}
                       </datalist>
+
+                      {/* Company-Level Phone Selector Pills */}
+                      {(() => {
+                        const selComp = companies.find((c) => c.id === selectedCompanyId);
+                        const compPhones = selComp ? getCompanyPhones(selComp) : [];
+                        if (compPhones.length === 0) return null;
+                        return (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                            <span className="text-[10px] text-slate-400 font-medium">Company Lines:</span>
+                            {compPhones.map((p, idx) => (
+                              <button
+                                key={`cp_${idx}`}
+                                type="button"
+                                onClick={() => setSelectedContactPhone(p.number)}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 hover:bg-blue-900/40 text-blue-300 font-mono border border-slate-700/80 transition cursor-pointer flex items-center gap-1"
+                                title={`Set Phone to ${p.label || 'Front Desk'}: ${p.number}`}
+                              >
+                                <span className="opacity-75">{p.label || 'Front Desk'}:</span>
+                                <span className="font-bold">{p.number}</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div>
@@ -1540,13 +1666,59 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     </div>
                   </div>
 
+                  {/* Relationship & Cycling Temperature Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Relationship
+                      </label>
+                      <select
+                        value={expressRelationship}
+                        onChange={(e) => setExpressRelationship(e.target.value)}
+                        className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 focus:border-amber-500 focus:outline-none font-semibold"
+                      >
+                        <option value="Prospect">Prospect</option>
+                        <option value="Client">Client</option>
+                        <option value="Partner">Partner</option>
+                        <option value="Vendor">Vendor</option>
+                        <option value="Contractor">Contractor</option>
+                        <option value="Competitor">Competitor</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Temperature (Click to Cycle)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleCycleTemperature}
+                        className={`w-full py-1.5 px-3 rounded-lg border text-xs font-bold transition flex items-center justify-between cursor-pointer shadow-xs ${
+                          expressTemperature === 'Cold'
+                            ? 'bg-cyan-950/80 text-cyan-300 border-cyan-500/60 hover:bg-cyan-900/80'
+                            : expressTemperature === 'Warm'
+                            ? 'bg-amber-950/80 text-amber-300 border-amber-500/60 hover:bg-amber-900/80'
+                            : 'bg-rose-950/80 text-rose-300 border-rose-500/60 hover:bg-rose-900/80'
+                        }`}
+                        title="Click to cycle Lead Temperature: Cold -> Warm -> Hot"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-sm leading-none">
+                            {expressTemperature === 'Cold' ? '❄️' : expressTemperature === 'Warm' ? '🌤️' : '🔥'}
+                          </span>
+                          <span>{expressTemperature} Lead</span>
+                        </span>
+                        <span className="text-[10px] font-normal opacity-70 underline">Cycle ↺</span>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Company Phones */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-medium text-slate-300">
                       Company Phone Numbers
                     </label>
                     {expressCompanyPhones.map((phoneItem, idx) => (
-                      <div key={phoneItem.id ? `${phoneItem.id}_${idx}` : `ecp_${idx}`} className="flex items-center gap-1.5">
+                      <div key={phoneItem.id ? `${phoneItem.id}_${idx}` : `ecp_${idx}`} className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
                         <CustomLabelSelect
                           value={phoneItem.label}
                           onChange={(val) => handleCompanyPhoneChange(phoneItem.id, 'label', val)}
@@ -1560,6 +1732,24 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                           placeholder="+971 4 123 4567"
                           className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:border-amber-500 focus:outline-hidden"
                         />
+                        {/* Primary Dialed Radio Toggle */}
+                        <button
+                          type="button"
+                          onClick={() => setPrimaryDialedPhoneId(phoneItem.id)}
+                          className={`shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg border text-[10px] font-bold transition cursor-pointer ${
+                            primaryDialedPhoneId === phoneItem.id
+                              ? 'bg-blue-600/30 text-blue-200 border-blue-400 font-extrabold shadow-sm'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                          }`}
+                          title="Set as primary dialed target number for this activity log"
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full border flex items-center justify-center shrink-0 ${
+                            primaryDialedPhoneId === phoneItem.id ? 'border-blue-400 bg-blue-400' : 'border-slate-500'
+                          }`}>
+                            {primaryDialedPhoneId === phoneItem.id && <span className="w-1 h-1 rounded-full bg-slate-950" />}
+                          </span>
+                          <span>{primaryDialedPhoneId === phoneItem.id ? '🎯 Dialed' : 'Set Dialed'}</span>
+                        </button>
                         {phoneItem.number.trim() && (
                           <a
                             href={`tel:${phoneItem.number.replace(/[^\d+]/g, '')}`}
@@ -1680,7 +1870,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       Direct Phones
                     </label>
                     {expressContactPhones.map((phoneItem, idx) => (
-                      <div key={phoneItem.id ? `${phoneItem.id}_${idx}` : `ctp_${idx}`} className="flex items-center gap-1.5">
+                      <div key={phoneItem.id ? `${phoneItem.id}_${idx}` : `ctp_${idx}`} className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
                         <CustomLabelSelect
                           value={phoneItem.label}
                           onChange={(val) => handleContactPhoneChange(phoneItem.id, 'label', val)}
@@ -1694,6 +1884,24 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                           placeholder="+971 50 123 4567"
                           className="flex-1 rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
                         />
+                        {/* Primary Dialed Radio Toggle */}
+                        <button
+                          type="button"
+                          onClick={() => setPrimaryDialedPhoneId(phoneItem.id)}
+                          className={`shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg border text-[10px] font-bold transition cursor-pointer ${
+                            primaryDialedPhoneId === phoneItem.id
+                              ? 'bg-blue-600/30 text-blue-200 border-blue-400 font-extrabold shadow-sm'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                          }`}
+                          title="Set as primary dialed target number for this activity log"
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full border flex items-center justify-center shrink-0 ${
+                            primaryDialedPhoneId === phoneItem.id ? 'border-blue-400 bg-blue-400' : 'border-slate-500'
+                          }`}>
+                            {primaryDialedPhoneId === phoneItem.id && <span className="w-1 h-1 rounded-full bg-slate-950" />}
+                          </span>
+                          <span>{primaryDialedPhoneId === phoneItem.id ? '🎯 Dialed' : 'Set Dialed'}</span>
+                        </button>
                         {phoneItem.number.trim() && (
                           <a
                             href={`tel:${phoneItem.number.replace(/[^\d+]/g, '')}`}
@@ -1986,7 +2194,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   type="datetime-local"
                   value={activityDate}
                   onChange={(e) => setActivityDate(e.target.value)}
-                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden font-mono"
+                  style={{ colorScheme: 'dark' }}
+                  className="[color-scheme:dark] w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden font-mono"
                 />
               </div>
 
@@ -2009,7 +2218,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   type="date"
                   value={followupDate}
                   onChange={(e) => setFollowupDate(e.target.value)}
-                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden font-mono"
+                  style={{ colorScheme: 'dark' }}
+                  className="[color-scheme:dark] w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden font-mono"
                 />
               </div>
             </div>

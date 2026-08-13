@@ -1,7 +1,7 @@
-import { Company, Contact } from '../../types';
+import { Company, Contact, getCompanyPhones, getCompanyEmails, isSamePhoneNumber } from '../../types';
 import { syncEngine } from '../SyncEngine';
 import { getFromLocalStore, saveToLocalStore } from '../db';
-import { safeGetDocs, safeUpdateDoc } from '../../firebase';
+import { safeGetDocs, safeUpdateDoc, safeSetDoc } from '../../firebase';
 
 export class CompanyRepository {
   private static COMPANY_STORE = 'companies';
@@ -73,6 +73,65 @@ export class CompanyRepository {
     }
 
     await this.saveCompany(companyToSave);
+  }
+
+  public static async appendPhonesAndEmails(
+    companyId: string,
+    phonesToAppend: Array<{ id?: string; label?: string; number: string }>,
+    emailsToAppend: Array<{ id?: string; label?: string; email: string }>
+  ): Promise<Company | null> {
+    if (!companyId) return null;
+    const current = await this.getCompaniesLocal();
+    const idx = current.findIndex((item) => item.id === companyId);
+    if (idx === -1) return null;
+
+    const targetComp = current[idx];
+    let compChanged = false;
+    const updatedComp = { ...targetComp };
+
+    const existingPhones = getCompanyPhones(targetComp);
+    for (const p of phonesToAppend) {
+      if (p.number && p.number.trim()) {
+        const numTrim = p.number.trim();
+        if (!existingPhones.some((ep) => isSamePhoneNumber(ep.number || ep.value, numTrim))) {
+          const newPhoneObj = {
+            id: p.id || `phone_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+            label: p.label || 'Direct Line',
+            number: numTrim
+          };
+          updatedComp.phones = [...(updatedComp.phones || []), newPhoneObj];
+          compChanged = true;
+        }
+      }
+    }
+
+    const existingEmails = getCompanyEmails(targetComp);
+    for (const e of emailsToAppend) {
+      if (e.email && e.email.trim()) {
+        const emailTrim = e.email.trim().toLowerCase();
+        if (!existingEmails.some((ee) => (ee.email || ee.value || '').toLowerCase() === emailTrim)) {
+          const newEmailObj = {
+            id: e.id || `email_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+            label: e.label || 'Direct',
+            email: e.email.trim()
+          };
+          updatedComp.emails = [...(updatedComp.emails || []), newEmailObj];
+          compChanged = true;
+        }
+      }
+    }
+
+    if (compChanged) {
+      updatedComp.updatedAt = new Date().toISOString();
+      await this.saveCompany(updatedComp);
+      try {
+        await safeSetDoc('companies', companyId, updatedComp);
+      } catch (err) {
+        console.warn('[CompanyRepository] safeSetDoc failed during phone/email enrichment:', err);
+      }
+      return updatedComp;
+    }
+    return targetComp;
   }
 
   public static async cascadeUpdateCallLogsCompanyName(companyId: string, newCompanyName: string): Promise<void> {
