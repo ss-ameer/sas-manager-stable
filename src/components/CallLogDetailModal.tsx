@@ -85,6 +85,7 @@ export default function CallLogDetailModal({
   const [editPurpose, setEditPurpose] = useState('');
   const [editRequirementNotes, setEditRequirementNotes] = useState('');
   const [editNextFollowupDate, setEditNextFollowupDate] = useState('');
+  const [editMainlineTag, setEditMainlineTag] = useState('Front Desk');
   const [isSaving, setIsSaving] = useState(false);
 
   if (!entry) return null;
@@ -103,6 +104,7 @@ export default function CallLogDetailModal({
 
   const startEditing = () => {
     setEditTargetType(entry.contact_id || entry.contact_name ? 'contact' : 'company_mainline');
+    setEditMainlineTag('Front Desk');
     setEditCompanyId(entry.company_id || '');
     setEditCompanyName(entry.company_name || linkedCompany?.display_name || linkedCompany?.canonical_name || entry.unlinked_name || '');
     setEditContactId(entry.contact_id || '');
@@ -396,8 +398,10 @@ export default function CallLogDetailModal({
                       const compPhones = getCompanyPhones(activeComp);
                       if (compPhones.length > 0) {
                         setEditContactPhone(compPhones[0].number);
+                        setEditMainlineTag(compPhones[0].label || 'Front Desk');
                       } else if (activeComp.general_phone) {
                         setEditContactPhone(activeComp.general_phone);
+                        setEditMainlineTag('Front Desk');
                       }
                     }
                   }}
@@ -412,46 +416,69 @@ export default function CallLogDetailModal({
                 </button>
               </div>
 
-              {/* Contact Person */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Contact Person
-                </label>
-                <input
-                  type="text"
-                  disabled={editTargetType === 'company_mainline'}
-                  value={editTargetType === 'company_mainline' ? '' : editContactName}
-                  onChange={(e) => setEditContactName(e.target.value)}
-                  placeholder={editTargetType === 'company_mainline' ? 'Mainline selected (No individual contact)' : 'Type contact person name freely...'}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                {(() => {
-                  const comp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
-                  const compContacts = comp ? contacts.filter((ct) => ct.company_id === comp.id) : [];
-                  if (compContacts.length === 0) return null;
-                  return (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                      <span className="text-[10px] text-slate-400 font-medium">Company Contacts:</span>
-                      {compContacts.map((ct) => (
-                        <button
-                          key={ct.id}
-                          type="button"
-                          onClick={() => {
-                            setEditContactId(ct.id || '');
-                            setEditContactName(ct.full_name);
-                            if (ct.mobile || ct.landline) {
-                              setEditContactPhone(ct.mobile || ct.landline || '');
-                            }
-                          }}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
-                        >
-                          {ct.full_name}
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
+              {/* Contact Person or Phone Tag */}
+              {editTargetType === 'contact' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    Contact Person
+                  </label>
+                  <input
+                    type="text"
+                    value={editContactName}
+                    onChange={(e) => setEditContactName(e.target.value)}
+                    placeholder="Type contact person name freely..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                  />
+                  {(() => {
+                    const comp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
+                    const compContacts = comp ? contacts.filter((ct) => ct.company_id === comp.id) : [];
+                    if (compContacts.length === 0) return null;
+                    return (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-slate-400 font-medium">Company Contacts:</span>
+                        {compContacts.map((ct) => (
+                          <button
+                            key={ct.id}
+                            type="button"
+                            onClick={() => {
+                              setEditContactId(ct.id || '');
+                              setEditContactName(ct.full_name);
+                              if (ct.mobile || ct.landline) {
+                                setEditContactPhone(ct.mobile || ct.landline || '');
+                              }
+                            }}
+                            className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
+                          >
+                            {ct.full_name}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-amber-300 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    <span>Phone Tag / Label</span>
+                    <span className="text-[10px] text-amber-400 lowercase">company line</span>
+                  </label>
+                  <input
+                    type="text"
+                    list="modal-mainline-tag-suggestions"
+                    value={editMainlineTag}
+                    onChange={(e) => setEditMainlineTag(e.target.value)}
+                    placeholder="e.g. Front Desk, Support, Main..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 text-xs text-amber-100 font-medium placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                  />
+                  <datalist id="modal-mainline-tag-suggestions">
+                    <option value="Front Desk" />
+                    <option value="Main / Reception" />
+                    <option value="Support / Helpdesk" />
+                    <option value="Sales Line" />
+                    <option value="Boardroom / HQ" />
+                  </datalist>
+                </div>
+              )}
             </div>
 
             {/* Phone Number Field & Company-Level Phone Selector */}
@@ -554,30 +581,93 @@ export default function CallLogDetailModal({
             </div>
 
             {/* Next Follow-Up Date */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-blue-400" />
-                  <span>Next Follow-Up Date</span>
-                </label>
-                {editNextFollowupDate && (
-                  <button
-                    type="button"
-                    onClick={() => setEditNextFollowupDate('')}
-                    className="text-[10px] text-slate-500 hover:text-slate-300 cursor-pointer"
-                  >
-                    Clear Date
-                  </button>
-                )}
-              </div>
-              <input
-                type="date"
-                value={editNextFollowupDate}
-                onChange={(e) => setEditNextFollowupDate(e.target.value)}
-                style={{ colorScheme: 'dark' }}
-                className="[color-scheme:dark] w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
-              />
-            </div>
+            {(() => {
+              const isFollowupEncouraged =
+                editStatus === 'No Answer' ||
+                editStatus === 'Busy' ||
+                editStatus === 'Scheduled' ||
+                editOutcome === 'Call Back Later' ||
+                editOutcome === 'Line Busy' ||
+                editOutcome === 'No Answer' ||
+                editOutcome === 'Follow-Up Scheduled';
+              const isFollowupMissing = isFollowupEncouraged && !editNextFollowupDate;
+
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
+                    <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-blue-400" />
+                      <span>Next Follow-Up Date</span>
+                      {isFollowupMissing && (
+                        <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1 bg-amber-950/80 px-2 py-0.5 rounded-md border border-amber-500/50 animate-pulse">
+                          <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span>Required for {editStatus === 'Busy' || editStatus === 'No Answer' ? editStatus : editOutcome || 'this disposition'}</span>
+                        </span>
+                      )}
+                    </label>
+                    {editNextFollowupDate && (
+                      <button
+                        type="button"
+                        onClick={() => setEditNextFollowupDate('')}
+                        className="text-[10px] text-slate-400 hover:text-rose-300 font-semibold cursor-pointer"
+                      >
+                        Clear Date
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="date"
+                    value={editNextFollowupDate}
+                    onChange={(e) => setEditNextFollowupDate(e.target.value)}
+                    style={{ colorScheme: 'dark' }}
+                    className={`[color-scheme:dark] w-full px-3 py-2 rounded-xl bg-slate-950 text-xs font-mono transition-all focus:outline-none ${
+                      isFollowupMissing
+                        ? 'border-2 border-amber-500/80 ring-2 ring-amber-500/30 bg-amber-950/20 text-amber-100'
+                        : editNextFollowupDate
+                        ? 'border-2 border-blue-500/80 bg-blue-950/20 text-blue-100 font-bold'
+                        : 'border border-slate-800 text-slate-100 focus:border-blue-500'
+                    }`}
+                  />
+
+                  {/* Quick Set Buttons */}
+                  {isFollowupMissing && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400 font-medium">Quick Set:</span>
+                      {[
+                        { label: '+1 Day', days: 1 },
+                        { label: '+2 Days', days: 2 },
+                        { label: '+3 Days', days: 3 },
+                        { label: '+1 Week', days: 7 }
+                      ].map((btn) => (
+                        <button
+                          key={btn.label}
+                          type="button"
+                          onClick={() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + btn.days);
+                            setEditNextFollowupDate(d.toISOString().split('T')[0]);
+                          }}
+                          className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-bold transition cursor-pointer"
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Part 4: Persistent Date Confirmation Badge */}
+                  {editNextFollowupDate && (
+                    <div className="mt-2 flex items-center justify-between px-3 py-1.5 rounded-lg bg-blue-950/80 border border-blue-500/60 text-blue-200 text-xs font-mono font-bold shadow-xs">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <span>Scheduled: {new Date(editNextFollowupDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      </div>
+                      <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Requirement Notes */}
             <div>

@@ -244,6 +244,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [expressTemperature, setExpressTemperature] = useState<'Cold' | 'Warm' | 'Hot'>('Cold');
   const [primaryDialedPhoneId, setPrimaryDialedPhoneId] = useState<string>('');
   const [crmTargetType, setCrmTargetType] = useState<'contact' | 'company_mainline'>('contact');
+  const [mainlineTag, setMainlineTag] = useState<string>('Front Desk');
 
   const handleCycleTemperature = () => {
     setExpressTemperature((prev) => {
@@ -1397,8 +1398,10 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                           const compPhones = getCompanyPhones(selComp);
                           if (compPhones.length > 0) {
                             setSelectedContactPhone(compPhones[0].number);
+                            setMainlineTag(compPhones[0].label || 'Front Desk');
                           } else if (selComp.general_phone) {
                             setSelectedContactPhone(selComp.general_phone);
+                            setMainlineTag('Front Desk');
                           }
                         }
                       }}
@@ -1417,41 +1420,64 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 {/* Contact, Phone & Email Creatable Hybrid Inputs */}
                 {selectedCompanyId && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                        Contact Person
-                      </label>
-                      <input
-                        type="text"
-                        list="crm-contact-suggestions"
-                        disabled={crmTargetType === 'company_mainline'}
-                        value={crmTargetType === 'company_mainline' ? '' : selectedContactName}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setSelectedContactName(val);
-                          const matched = availableCompanyContacts.find((c) => (c.full_name || '').toLowerCase() === val.toLowerCase());
-                          if (matched) {
-                            setSelectedContactId(matched.id);
-                            const phones = getContactPhones(matched);
-                            if (matched.mobile || matched.landline || phones[0]?.number) {
-                              setSelectedContactPhone(matched.mobile || matched.landline || phones[0]?.number || '');
+                    {crmTargetType === 'contact' ? (
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                          Contact Person
+                        </label>
+                        <input
+                          type="text"
+                          list="crm-contact-suggestions"
+                          value={selectedContactName}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedContactName(val);
+                            const matched = availableCompanyContacts.find((c) => (c.full_name || '').toLowerCase() === val.toLowerCase());
+                            if (matched) {
+                              setSelectedContactId(matched.id);
+                              const phones = getContactPhones(matched);
+                              if (matched.mobile || matched.landline || phones[0]?.number) {
+                                setSelectedContactPhone(matched.mobile || matched.landline || phones[0]?.number || '');
+                              }
+                              if (matched.email) setSelectedContactEmail(matched.email);
+                            } else {
+                              setSelectedContactId('');
                             }
-                            if (matched.email) setSelectedContactEmail(matched.email);
-                          } else {
-                            setSelectedContactId('');
-                          }
-                        }}
-                        placeholder={crmTargetType === 'company_mainline' ? 'Mainline selected (No individual contact)' : 'Type or select Contact Person...'}
-                        className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                      <datalist id="crm-contact-suggestions">
-                        {availableCompanyContacts.map((c, idx) => (
-                          <option key={c.id ? `${c.id}_${idx}` : `cnt_${idx}`} value={c.full_name}>
-                            {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}
-                          </option>
-                        ))}
-                      </datalist>
-                    </div>
+                          }}
+                          placeholder="Type or select Contact Person..."
+                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                        />
+                        <datalist id="crm-contact-suggestions">
+                          {availableCompanyContacts.map((c, idx) => (
+                            <option key={c.id ? `${c.id}_${idx}` : `cnt_${idx}`} value={c.full_name}>
+                              {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}
+                            </option>
+                          ))}
+                        </datalist>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-xs font-medium text-amber-300 mb-1.5 flex items-center justify-between">
+                          <span>Phone Tag / Label</span>
+                          <span className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Company Line</span>
+                        </label>
+                        <input
+                          type="text"
+                          list="mainline-tag-suggestions"
+                          value={mainlineTag}
+                          onChange={(e) => setMainlineTag(e.target.value)}
+                          placeholder="e.g. Front Desk, Support, Main..."
+                          className="w-full rounded-lg bg-slate-950 border border-amber-500/40 px-3 py-2 text-xs text-amber-100 placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400 font-medium"
+                        />
+                        <datalist id="mainline-tag-suggestions">
+                          <option value="Front Desk" />
+                          <option value="Main / Reception" />
+                          <option value="Support / Helpdesk" />
+                          <option value="Sales Line" />
+                          <option value="Boardroom / HQ" />
+                        </datalist>
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1.5">
@@ -2212,29 +2238,92 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Next Follow-up Date
-                  </label>
-                  {followupDate && (
-                    <button
-                      type="button"
-                      onClick={() => setFollowupDate('')}
-                      className="text-[10px] text-slate-500 hover:text-slate-300"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="date"
-                  value={followupDate}
-                  onChange={(e) => setFollowupDate(e.target.value)}
-                  style={{ colorScheme: 'dark' }}
-                  className="[color-scheme:dark] w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden font-mono"
-                />
-              </div>
+              {(() => {
+                const isFollowupEncouraged =
+                  status === 'No Answer' ||
+                  status === 'Busy' ||
+                  status === 'Scheduled' ||
+                  outcome === 'Call Back Later' ||
+                  outcome === 'Line Busy' ||
+                  outcome === 'No Answer' ||
+                  outcome === 'Follow-Up Scheduled';
+                const isFollowupMissing = isFollowupEncouraged && !followupDate;
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <span>Next Follow-up Date</span>
+                        {isFollowupMissing && (
+                          <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1 bg-amber-950/80 px-2 py-0.5 rounded-md border border-amber-500/50 animate-pulse">
+                            <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
+                            <span>Required for {status === 'Busy' || status === 'No Answer' ? status : outcome || 'this disposition'}</span>
+                          </span>
+                        )}
+                      </label>
+                      {followupDate && (
+                        <button
+                          type="button"
+                          onClick={() => setFollowupDate('')}
+                          className="text-[10px] text-slate-400 hover:text-rose-300 font-semibold cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="date"
+                      value={followupDate}
+                      onChange={(e) => setFollowupDate(e.target.value)}
+                      style={{ colorScheme: 'dark' }}
+                      className={`[color-scheme:dark] w-full rounded-lg bg-slate-950 px-3 py-2 text-xs font-mono transition-all focus:outline-hidden ${
+                        isFollowupMissing
+                          ? 'border-2 border-amber-500/80 ring-2 ring-amber-500/30 bg-amber-950/20 text-amber-100'
+                          : followupDate
+                          ? 'border-2 border-blue-500/80 bg-blue-950/20 text-blue-100 font-bold'
+                          : 'border border-slate-800 text-slate-100 focus:border-blue-500'
+                      }`}
+                    />
+
+                    {/* Quick Set Buttons when follow-up missing */}
+                    {isFollowupMissing && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400 font-medium">Quick Set:</span>
+                        {[
+                          { label: '+1 Day', days: 1 },
+                          { label: '+2 Days', days: 2 },
+                          { label: '+3 Days', days: 3 },
+                          { label: '+1 Week', days: 7 }
+                        ].map((btn) => (
+                          <button
+                            key={btn.label}
+                            type="button"
+                            onClick={() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() + btn.days);
+                              setFollowupDate(d.toISOString().split('T')[0]);
+                            }}
+                            className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-bold transition cursor-pointer"
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Part 4: Persistent Selected Date Display Badge */}
+                    {followupDate && (
+                      <div className="mt-2 flex items-center justify-between px-3 py-1.5 rounded-lg bg-blue-950/80 border border-blue-500/60 text-blue-200 text-xs font-mono font-bold shadow-xs">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                          <span>Scheduled: {new Date(followupDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        </div>
+                        <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* DNC Opt-Out Checkbox */}

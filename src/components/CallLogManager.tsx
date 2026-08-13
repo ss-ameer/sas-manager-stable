@@ -142,6 +142,7 @@ export default function CallLogManager({
   onEditCompany
 }: CallLogManagerProps) {
   const [subTab, setSubTab] = useState<'queue' | 'log'>(initialSubTab);
+  const [queueTimeframe, setQueueTimeframe] = useState<'today' | 'upcoming' | 'all'>('today');
 
   const [confirmResolver, setConfirmResolver] = useState<((val: boolean) => void) | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -526,8 +527,8 @@ export default function CallLogManager({
   // Date helper
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Queue View Items: Scheduled status, due today or earlier, NOT DNC suppressed
-  const queueItems = useMemo(() => {
+  // All Scheduled Queue Items (Scheduled status, NOT DNC suppressed)
+  const allScheduledQueueItems = useMemo(() => {
     return workspaceCallLogs
       .filter((entry) => {
         if (entry.status !== 'Scheduled') return false;
@@ -544,10 +545,21 @@ export default function CallLogManager({
       });
   }, [workspaceCallLogs, todayStr, companyMap, contactMap]);
 
+  // Filtered Queue Items by timeframe toggle
+  const queueItems = useMemo(() => {
+    if (queueTimeframe === 'today') {
+      return allScheduledQueueItems.filter((i) => i.date <= todayStr);
+    }
+    if (queueTimeframe === 'upcoming') {
+      return allScheduledQueueItems.filter((i) => i.date > todayStr);
+    }
+    return allScheduledQueueItems;
+  }, [allScheduledQueueItems, queueTimeframe, todayStr]);
+
   // Stats Counters
   const stats = useMemo(() => {
-    const scheduledToday = queueItems.filter((i) => i.date === todayStr).length;
-    const overdueCount = queueItems.filter((i) => i.date < todayStr).length;
+    const scheduledToday = allScheduledQueueItems.filter((i) => i.date === todayStr).length;
+    const overdueCount = allScheduledQueueItems.filter((i) => i.date < todayStr).length;
 
     const completedToday = workspaceCallLogs.filter(
       (l) => l.status === 'Completed' && l.date.startsWith(todayStr)
@@ -1283,12 +1295,59 @@ export default function CallLogManager({
       {/* VIEW 1: OPERATOR CALL QUEUE */}
       {subTab === 'queue' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
-              Today's Queue ({queueItems.length} Due)
-            </h2>
-            <div className="text-xs text-slate-500 italic">
-              Sorted by Overdue first. DNC suppressed entries automatically hidden.
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <div>
+              <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2 flex-wrap">
+                <span>Operator Call Queue</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 font-bold font-mono">
+                  {queueItems.length} {queueTimeframe === 'today' ? 'Due Today / Overdue' : queueTimeframe === 'upcoming' ? 'Upcoming' : 'Total Scheduled'}
+                </span>
+              </h2>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {queueTimeframe === 'today' && "Showing tasks due today or overdue. Overdue tasks listed first."}
+                {queueTimeframe === 'upcoming' && "Showing future scheduled follow-ups across your pipeline."}
+                {queueTimeframe === 'all' && "Showing all scheduled follow-ups across all dates."}
+              </div>
+            </div>
+
+            {/* Timeframe Filter Buttons */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setQueueTimeframe('today')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  queueTimeframe === 'today'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-blue-500" />
+                <span>Today ({allScheduledQueueItems.filter(i => i.date <= todayStr).length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQueueTimeframe('upcoming')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  queueTimeframe === 'upcoming'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                <span>Upcoming ({allScheduledQueueItems.filter(i => i.date > todayStr).length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQueueTimeframe('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  queueTimeframe === 'all'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <ListFilter className="w-3.5 h-3.5 text-indigo-500" />
+                <span>All ({allScheduledQueueItems.length})</span>
+              </button>
             </div>
           </div>
 
