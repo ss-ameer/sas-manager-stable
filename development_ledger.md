@@ -1,5 +1,55 @@
 # Development Ledger
 
+## Session: 2026-08-14 (Fix Cramped Inline Inputs in QuickActivityDrawer)
+
+### Goals
+- Resolve cramped inline inputs in `QuickActivityDrawer.tsx` when selecting "+ Add New Contact Detail", "+ Create New Contact Person", or "+ Add New Company Line".
+- Change input layouts from cramped side-by-side flex/grid sub-columns to full-width vertical stacks (`flex flex-col gap-2.5`).
+- Ensure each dynamic input stretches to `w-full` with clear, uppercase section labels (`Full Name`, `Role / Designation`, `Phone Number`, `Line Phone Number`, `Line Tag / Label`).
+- Apply `col-span-full` to `Company Line`, `Email` channel, and `Meeting` channel field wrappers inside the drawer layout grid.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/QuickActivityDrawer.tsx` | Converted dynamic inputs for new contact person, phone number/contact detail, and company line to full-width vertical stacks with clear labels and `w-full` inputs. Applied `col-span-full` to full-width drawer sections. |
+| `/package.json` | Bumped version to `0.66.4`. |
+| `/CHANGELOG.md` | Logged version `0.66.4` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
+## Session: 2026-08-14 (Fix CallLogDetailModal Edit Mode Form Full Width Layout)
+
+### Goals
+- Resolve 50% width form element squishing in `CallLogDetailModal.tsx` when in edit mode (`isEditing === true`).
+- Ensure `Target Company`, `Contact Person`, and `Phone Tag / Label` form wrappers span the full modal width (`col-span-full`).
+- Confirm zero layout squishing across all edit form inputs, dropdowns, datetime pickers, and toggles.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CallLogDetailModal.tsx` | Updated edit mode form container wrappers (`Target Company`, `Contact Person`, `Phone Tag / Label`) to use `col-span-full`. |
+| `/package.json` | Bumped version to `0.66.3`. |
+| `/CHANGELOG.md` | Logged version `0.66.3` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
+## Session: 2026-08-14 (Fix Call Log Table Action Handler Routing)
+
+### Goals
+- Decouple View and Edit action handlers across Operator Call Queue and Full Call History tables in `CallLogManager.tsx`.
+- Ensure Eye icon ("View Call Log") opens the read-only Log Details modal (`CallLogDetailModal`) without opening the `QuickActivityDrawer`.
+- Ensure Pencil icon ("Edit Activity Log") opens the dedicated `Edit Activity Log` sidebar (`QuickActivityDrawer`) pre-populated with log data (`CL-XXXX`).
+- Align button tooltips and `onClick` handlers across both tables.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CallLogManager.tsx` | Fixed View (Eye icon) and Edit (Pencil icon) handlers and tooltips across Operator Call Queue and Full Call History tables. |
+| `/package.json` | Bumped version to `0.66.2`. |
+| `/CHANGELOG.md` | Logged version `0.66.2` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
 ## Session: 2026-08-14 (Target Mode & Phone Dropdown Overhaul)
 
 ### Goals

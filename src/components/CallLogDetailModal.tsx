@@ -449,7 +449,7 @@ export default function CallLogDetailModal({
               </div>
 
               {/* Target Company */}
-              <div>
+              <div className="col-span-full">
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                   Target Company
                 </label>
@@ -526,7 +526,7 @@ export default function CallLogDetailModal({
 
               {/* Contact Person or Phone Tag */}
               {editTargetType === 'contact' ? (
-                <div>
+                <div className="col-span-full">
                   <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                     Contact Person
                   </label>
@@ -592,7 +592,7 @@ export default function CallLogDetailModal({
                   })()}
                 </div>
               ) : (
-                <div>
+                <div className="col-span-full">
                   <label className="block text-xs font-bold text-amber-300 uppercase tracking-wider mb-1 flex items-center justify-between">
                     <span>Phone Tag / Label</span>
                     <span className="text-[10px] text-amber-400 lowercase">company line</span>

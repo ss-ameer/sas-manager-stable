@@ -1512,14 +1512,10 @@ export default function CallLogManager({
 
                         <button
                           onClick={() => {
-                            if (onOpenActivityDrawer) {
-                              onOpenActivityDrawer({ existingLog: item });
-                            } else {
-                              setSelectedDetailEntry(item);
-                            }
+                            setSelectedDetailEntry(item);
                           }}
                           className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition flex items-center justify-center bg-white cursor-pointer"
-                          title="View Details"
+                          title="View Call Log"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -1527,10 +1523,14 @@ export default function CallLogManager({
                         {canEditOrDeleteRecord(user, item) && (
                           <button
                             onClick={() => {
-                              setSelectedDetailEntry(item);
+                              if (onOpenActivityDrawer) {
+                                onOpenActivityDrawer({ existingLog: item, logToEdit: item });
+                              } else {
+                                setSelectedDetailEntry(item);
+                              }
                             }}
                             className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition flex items-center justify-center bg-white cursor-pointer"
-                            title="Edit Log"
+                            title="Edit Activity Log"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
@@ -1844,14 +1844,10 @@ export default function CallLogManager({
                         <button
                           type="button"
                           onClick={() => {
-                            if (onOpenActivityDrawer) {
-                              onOpenActivityDrawer({ existingLog: log });
-                            } else {
-                              setSelectedDetailEntry(log);
-                            }
+                            setSelectedDetailEntry(log);
                           }}
                           className="p-2.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition flex items-center justify-center bg-white dark:bg-slate-900 cursor-pointer"
-                          title="View Details in Activity Drawer"
+                          title="View Call Log"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -1860,10 +1856,14 @@ export default function CallLogManager({
                           <button
                             type="button"
                             onClick={() => {
-                              setSelectedDetailEntry(log);
+                              if (onOpenActivityDrawer) {
+                                onOpenActivityDrawer({ existingLog: log, logToEdit: log });
+                              } else {
+                                setSelectedDetailEntry(log);
+                              }
                             }}
                             className="p-2.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition flex items-center justify-center bg-white dark:bg-slate-900 cursor-pointer"
-                            title="Edit Call Log in Detail Modal"
+                            title="Edit Activity Log"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>

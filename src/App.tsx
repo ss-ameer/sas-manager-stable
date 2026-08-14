@@ -1714,6 +1714,9 @@ export default function App() {
         companies={visibleCompanies}
         contacts={contacts}
         enquiries={visibleEnquiries}
+        setCompanies={setCompanies}
+        setContacts={setContacts}
+        setCallLogs={setCallLogs}
         onSaveSuccess={() => {
           setIsActivityDrawerOpen(false);
           triggerToast('Activity logged successfully!', 'success');

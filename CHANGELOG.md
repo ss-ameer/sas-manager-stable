@@ -2,6 +2,30 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.66.4] - 2026-08-14
+
+### Fixed
+- **Quick Activity Drawer Dynamic Input Layout Refactor (`src/components/QuickActivityDrawer.tsx`)**:
+  - **Vertical Stacking for Dynamic Fields**: Replaced side-by-side cramped sub-grids for "+ Create New Contact Person", "+ Add New Contact Detail", and "+ Add New Company Line" with full-width vertical stacks (`flex flex-col gap-2.5`).
+  - **Labeled Input Fields**: Added clear, styled uppercase section labels for dynamic fields (`Full Name`, `Role / Designation`, `Phone Number`, `Line Phone Number`, `Line Tag / Label`).
+  - **Full-Width Stretch**: Ensured new entry input fields stretch to `w-full` across the drawer, eliminating placeholder text truncation.
+  - **Grid Column Spans**: Applied `col-span-full` to `Company Line`, `Email` channel, and `Meeting` channel field wrappers inside the drawer layout grid.
+
+## [0.66.3] - 2026-08-14
+
+### Fixed
+- **Edit Mode Modal Layout Full Width Fix (`src/components/CallLogDetailModal.tsx`)**:
+  - **Grid Column Span Resolution**: Updated form container wrappers (`Target Company`, `Contact Person`, and `Phone Tag / Label`) in edit mode to use `col-span-full` instead of being restricted to single grid columns (`col-span-1`).
+  - **Full-Width Stretch**: Eliminated the 50% width squishing issue in `CallLogDetailModal` edit mode, ensuring all form inputs, dropdowns, and target mode toggles span 100% of the modal width cleanly with zero empty side space.
+
+## [0.66.2] - 2026-08-14
+
+### Fixed
+- **Call Log Table Action Handler Routing Decoupling (`src/components/CallLogManager.tsx`)**:
+  - **View Action Routing Fix**: Updated the Eye icon ("View Call Log") action in both the **Operator Call Queue** and **Full Call History** tables to directly launch the read-only Log Details modal (`CallLogDetailModal`) showing full metadata, notes, and outcomes without opening the `QuickActivityDrawer` entry sidebar.
+  - **Edit Action Routing Fix**: Updated the Pencil icon ("Edit Activity Log") action across both tables to properly trigger the dedicated `Edit Activity Log` sidebar/drawer (`QuickActivityDrawer`) pre-populated with log data (`CL-XXXX`).
+  - **Tooltip & Handler Alignment**: Matched tooltips (`View Call Log` vs `Edit Activity Log`) and action handlers across both Call Queue and Call History tables for consistency.
+
 ## [0.66.1] - 2026-08-14
 
 ### Fixed & Refactored

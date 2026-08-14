@@ -75,6 +75,12 @@ export interface QuickActivityDrawerProps {
   companies?: Company[];
   contacts?: Contact[];
   enquiries?: Enquiry[];
+  setCompanies?: React.Dispatch<React.SetStateAction<Company[]>>;
+  setContacts?: React.Dispatch<React.SetStateAction<Contact[]>>;
+  setCallLogs?: React.Dispatch<React.SetStateAction<CallLogEntry[]>>;
+  onUpdateCompany?: (company: Company) => void;
+  onUpdateContact?: (contact: Contact) => void;
+  onSave?: (log: CallLogEntry) => void;
 }
 
 type ActivityChannel = 'Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Site Visit';
@@ -206,7 +212,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   onSaveSuccess,
   companies = [],
   contacts = [],
-  enquiries = []
+  enquiries = [],
+  setCompanies,
+  setContacts,
+  setCallLogs,
+  onUpdateCompany,
+  onUpdateContact,
+  onSave
 }) => {
   const [channel, setChannel] = useState<ActivityChannel>(initialChannel || 'Call');
   const [outcome, setOutcome] = useState<string>('Interested');
@@ -956,6 +968,12 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 updatedComp.updatedAt = nowIso;
                 await safeSetDoc('companies', selectedCompanyId, updatedComp);
                 await CompanyRepository.saveCompany(updatedComp);
+                if (setCompanies) {
+                  setCompanies((prev) => prev.map((c) => (c.id === selectedCompanyId ? updatedComp : c)));
+                }
+                if (onUpdateCompany) {
+                  onUpdateCompany(updatedComp);
+                }
               }
             }
           }
@@ -998,6 +1016,12 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 updatedComp.updatedAt = nowIso;
                 await safeSetDoc('companies', selectedCompanyId, updatedComp);
                 await CompanyRepository.saveCompany(updatedComp);
+                if (setCompanies) {
+                  setCompanies((prev) => prev.map((c) => (c.id === selectedCompanyId ? updatedComp : c)));
+                }
+                if (onUpdateCompany) {
+                  onUpdateCompany(updatedComp);
+                }
               }
 
               // 3. Append contact person if new
@@ -1023,9 +1047,56 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   };
 
                   await safeSetDoc('contacts', newContactId, newContact);
+                  await CompanyRepository.saveContact(newContact);
                   resolvedContactId = newContactId;
-                } else if (!resolvedContactId) {
-                  resolvedContactId = existingContact.id;
+
+                  if (setContacts) {
+                    setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== newContactId)]);
+                  }
+                  if (onUpdateContact) {
+                    onUpdateContact(newContact);
+                  }
+                } else {
+                  let updatedCt = { ...existingContact };
+                  let ctChanged = false;
+
+                  if (selectedContactPhone && selectedContactPhone.trim()) {
+                    const pTrim = selectedContactPhone.trim();
+                    const existingPhones = getContactPhones(existingContact);
+                    if (!existingPhones.some((p) => isSamePhoneNumber(p.number || p.value, pTrim))) {
+                      const newPhoneObj = { id: `phone_${Date.now()}`, label: 'Direct Line', number: pTrim };
+                      updatedCt.phones = [...(updatedCt.phones || []), newPhoneObj];
+                      if (!updatedCt.mobile) updatedCt.mobile = pTrim;
+                      ctChanged = true;
+                    }
+                  }
+
+                  if (selectedContactEmail && selectedContactEmail.trim()) {
+                    const eTrim = selectedContactEmail.trim().toLowerCase();
+                    const existingEmails = getContactEmails(existingContact);
+                    if (!existingEmails.some((e) => (e.email || e.value || '').toLowerCase() === eTrim)) {
+                      const newEmailObj = { id: `email_${Date.now()}`, label: 'Direct', email: selectedContactEmail.trim() };
+                      updatedCt.emails = [...(updatedCt.emails || []), newEmailObj];
+                      if (!updatedCt.email) updatedCt.email = selectedContactEmail.trim();
+                      ctChanged = true;
+                    }
+                  }
+
+                  if (ctChanged) {
+                    updatedCt.updatedAt = nowIso;
+                    await safeSetDoc('contacts', existingContact.id, updatedCt);
+                    await CompanyRepository.saveContact(updatedCt);
+                    if (setContacts) {
+                      setContacts((prev) => prev.map((c) => (c.id === existingContact.id ? updatedCt : c)));
+                    }
+                    if (onUpdateContact) {
+                      onUpdateContact(updatedCt);
+                    }
+                  }
+
+                  if (!resolvedContactId) {
+                    resolvedContactId = existingContact.id;
+                  }
                 }
               }
             }
@@ -1093,6 +1164,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
             await safeSetDoc('companies', targetCompId, newComp);
             await CompanyRepository.saveCompany(newComp);
             targetComp = newComp;
+
+            if (setCompanies) {
+              setCompanies((prev) => [newComp, ...prev.filter((c) => c.id !== targetCompId)]);
+            }
+            if (onUpdateCompany) {
+              onUpdateCompany(newComp);
+            }
           } else {
             // Existing company found: auto-enrich phones/emails even if Contact Person is left blank
             const allPhonesToAppend = [
@@ -1116,6 +1194,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 await CompanyRepository.saveCompany(enrichedComp);
               }
               targetComp = enrichedComp;
+
+              if (setCompanies) {
+                setCompanies((prev) => prev.map((c) => (c.id === targetCompId ? enrichedComp : c)));
+              }
+              if (onUpdateCompany) {
+                onUpdateCompany(enrichedComp);
+              }
             }
           }
 
@@ -1154,6 +1239,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
               await safeSetDoc('contacts', targetContactId, newContact);
               await CompanyRepository.saveContact(newContact);
+
+              if (setContacts) {
+                setContacts((prev) => [newContact, ...prev.filter((c) => c.id !== targetContactId)]);
+              }
+              if (onUpdateContact) {
+                onUpdateContact(newContact);
+              }
             } else {
               let updatedCt = { ...targetContact };
               let ctChanged = false;
@@ -1171,6 +1263,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 updatedCt.updatedAt = nowIso;
                 await safeSetDoc('contacts', targetContactId, updatedCt);
                 await CompanyRepository.saveContact(updatedCt);
+
+                if (setContacts) {
+                  setContacts((prev) => prev.map((c) => (c.id === targetContactId ? updatedCt : c)));
+                }
+                if (onUpdateContact) {
+                  onUpdateContact(updatedCt);
+                }
               }
             }
 
@@ -1252,6 +1351,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         await safeSetDoc('activity_logs', activeLog.id, updatedEntry);
         await safeSetDoc('call_logs', activeLog.id, updatedEntry);
         await CallLogRepository.save(updatedEntry);
+
+        if (setCallLogs) {
+          setCallLogs((prev) => prev.map((log) => (log.id === activeLog.id ? updatedEntry : log)));
+        }
+        if (onSave) {
+          onSave(updatedEntry);
+        }
       } else {
         const newId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         const newEntry: CallLogEntry = {
@@ -1261,6 +1367,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         await safeSetDoc('activity_logs', newId, newEntry);
         await safeSetDoc('call_logs', newId, newEntry);
         await CallLogRepository.save(newEntry);
+
+        if (setCallLogs) {
+          setCallLogs((prev) => [newEntry, ...prev.filter((log) => log.id !== newId)]);
+        }
+        if (onSave) {
+          onSave(newEntry);
+        }
       }
 
       // Auto-Schedule Follow-Up Log if next follow-up date is provided
@@ -1283,6 +1396,10 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         await safeSetDoc('activity_logs', scheduledLogId, scheduledEntry);
         await safeSetDoc('call_logs', scheduledLogId, scheduledEntry);
         await CallLogRepository.save(scheduledEntry);
+
+        if (setCallLogs) {
+          setCallLogs((prev) => [scheduledEntry, ...prev.filter((log) => log.id !== scheduledLogId)]);
+        }
       }
 
       // Auto-DNC Suppression Trigger
@@ -1295,6 +1412,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
             last_modified_by_name: userName,
             updatedAt: nowIso
           });
+          if (setContacts) {
+            setContacts((prev) =>
+              prev.map((c) =>
+                c.id === resolvedContactId
+                  ? { ...c, is_dnc: true, dnc_reason: 'Opt-Out from Activity Log', updatedAt: nowIso }
+                  : c
+              )
+            );
+          }
         }
         if (resolvedCompanyId) {
           await safeUpdateDoc('companies', resolvedCompanyId, {
@@ -1303,6 +1429,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
             last_modified_by_name: userName,
             updatedAt: nowIso
           });
+          if (setCompanies) {
+            setCompanies((prev) =>
+              prev.map((c) => (c.id === resolvedCompanyId ? { ...c, is_dnc: true, updatedAt: nowIso } : c))
+            );
+          }
         }
       }
 
@@ -1573,32 +1704,52 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       {crmTargetType === 'contact' ? (
                         <div>
                           {isAddingNewContact ? (
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <label className="block text-xs font-medium text-slate-300">New Contact Person Name</label>
+                                <label className="block text-xs font-semibold text-slate-300">New Contact Person Details</label>
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setIsAddingNewContact(false);
                                     setSelectedContactId('');
                                     setSelectedContactName('');
+                                    setNewContactDesignation('');
                                   }}
                                   className="text-[10px] text-blue-400 hover:underline cursor-pointer"
                                 >
                                   &larr; Select Existing Contact
                                 </button>
                               </div>
-                              <input
-                                type="text"
-                                value={selectedContactName}
-                                onChange={(e) => {
-                                  setSelectedContactName(e.target.value);
-                                  setSelectedContactId('');
-                                }}
-                                placeholder="Enter new contact person name..."
-                                className="w-full rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                                autoFocus
-                              />
+                              <div className="flex flex-col gap-2.5">
+                                <div>
+                                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                                    Full Name <span className="text-blue-400">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={selectedContactName}
+                                    onChange={(e) => {
+                                      setSelectedContactName(e.target.value);
+                                      setSelectedContactId('');
+                                    }}
+                                    placeholder="Enter new contact person name..."
+                                    className="w-full rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                                    autoFocus
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                                    Role / Designation
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={newContactDesignation}
+                                    onChange={(e) => setNewContactDesignation(e.target.value)}
+                                    placeholder="e.g. Sales Manager, CTO, Director..."
+                                    className="w-full rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           ) : (
                             <div>
@@ -1644,11 +1795,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                           )}
                         </div>
                       ) : (
-                        <div>
+                        <div className="col-span-full">
                           {isAddingNewCompanyLine ? (
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <label className="block text-xs font-medium text-amber-300">New Company Line</label>
+                                <label className="block text-xs font-semibold text-amber-300">New Company Line Details</label>
                                 <button
                                   type="button"
                                   onClick={() => setIsAddingNewCompanyLine(false)}
@@ -1657,22 +1808,32 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                   &larr; Select Saved Line
                                 </button>
                               </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <input
-                                  type="text"
-                                  value={selectedContactPhone}
-                                  onChange={(e) => setSelectedContactPhone(e.target.value)}
-                                  placeholder="Enter line phone number..."
-                                  className="w-full rounded-lg bg-slate-950 border border-amber-500/50 px-3 py-2 text-xs text-amber-100 font-mono placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400"
-                                  autoFocus
-                                />
-                                <input
-                                  type="text"
-                                  value={mainlineTag}
-                                  onChange={(e) => setMainlineTag(e.target.value)}
-                                  placeholder="Line tag (e.g. Front Desk)..."
-                                  className="w-full rounded-lg bg-slate-950 border border-amber-500/50 px-3 py-2 text-xs text-amber-100 placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400"
-                                />
+                              <div className="flex flex-col gap-2.5">
+                                <div>
+                                  <label className="block text-[11px] font-medium text-amber-200/80 mb-1">
+                                    Line Phone Number <span className="text-amber-400">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={selectedContactPhone}
+                                    onChange={(e) => setSelectedContactPhone(e.target.value)}
+                                    placeholder="Enter line phone number (e.g. +971 4 123 4567)..."
+                                    className="w-full rounded-lg bg-slate-950 border border-amber-500/50 px-3 py-2 text-xs text-amber-100 font-mono placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400"
+                                    autoFocus
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-medium text-amber-200/80 mb-1">
+                                    Line Tag / Label
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={mainlineTag}
+                                    onChange={(e) => setMainlineTag(e.target.value)}
+                                    placeholder="Line tag (e.g. Front Desk, Switchboard, Reception)..."
+                                    className="w-full rounded-lg bg-slate-950 border border-amber-500/50 px-3 py-2 text-xs text-amber-100 placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400"
+                                  />
+                                </div>
                               </div>
                             </div>
                           ) : (
@@ -1680,7 +1841,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                               <label className="block text-xs font-medium text-amber-300 mb-1.5">
                                 Company Line
                               </label>
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 w-full">
                                 <select
                                   value={selectedContactPhone}
                                   onChange={(e) => {
@@ -1734,9 +1895,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       {crmTargetType === 'contact' && (channel === 'Call' || channel === 'WhatsApp') && (
                         <div>
                           {isAddingNewContactPhone || isAddingNewContact ? (
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <label className="block text-xs font-medium text-slate-300">New Phone Number</label>
+                                <label className="block text-xs font-semibold text-slate-300">New Phone Number / Contact Detail</label>
                                 {!isAddingNewContact && (
                                   <button
                                     type="button"
@@ -1747,28 +1908,33 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                   </button>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1.5">
-                                <input
-                                  type="text"
-                                  value={selectedContactPhone}
-                                  onChange={(e) => setSelectedContactPhone(e.target.value)}
-                                  placeholder="Enter phone number..."
-                                  className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
-                                  autoFocus={isAddingNewContactPhone}
-                                />
-                                {selectedContactPhone.trim() && (
-                                  <a
-                                    href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
-                                    title={`Call ${selectedContactPhone}`}
-                                  >
-                                    <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                                    <span>Call</span>
-                                  </a>
-                                )}
+                              <div className="flex flex-col gap-2">
+                                <label className="block text-[11px] font-medium text-slate-300 mb-0.5">
+                                  Phone Number
+                                </label>
+                                <div className="flex items-center gap-1.5 w-full">
+                                  <input
+                                    type="text"
+                                    value={selectedContactPhone}
+                                    onChange={(e) => setSelectedContactPhone(e.target.value)}
+                                    placeholder="Enter phone number (e.g. +971 50 123 4567)..."
+                                    className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                                    autoFocus={isAddingNewContactPhone}
+                                  />
+                                  {selectedContactPhone.trim() && (
+                                    <a
+                                      href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                                      title={`Call ${selectedContactPhone}`}
+                                    >
+                                      <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                      <span>Call</span>
+                                    </a>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           ) : (
@@ -1822,7 +1988,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       )}
 
                       {channel === 'Email' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 col-span-full">
                           <div>
                             <label className="block text-xs font-medium text-slate-300 mb-1.5">
                               Email Address
@@ -1864,7 +2030,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       )}
 
                       {(channel === 'Meeting' || channel === 'Site Visit') && (
-                        <div>
+                        <div className="col-span-full">
                           <label className="block text-xs font-medium text-slate-300 mb-1.5">
                             Location / Meeting Link
                           </label>
