@@ -46,7 +46,8 @@ import {
   History,
   ChevronUp,
   Zap,
-  Sparkles
+  Sparkles,
+  MessageSquare
 } from 'lucide-react';
 import { isRecordOwner, canUserClickRecord, getSalespersonFullName } from '../utils/permissions';
 import { computeCanonicalName, generateCompanySearchTerms } from '../utils/defaults';
@@ -1755,23 +1756,52 @@ export default function CompanyModal({
                 <div className="space-y-1.5">
                   <span className="text-[10px] text-slate-400 block uppercase font-mono font-bold">Company Phone Numbers</span>
                   {getCompanyPhones(selectedCompany).length > 0 ? (
-                    getCompanyPhones(selectedCompany).map((ph, idx) => (
-                      <div key={idx} className="flex items-center space-x-2 text-xs">
-                        <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <a
-                          href={`tel:${ph.number}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-mono text-blue-700 hover:underline font-bold"
-                        >
-                          {ph.number}
-                        </a>
-                        <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
-                          {ph.label || 'Telephone'}
-                        </span>
-                      </div>
-                    ))
+                    getCompanyPhones(selectedCompany).map((ph, idx) => {
+                      const cleanNum = ph.number ? ph.number.replace(/[^0-9]/g, '') : '';
+                      return (
+                        <div key={idx} className="flex items-center justify-between text-xs py-0.5">
+                          <div className="flex items-center space-x-2">
+                            <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                            <a
+                              href={`tel:${ph.number}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="font-mono text-blue-700 hover:underline font-bold"
+                            >
+                              {ph.number}
+                            </a>
+                            <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
+                              {ph.label || 'Telephone'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <a
+                              href={`tel:${ph.number}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
+                              title="1-Click Dial"
+                            >
+                              <Phone className="w-3 h-3 text-blue-600" />
+                            </a>
+                            {cleanNum && (
+                              <a
+                                href={`https://wa.me/${cleanNum}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+                                title="1-Click WhatsApp"
+                              >
+                                <MessageSquare className="w-3 h-3 text-emerald-600" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
                   ) : (
                     <span className="text-xs text-slate-400 italic">No phone numbers saved.</span>
                   )}
@@ -1781,20 +1811,32 @@ export default function CompanyModal({
                   <span className="text-[10px] text-slate-400 block uppercase font-mono font-bold">Company Email Addresses</span>
                   {getCompanyEmails(selectedCompany).length > 0 ? (
                     getCompanyEmails(selectedCompany).map((em, idx) => (
-                      <div key={idx} className="flex items-center space-x-2 text-xs">
-                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <div key={idx} className="flex items-center justify-between text-xs py-0.5">
+                        <div className="flex items-center space-x-2 truncate">
+                          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <a
+                            href={`mailto:${em.email}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-mono text-slate-800 hover:underline truncate"
+                          >
+                            {em.email}
+                          </a>
+                          <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold shrink-0">
+                            {em.label || 'General'}
+                          </span>
+                        </div>
                         <a
                           href={`mailto:${em.email}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="font-mono text-slate-800 hover:underline"
+                          className="p-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition shrink-0 ml-1"
+                          title="1-Click Email"
                         >
-                          {em.email}
+                          <Mail className="w-3 h-3 text-purple-600" />
                         </a>
-                        <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
-                          {em.label || 'General'}
-                        </span>
                       </div>
                     ))
                   ) : (
@@ -1906,40 +1948,81 @@ export default function CompanyModal({
                         </div>
 
                         <div className="space-y-1 text-xs pt-2 border-t border-slate-200/60 w-full text-slate-600 font-sans">
-                          {cPhones.map((ph, pIdx) => (
-                            <div key={pIdx} className="flex items-center space-x-2">
-                              <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                              <a
-                                href={`tel:${ph.number}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="font-mono text-blue-700 hover:underline font-semibold"
-                              >
-                                {ph.number}
-                              </a>
-                              <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
-                                {ph.label}
-                              </span>
-                            </div>
-                          ))}
+                          {cPhones.map((ph, pIdx) => {
+                            const cleanNum = ph.number ? ph.number.replace(/[^0-9]/g, '') : '';
+                            return (
+                              <div key={pIdx} className="flex items-center justify-between text-xs py-0.5">
+                                <div className="flex items-center space-x-2">
+                                  <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                  <a
+                                    href={`tel:${ph.number}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="font-mono text-blue-700 hover:underline font-semibold"
+                                  >
+                                    {ph.number}
+                                  </a>
+                                  <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
+                                    {ph.label}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <a
+                                    href={`tel:${ph.number}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
+                                    title="1-Click Dial"
+                                  >
+                                    <Phone className="w-3 h-3 text-blue-600" />
+                                  </a>
+                                  {cleanNum && (
+                                    <a
+                                      href={`https://wa.me/${cleanNum}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+                                      title="1-Click WhatsApp"
+                                    >
+                                      <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                           {cEmails.map((em, eIdx) => (
-                            <div key={eIdx} className="flex items-center space-x-2 overflow-hidden">
-                              <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <div key={eIdx} className="flex items-center justify-between text-xs py-0.5">
+                              <div className="flex items-center space-x-2 overflow-hidden">
+                                <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <a
+                                  href={`mailto:${em.email}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="truncate text-slate-800 hover:underline"
+                                >
+                                  {em.email}
+                                </a>
+                                {em.label && (
+                                  <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-500 rounded text-[9px] font-semibold shrink-0">
+                                    {em.label}
+                                  </span>
+                                )}
+                              </div>
                               <a
                                 href={`mailto:${em.email}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="truncate text-slate-800 hover:underline"
+                                className="p-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition shrink-0 ml-1"
+                                title="1-Click Email"
                               >
-                                {em.email}
+                                <Mail className="w-3 h-3 text-purple-600" />
                               </a>
-                              {em.label && (
-                                <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-500 rounded text-[9px] font-semibold shrink-0">
-                                  {em.label}
-                                </span>
-                              )}
                             </div>
                           ))}
                         </div>

@@ -277,6 +277,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [newContactDesignation, setNewContactDesignation] = useState<string>('');
   const [selectedContactPhone, setSelectedContactPhone] = useState<string>(contactPhone || '');
   const [selectedContactEmail, setSelectedContactEmail] = useState<string>('');
+  const [isAddingNewContact, setIsAddingNewContact] = useState<boolean>(false);
+  const [isAddingNewPhone, setIsAddingNewPhone] = useState<boolean>(false);
   const [selectedEnquiryId, setSelectedEnquiryId] = useState<string>(enquiryId || '');
   const [selectedEnquiryQuoteRef, setSelectedEnquiryQuoteRef] = useState<string>('');
   const [companySearchQuery, setCompanySearchQuery] = useState<string>('');
@@ -571,6 +573,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setSelectedContactEmail('');
     setSelectedEnquiryId('');
     setSelectedEnquiryQuoteRef('');
+    setIsAddingNewContact(false);
+    setIsAddingNewPhone(false);
   };
 
   const availableCompanyContacts = useMemo(() => {
@@ -773,6 +777,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setSelectedContactPhone(contactPhone || '');
     setSelectedEnquiryId(enquiryId || '');
     setSelectedEnquiryQuoteRef('');
+    setIsAddingNewContact(false);
+    setIsAddingNewPhone(false);
 
     if (isListening && recognitionRef.current) {
       recognitionRef.current.stop();
@@ -1510,39 +1516,71 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {crmTargetType === 'contact' ? (
                         <div>
-                          <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                            Contact Person
-                          </label>
-                          <input
-                            type="text"
-                            list="crm-contact-suggestions"
-                            value={selectedContactName}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setSelectedContactName(val);
-                              const matched = availableCompanyContacts.find((c) => (c.full_name || '').toLowerCase() === val.toLowerCase());
-                              if (matched) {
-                                setSelectedContactId(matched.id);
-                                const phones = getContactPhones(matched);
-                                if (matched.mobile || matched.landline || phones[0]?.number) {
-                                  setSelectedContactPhone(matched.mobile || matched.landline || phones[0]?.number || '');
-                                }
-                                if (matched.email) setSelectedContactEmail(matched.email);
-                                setNewContactDesignation(matched.designation || '');
-                              } else {
-                                setSelectedContactId('');
-                              }
-                            }}
-                            placeholder="Type or select Contact Person..."
-                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                          />
-                          <datalist id="crm-contact-suggestions">
-                            {availableCompanyContacts.map((c, idx) => (
-                              <option key={c.id ? `${c.id}_${idx}` : `cnt_${idx}`} value={c.full_name}>
-                                {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}
-                              </option>
-                            ))}
-                          </datalist>
+                          {isAddingNewContact ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-xs font-medium text-slate-300">New Contact Name</label>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsAddingNewContact(false)}
+                                  className="text-[10px] text-blue-400 hover:underline cursor-pointer"
+                                >
+                                  &larr; Select Existing
+                                </button>
+                              </div>
+                              <input
+                                type="text"
+                                value={selectedContactName}
+                                onChange={(e) => {
+                                  setSelectedContactName(e.target.value);
+                                  setSelectedContactId('');
+                                }}
+                                placeholder="Enter Contact Person Full Name..."
+                                className="w-full rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                                autoFocus
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                                Contact Person
+                              </label>
+                              <select
+                                value={selectedContactId || (selectedContactName ? 'CUSTOM' : '')}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === 'ADD_NEW') {
+                                    setIsAddingNewContact(true);
+                                    setSelectedContactId('');
+                                    setSelectedContactName('');
+                                    setSelectedContactPhone('');
+                                    setSelectedContactEmail('');
+                                  } else if (val && val !== 'CUSTOM') {
+                                    setIsAddingNewContact(false);
+                                    handleSelectContact(val);
+                                  } else if (!val) {
+                                    setIsAddingNewContact(false);
+                                    setSelectedContactId('');
+                                    setSelectedContactName('');
+                                    setSelectedContactPhone('');
+                                    setSelectedContactEmail('');
+                                  }
+                                }}
+                                className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                              >
+                                <option value="">-- Select Contact Person --</option>
+                                {availableCompanyContacts.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}
+                                  </option>
+                                ))}
+                                {selectedContactName && !availableCompanyContacts.some((c) => c.id === selectedContactId) && (
+                                  <option value="CUSTOM">{selectedContactName} (Custom/Unsaved)</option>
+                                )}
+                                <option value="ADD_NEW" className="font-bold text-blue-400 bg-slate-900">+ Add New Contact</option>
+                              </select>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div>
@@ -1571,61 +1609,115 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       {/* Dynamic Interaction Fields based on selected Channel */}
                       {(channel === 'Call' || channel === 'WhatsApp') && (
                         <div>
-                          <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                            Phone Number
-                          </label>
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="text"
-                              list="crm-phone-suggestions"
-                              value={selectedContactPhone}
-                              onChange={(e) => setSelectedContactPhone(e.target.value)}
-                              placeholder="Type or select Phone..."
-                              className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
-                            />
-                            {selectedContactPhone.trim() && (
-                              <a
-                                href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
-                                title={`Call ${selectedContactPhone}`}
-                              >
-                                <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                                <span>Call</span>
-                              </a>
-                            )}
-                          </div>
-                          <datalist id="crm-phone-suggestions">
-                            {(() => {
-                              const selComp = companies.find((c) => c.id === selectedCompanyId);
-                              const compPhones = selComp ? getCompanyPhones(selComp) : [];
-                              const contactPhones = availableCompanyContacts.flatMap((c) => {
-                                const cPhones = getContactPhones(c);
-                                const list: Array<{ number: string; label: string }> = [];
-                                if (c.mobile) list.push({ number: c.mobile, label: `${c.full_name} (Mobile)` });
-                                if (c.landline) list.push({ number: c.landline, label: `${c.full_name} (Landline)` });
-                                cPhones.forEach(p => list.push({ number: p.number, label: `${c.full_name} (${p.label || 'Direct'})` }));
-                                return list;
-                              });
-                              const allPhones = [
-                                ...compPhones.map(p => ({ number: p.number, label: `Company ${p.label || 'Main'}` })),
-                                ...contactPhones
-                              ];
-                              const seen = new Set<string>();
-                              const unique = allPhones.filter(p => {
-                                if (!p.number || seen.has(p.number)) return false;
-                                seen.add(p.number);
-                                return true;
-                              });
-                              return unique.map((p, idx) => (
-                                <option key={`p_${idx}`} value={p.number}>
-                                  {p.number} - {p.label}
-                                </option>
-                              ));
-                            })()}
-                          </datalist>
+                          {isAddingNewPhone ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-xs font-medium text-slate-300">New Phone Line / Number</label>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsAddingNewPhone(false)}
+                                  className="text-[10px] text-blue-400 hover:underline cursor-pointer"
+                                >
+                                  &larr; Select Line
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  value={selectedContactPhone}
+                                  onChange={(e) => setSelectedContactPhone(e.target.value)}
+                                  placeholder="Enter Phone Number..."
+                                  className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                                  autoFocus
+                                />
+                                {selectedContactPhone.trim() && (
+                                  <a
+                                    href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                                    title={`Call ${selectedContactPhone}`}
+                                  >
+                                    <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                    <span>Call</span>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                                Phone Number / Line
+                              </label>
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={selectedContactPhone}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === 'ADD_NEW') {
+                                      setIsAddingNewPhone(true);
+                                      setSelectedContactPhone('');
+                                    } else {
+                                      setIsAddingNewPhone(false);
+                                      setSelectedContactPhone(val);
+                                    }
+                                  }}
+                                  className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono cursor-pointer"
+                                >
+                                  <option value="">-- Select Phone Line --</option>
+                                  {(() => {
+                                    const selComp = companies.find((c) => c.id === selectedCompanyId);
+                                    const compPhones = selComp ? getCompanyPhones(selComp) : [];
+                                    const contactPhones = availableCompanyContacts.flatMap((c) => {
+                                      const cPhones = getContactPhones(c);
+                                      const list: Array<{ number: string; label: string }> = [];
+                                      if (c.mobile) list.push({ number: c.mobile, label: `${c.full_name} (Mobile)` });
+                                      if (c.landline) list.push({ number: c.landline, label: `${c.full_name} (Landline)` });
+                                      cPhones.forEach(p => list.push({ number: p.number, label: `${c.full_name} (${p.label || 'Direct'})` }));
+                                      return list;
+                                    });
+                                    const allPhones = [
+                                      ...compPhones.map(p => ({ number: p.number, label: `Company Line (${p.label || 'Main'})` })),
+                                      ...contactPhones
+                                    ];
+                                    const seen = new Set<string>();
+                                    const unique = allPhones.filter(p => {
+                                      if (!p.number || seen.has(p.number)) return false;
+                                      seen.add(p.number);
+                                      return true;
+                                    });
+                                    return (
+                                      <>
+                                        {unique.map((p, idx) => (
+                                          <option key={`p_${idx}`} value={p.number}>
+                                            {p.number} — {p.label}
+                                          </option>
+                                        ))}
+                                        {selectedContactPhone && !unique.some((p) => p.number === selectedContactPhone) && (
+                                          <option value={selectedContactPhone}>{selectedContactPhone} (Current Line)</option>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
+                                  <option value="ADD_NEW" className="font-bold text-blue-400 bg-slate-900">+ Add New Number/Line</option>
+                                </select>
+                                {selectedContactPhone.trim() && (
+                                  <a
+                                    href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                                    title={`Call ${selectedContactPhone}`}
+                                  >
+                                    <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                    <span>Call</span>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Company-Level Phone Selector Pills */}
                           {(() => {
@@ -1639,7 +1731,10 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                   <button
                                     key={`cp_${idx}`}
                                     type="button"
-                                    onClick={() => setSelectedContactPhone(p.number)}
+                                    onClick={() => {
+                                      setIsAddingNewPhone(false);
+                                      setSelectedContactPhone(p.number);
+                                    }}
                                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 hover:bg-blue-950/80 text-blue-200 hover:text-white border border-slate-800 hover:border-blue-500/50 shadow-2xs transition cursor-pointer group"
                                     title={`Set Phone to ${p.label || 'Front Desk'}: ${p.number}`}
                                   >

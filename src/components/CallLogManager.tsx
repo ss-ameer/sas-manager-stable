@@ -1511,8 +1511,14 @@ export default function CallLogManager({
                         )}
 
                         <button
-                          onClick={() => setSelectedDetailEntry(item)}
-                          className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition flex items-center justify-center bg-white"
+                          onClick={() => {
+                            if (onOpenActivityDrawer) {
+                              onOpenActivityDrawer({ existingLog: item });
+                            } else {
+                              setSelectedDetailEntry(item);
+                            }
+                          }}
+                          className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition flex items-center justify-center bg-white cursor-pointer"
                           title="View Details"
                         >
                           <Eye className="w-4 h-4" />
@@ -1657,102 +1663,93 @@ export default function CallLogManager({
             </div>
           </div>
 
-          {/* Call History Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-100 text-slate-700 uppercase tracking-wider font-semibold text-[10px] border-b border-slate-200 select-none">
-                <tr>
-                  <th className="p-3.5 w-10 text-center">
+          {/* Call History Card List */}
+          <div className="space-y-3">
+            {/* Select All Bar */}
+            <div className="flex items-center justify-between px-2 text-xs font-semibold text-slate-500">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={
+                    filteredHistoryLogs.length > 0 &&
+                    filteredHistoryLogs.every((l) => l.id && selectedLogIds.includes(l.id))
+                  }
+                  onChange={(e) => {
+                    const allIds = filteredHistoryLogs.map((l) => l.id!).filter(Boolean);
+                    if (e.target.checked) {
+                      setSelectedLogIds((prev) => Array.from(new Set([...prev, ...allIds])));
+                    } else {
+                      setSelectedLogIds((prev) => prev.filter((id) => !allIds.includes(id)));
+                    }
+                  }}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <span>Select All ({filteredHistoryLogs.length})</span>
+              </label>
+              <span>Showing {filteredHistoryLogs.length} interaction logs</span>
+            </div>
+
+            {filteredHistoryLogs.map((log) => {
+              const isSuppressed = isEntrySuppressedByDNC(log);
+              const handledBy = log.handled_by_team_member_name || log.logged_by;
+              const type = (log.interaction_type || 'call').toLowerCase();
+              const isSelected = !!(log.id && selectedLogIds.includes(log.id));
+
+              return (
+                <div
+                  key={log.id}
+                  className={`p-5 rounded-2xl border transition flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                    isSelected
+                      ? 'bg-blue-50/50 border-blue-300 dark:bg-blue-950/20 dark:border-blue-800'
+                      : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
+                  }`}
+                >
+                  <div className="flex items-start space-x-4">
                     <input
                       type="checkbox"
-                      checked={
-                        filteredHistoryLogs.length > 0 &&
-                        filteredHistoryLogs.every((l) => l.id && selectedLogIds.includes(l.id))
-                      }
-                      onChange={(e) => {
-                        const allIds = filteredHistoryLogs.map((l) => l.id!).filter(Boolean);
-                        if (e.target.checked) {
-                          setSelectedLogIds((prev) => Array.from(new Set([...prev, ...allIds])));
+                      checked={isSelected}
+                      onChange={(chk) => {
+                        if (!log.id) return;
+                        if (chk.target.checked) {
+                          setSelectedLogIds((prev) => [...prev, log.id!]);
                         } else {
-                          setSelectedLogIds((prev) => prev.filter((id) => !allIds.includes(id)));
+                          setSelectedLogIds((prev) => prev.filter((id) => id !== log.id));
                         }
                       }}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      title="Select all filtered interaction records"
+                      className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
                     />
-                  </th>
-                  <th className="p-3.5">Ref ID & Mode</th>
-                  <th className="p-3.5">Date & Team Member</th>
-                  <th className="p-3.5">Company & Contact</th>
-                  <th className="p-3.5">Phone / Email</th>
-                  <th className="p-3.5">Status & Outcome</th>
-                  <th className="p-3.5">Requirement / Notes</th>
-                  <th className="p-3.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredHistoryLogs.map((log) => {
-                  const isSuppressed = isEntrySuppressedByDNC(log);
-                  const handledBy = log.handled_by_team_member_name || log.logged_by;
-                  const type = log.interaction_type || 'call';
-                  const isSelected = !!(log.id && selectedLogIds.includes(log.id));
 
-                  return (
-                    <tr
-                      key={log.id}
-                      className={`hover:bg-slate-50 transition ${isSelected ? 'bg-blue-50/50' : ''}`}
+                    <div
+                      className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 font-bold text-white shadow ${
+                        type.includes('email')
+                          ? 'bg-purple-600'
+                          : type.includes('message') || type.includes('whatsapp')
+                          ? 'bg-emerald-600'
+                          : type.includes('meeting') || type.includes('visit')
+                          ? 'bg-amber-600'
+                          : 'bg-blue-600'
+                      }`}
                     >
-                      <td className="p-3.5 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(chk) => {
-                            if (!log.id) return;
-                            if (chk.target.checked) {
-                              setSelectedLogIds((prev) => [...prev, log.id!]);
-                            } else {
-                              setSelectedLogIds((prev) => prev.filter((id) => id !== log.id));
-                            }
-                          }}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                      </td>
-                      <td className="p-3.5">
-                        <div className="flex items-center space-x-2">
-                          <div className={`p-1.5 rounded-lg border flex items-center justify-center shrink-0 ${
-                            type.includes('email') ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                            type.includes('message') || type.includes('whatsapp') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                            type.includes('meeting') || type.includes('visit') ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                            'bg-blue-50 text-blue-700 border-blue-200'
-                          }`}>
-                            {type.includes('email') ? <Mail className="w-3.5 h-3.5" /> :
-                             type.includes('message') || type.includes('whatsapp') ? <MessageSquare className="w-3.5 h-3.5" /> :
-                             type.includes('meeting') || type.includes('visit') ? <Calendar className="w-3.5 h-3.5" /> :
-                             <PhoneCall className="w-3.5 h-3.5" />}
-                          </div>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-100 text-blue-700 border border-slate-200 inline-block">
-                              {getReferenceId('CL', log, callLogs)}
-                            </span>
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase w-fit ${
-                              type.includes('email') ? 'bg-purple-100 text-purple-800' :
-                              type.includes('message') || type.includes('whatsapp') ? 'bg-emerald-100 text-emerald-800' :
-                              type.includes('meeting') || type.includes('visit') ? 'bg-amber-100 text-amber-800' :
-                              'bg-blue-100 text-blue-800'
-                            }`}>
-                              {type.includes('email') ? 'Email' : type.includes('message') ? 'Msg' : type.includes('meeting') ? 'Meeting' : 'Call'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="font-bold text-slate-900 dark:text-slate-100">{formatActivityDate(log.date)}</div>
-                        <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">By: <span className="font-bold text-slate-900 dark:text-slate-200">{handledBy}</span></div>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1.5">
-                          {log.company_name || log.company_id ? (
+                      {type.includes('email') ? (
+                        <Mail className="w-5 h-5 text-white" />
+                      ) : type.includes('message') || type.includes('whatsapp') ? (
+                        <MessageSquare className="w-5 h-5 text-white" />
+                      ) : type.includes('meeting') || type.includes('visit') ? (
+                        <Calendar className="w-5 h-5 text-white" />
+                      ) : (
+                        <PhoneCall className="w-5 h-5 text-white" />
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-slate-700">
+                          {getReferenceId('CL', log, callLogs)}
+                        </span>
+                        <span className="font-black text-slate-900 dark:text-slate-100 text-base">
+                          {log.company_id || log.company_name ? (
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (log.company_id) {
@@ -1765,181 +1762,155 @@ export default function CallLogManager({
                                   else triggerToast(`Company profile not found for ${log.company_name}`, 'info');
                                 }
                               }}
-                              className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1"
+                              className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left font-bold"
                             >
-                              <span>{getResolvedCompanyName(log)}</span>
-                              <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                              {getResolvedCompanyName(log)}
                             </button>
-                          ) : log.unlinked_name ? (
-                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold">
-                              <User className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                              <span>{log.unlinked_name}</span>
-                              <span className="text-[9px] text-amber-600 dark:text-amber-400 font-normal">(Unsaved Lead)</span>
-                            </div>
                           ) : (
-                            <span className="text-slate-400 italic text-xs">(Unassigned)</span>
+                            getResolvedCompanyName(log)
                           )}
-                          {isSuppressed && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-600 text-white">
-                              DNC
-                            </span>
-                          )}
-                        </div>
-                        {(() => {
-                          const cont = log.contact_id ? contactMap.get(log.contact_id) : null;
-                          const resolvedContactName = cont?.full_name || log.contact_name;
-                          return resolvedContactName ? (
-                            <div className="text-[11px] text-slate-600 dark:text-slate-400">Attn: {resolvedContactName}</div>
-                          ) : log.unlinked_contact_info && !log.unlinked_name ? (
-                            <div className="text-[11px] text-slate-500 font-mono">{log.unlinked_contact_info}</div>
-                          ) : null;
-                        })()}
-                        {log.geography && (
-                          <div className="text-[10px] text-slate-400 font-medium">{log.geography}</div>
+                        </span>
+
+                        {log.contact_name && (
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                            Attn: {log.contact_name}
+                          </span>
                         )}
-                      </td>
-                      <td className="p-3.5">
-                        {log.interaction_type === 'email' ? (
-                          <div className="space-y-0.5 font-mono text-[11px]">
-                            {log.email_address ? (
-                              <a
-                                href={`mailto:${log.email_address}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-purple-700 dark:text-purple-400 font-bold hover:underline block truncate max-w-[140px]"
-                              >
-                                {log.email_address}
-                              </a>
-                            ) : log.unlinked_contact_info?.includes('@') ? (
-                              <a
-                                href={`mailto:${log.unlinked_contact_info}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-purple-700 dark:text-purple-400 font-bold hover:underline block truncate max-w-[140px]"
-                              >
-                                {log.unlinked_contact_info}
-                              </a>
-                            ) : (
-                              <span className="text-purple-600 dark:text-purple-400 font-semibold">Email Log</span>
-                            )}
-                          </div>
-                        ) : log.interaction_type === 'message' ? (
-                          <div className="space-y-0.5 font-mono text-[11px]">
-                            <span className="text-emerald-700 dark:text-emerald-400 font-bold block">{log.message_platform || 'WhatsApp'}</span>
-                            {(log.contact_phone || log.unlinked_contact_info) && (
-                              <span className="text-slate-500 text-[10px]">{log.contact_phone || log.unlinked_contact_info}</span>
-                            )}
-                          </div>
-                        ) : (log.contact_phone || log.unlinked_contact_info) ? (
+
+                        {isSuppressed && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white tracking-wider">
+                            DNC
+                          </span>
+                        )}
+                        {renderStatusBadge(log.status)}
+                        {log.outcome && renderOutcomeBadge(log.outcome)}
+                      </div>
+
+                      <div className="flex items-center space-x-3 pt-0.5 text-xs flex-wrap gap-y-1">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                          {formatActivityDate(log.date)} &bull; By <span className="font-bold text-slate-900 dark:text-slate-100">{handledBy}</span>
+                        </span>
+
+                        {log.contact_phone ? (
                           <a
-                            href={`tel:${log.contact_phone || log.unlinked_contact_info}`}
+                            href={`tel:${log.contact_phone}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="font-mono text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                            className="inline-flex items-center space-x-1 font-mono font-bold text-blue-700 dark:text-blue-300 hover:underline bg-blue-50 dark:bg-blue-950/80 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 text-[11px]"
                           >
-                            {log.contact_phone || log.unlinked_contact_info}
+                            <PhoneCall className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                            <span>{log.contact_phone}</span>
                           </a>
-                        ) : (
-                          <span className="text-slate-400 italic">No phone</span>
-                        )}
-                      </td>
-                      <td className="p-3.5">
-                        <div className="space-y-1">
-                          {renderStatusBadge(log.status)}
-                          {log.outcome && <div>{renderOutcomeBadge(log.outcome)}</div>}
-                        </div>
-                      </td>
-                      <td className="p-3.5 text-slate-600 dark:text-slate-300 max-w-xs">
-                        {log.interaction_type === 'email' && log.email_subject && (
-                          <div className="font-bold text-purple-900 dark:text-purple-300 text-[11px] mb-0.5 truncate">
-                            Subj: {log.email_subject}
-                          </div>
-                        )}
-                        <p className="line-clamp-2 text-xs leading-snug">
-                          {log.requirement_notes ? (
-                            log.requirement_notes.length > 90
-                              ? `${log.requirement_notes.substring(0, 90)}...`
-                              : log.requirement_notes
-                          ) : '—'}
-                        </p>
-                        {log.next_followup_date && (
-                          <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-1">
-                            Next Follow-up: {formatActivityDate(log.next_followup_date)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3.5 text-right">
-                        <div className="flex items-center justify-end space-x-2">
-                          {canUserClickRecord(user, log, salespersons) ? (
-                            <>
-                              <button
-                                onClick={() => setSelectedDetailEntry(log)}
-                                className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition flex items-center space-x-1"
-                                title="View Full Call Record"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-blue-600" />
-                                <span>View</span>
-                              </button>
-                              {canEditOrDeleteRecord(user, log) && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedDetailEntry(log);
-                                  }}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition"
-                                  title="Edit Log"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              {canEditOrDeleteRecord(user, log) && (
-                                <button
-                                  onClick={async () => {
-                                    if (log.id) {
-                                      const confirmDelete = await askConfirm(
-                                        'Delete Call Log Entry',
-                                        'Are you sure you want to delete this call log entry? This action cannot be undone.',
-                                        true,
-                                        'Delete Entry'
-                                      );
-                                      if (confirmDelete) {
-                                        await safeDeleteDoc('call_logs', log.id);
-                                        if (setCallLogs) {
-                                          setCallLogs((prev) => prev.filter((x) => x.id !== log.id));
-                                        }
-                                        triggerToast('Call log deleted', 'info');
-                                      }
-                                    }
-                                  }}
-                                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 border border-slate-200 transition"
-                                  title="Delete Log"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-[10px] text-slate-400 font-semibold px-2 py-0.5 bg-slate-100 rounded border border-slate-200">
-                              Restricted View
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        ) : log.email_address ? (
+                          <a
+                            href={`mailto:${log.email_address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center space-x-1 font-mono font-bold text-purple-700 dark:text-purple-300 hover:underline bg-purple-50 dark:bg-purple-950/80 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800 text-[11px]"
+                          >
+                            <Mail className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                            <span>{log.email_address}</span>
+                          </a>
+                        ) : null}
 
-                {filteredHistoryLogs.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-center text-slate-400 italic">
-                      No call log entries match the search or filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                        {log.geography && (
+                          <span className="text-[11px] text-slate-500 font-medium flex items-center space-x-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{log.geography}</span>
+                          </span>
+                        )}
+
+                        {log.enquiry_quote_ref && (
+                          <span className="text-[11px] text-purple-700 dark:text-purple-300 font-bold bg-purple-50 dark:bg-purple-950/80 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                            Quote: {log.enquiry_quote_ref}
+                          </span>
+                        )}
+                      </div>
+
+                      {log.requirement_notes && (
+                        <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 pt-1 font-sans">
+                          {log.requirement_notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-200 dark:border-slate-800">
+                    {canUserClickRecord(user, log, salespersons) ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onOpenActivityDrawer) {
+                              onOpenActivityDrawer({ existingLog: log });
+                            } else {
+                              setSelectedDetailEntry(log);
+                            }
+                          }}
+                          className="p-2.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition flex items-center justify-center bg-white dark:bg-slate-900 cursor-pointer"
+                          title="View Details in Activity Drawer"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        {canEditOrDeleteRecord(user, log) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDetailEntry(log);
+                            }}
+                            className="p-2.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition flex items-center justify-center bg-white dark:bg-slate-900 cursor-pointer"
+                            title="Edit Call Log in Detail Modal"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {canEditOrDeleteRecord(user, log) && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (log.id) {
+                                const confirmDelete = await askConfirm(
+                                  'Delete Call Log Entry',
+                                  'Are you sure you want to delete this call log entry? This action cannot be undone.',
+                                  true,
+                                  'Delete Entry'
+                                );
+                                if (confirmDelete) {
+                                  await safeDeleteDoc('call_logs', log.id);
+                                  if (setCallLogs) {
+                                    setCallLogs((prev) => prev.filter((x) => x.id !== log.id));
+                                  }
+                                  triggerToast('Call log deleted', 'info');
+                                }
+                              }
+                            }}
+                            className="p-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-slate-200 dark:border-slate-700 rounded-xl transition flex items-center justify-center bg-white dark:bg-slate-900 cursor-pointer"
+                            title="Delete Log"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
+                        Restricted View
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredHistoryLogs.length === 0 && (
+              <div className="p-8 text-center text-slate-400 italic bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-800">
+                No call log entries match the search or filters.
+              </div>
+            )}
           </div>
         </div>
       )}
