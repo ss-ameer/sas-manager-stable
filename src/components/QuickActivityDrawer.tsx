@@ -889,14 +889,6 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         'Site Visit': 'call'
       };
 
-      const isDncOptOut =
-        isDnc ||
-        status === ('dnc_opt_out' as any) ||
-        outcome === 'dnc_opt_out' ||
-        outcome.toLowerCase().includes('dnc') ||
-        outcome.toLowerCase().includes('opt-out') ||
-        outcome.toLowerCase().includes('opt_out');
-
       const isInvalidNumberCall =
         channel === 'Call' &&
         (status === 'Invalid Number' ||
@@ -904,7 +896,20 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
          status?.toLowerCase().includes('invalid number') ||
          status?.toLowerCase() === 'invalid' ||
          outcome === 'Dead / Invalid Number' ||
-         outcome?.toLowerCase().includes('invalid number'));
+         outcome === 'Wrong Number / Invalid' ||
+         outcome?.toLowerCase().includes('invalid number') ||
+         outcome?.toLowerCase().includes('invalid'));
+
+      const isDncOptOut =
+        !isInvalidNumberCall &&
+        (isDnc ||
+        status === ('dnc_opt_out' as any) ||
+        outcome === 'dnc_opt_out' ||
+        (Boolean(outcome) && (
+          outcome.toLowerCase().includes('dnc') ||
+          outcome.toLowerCase().includes('opt-out') ||
+          outcome.toLowerCase().includes('opt_out')
+        )));
 
       const userUid = currentUserUid || user?.uid || '';
       const userName = currentUserName || user?.full_name || user?.username || user?.email || currentUserInitials || 'System';
@@ -1354,18 +1359,18 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
       // Universal post-resolution auto-flagging for Invalid Number calls
       if (isInvalidNumberCall) {
-        const dialedNum = (resolvedContactPhone || selectedContactPhone || '').trim();
-        if (dialedNum) {
+        const interactionPhone = (resolvedContactPhone || selectedContactPhone || unlinkedContactInfo || '').trim();
+        if (interactionPhone) {
           if (resolvedContactId) {
             const targetCt = (contacts || []).find((c) => c.id === resolvedContactId);
             if (targetCt) {
               const currentRestrictions = targetCt.restricted_lines || {};
-              if (currentRestrictions[dialedNum] !== 'Invalid') {
+              if (currentRestrictions[interactionPhone] !== 'Invalid') {
                 const updatedCt: Contact = {
                   ...targetCt,
                   restricted_lines: {
                     ...currentRestrictions,
-                    [dialedNum]: 'Invalid'
+                    [interactionPhone]: 'Invalid'
                   },
                   updatedAt: nowIso
                 };
@@ -1385,12 +1390,12 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
             const targetComp = (companies || []).find((c) => c.id === resolvedCompanyId);
             if (targetComp) {
               const currentRestrictions = targetComp.restricted_lines || {};
-              if (currentRestrictions[dialedNum] !== 'Invalid') {
+              if (currentRestrictions[interactionPhone] !== 'Invalid') {
                 const updatedComp: Company = {
                   ...targetComp,
                   restricted_lines: {
                     ...currentRestrictions,
-                    [dialedNum]: 'Invalid'
+                    [interactionPhone]: 'Invalid'
                   },
                   updatedAt: nowIso
                 };

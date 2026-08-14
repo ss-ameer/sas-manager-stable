@@ -527,6 +527,55 @@ export default function CallLogManager({
     return entry.company_name || entry.unlinked_name || 'Direct Client';
   };
 
+  // Helper to render live Company Temperature / DNC pill for call log items
+  const renderCompanyTempPill = (entry: Partial<CallLogEntry>) => {
+    const liveCompany = entry.company_id
+      ? companyMap.get(entry.company_id) || (companies || []).find((c) => c.id === entry.company_id)
+      : null;
+    const liveContact = entry.contact_id
+      ? contactMap.get(entry.contact_id) || (contacts || []).find((c) => c.id === entry.contact_id)
+      : null;
+
+    const isDnc = liveCompany
+      ? Boolean(liveCompany.is_dnc || liveCompany.temperature === 'DNC')
+      : Boolean((entry as any).is_dnc || (entry as any).company_is_dnc || (entry as any).dnc);
+
+    const isContactDnc = liveContact ? Boolean(liveContact.is_dnc) : false;
+
+    const temperature = liveCompany
+      ? (liveCompany.temperature || 'Cold')
+      : ((entry as any).company_temperature || (entry as any).temperature || 'Cold');
+
+    if (isDnc || isContactDnc || temperature === 'DNC') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-950 text-rose-200 border border-rose-600 ring-1 ring-rose-500 shadow-xs tracking-wider">
+          DNC 🚫
+        </span>
+      );
+    }
+
+    const tempLower = (temperature || 'Cold').toLowerCase();
+    if (tempLower === 'hot') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white border border-rose-600 shadow-xs">
+          Hot 🔥
+        </span>
+      );
+    }
+    if (tempLower === 'warm') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 border border-amber-600 shadow-xs">
+          Warm 🌤️
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500 text-slate-950 border border-cyan-600 shadow-xs">
+        Cold ❄️
+      </span>
+    );
+  };
+
   // Date helper
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -1430,11 +1479,12 @@ export default function CallLogManager({
                     </div>
 
                     <div className="space-y-1">
-                      <div className="flex items-center space-x-2 flex-wrap">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                         <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-slate-700">
                           {getReferenceId('CL', item, callLogs)}
                         </span>
                         <span className="font-black text-slate-900 dark:text-slate-100 text-base">{getResolvedCompanyName(item)}</span>
+                        {renderCompanyTempPill(item)}
                         {item.contact_name && (
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
                             Attn: {item.contact_name}
@@ -1777,11 +1827,7 @@ export default function CallLogManager({
                           </span>
                         )}
 
-                        {isSuppressed && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white tracking-wider">
-                            DNC
-                          </span>
-                        )}
+                        {renderCompanyTempPill(log)}
                         {renderStatusBadge(log.status)}
                         {log.outcome && renderOutcomeBadge(log.outcome)}
                       </div>

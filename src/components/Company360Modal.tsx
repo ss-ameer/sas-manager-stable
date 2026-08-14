@@ -251,7 +251,7 @@ export default function Company360Modal({
 
                   return (
                     <span key={idx} className="flex items-center space-x-1.5 font-mono">
-                      <Phone className={`w-3.5 h-3.5 ${isRestricted ? 'text-rose-400' : 'text-blue-400'}`} />
+                      <Phone className={`w-3.5 h-3.5 ${isRestricted ? (restriction === 'Invalid' ? 'text-amber-400' : 'text-rose-400') : 'text-blue-400'}`} />
                       {isRestricted ? (
                         <span className="font-bold text-slate-400 line-through cursor-not-allowed" title={`Restricted line (${badgeText})`}>
                           {phoneVal}
@@ -271,7 +271,11 @@ export default function Company360Modal({
                         {ph.label || 'Landline'}
                       </span>
                       {isRestricted && (
-                        <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400 font-sans uppercase">
+                        <span className={`ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold font-sans uppercase border ${
+                          restriction === 'Invalid'
+                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                            : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                        }`}>
                           {badgeText}
                         </span>
                       )}
@@ -538,7 +542,7 @@ export default function Company360Modal({
                             return (
                               <div key={pIdx} className="flex items-center justify-between text-blue-700 font-mono py-0.5">
                                 <div className="flex items-center space-x-2">
-                                  <Phone className={`w-3.5 h-3.5 shrink-0 ${isRestricted ? 'text-rose-500' : 'text-blue-500'}`} />
+                                  <Phone className={`w-3.5 h-3.5 shrink-0 ${isRestricted ? (restriction === 'Invalid' ? 'text-amber-500' : 'text-rose-500') : 'text-blue-500'}`} />
                                   {isRestricted ? (
                                     <span className="font-bold text-slate-400 line-through cursor-not-allowed" title={`Restricted line (${badgeText})`}>
                                       {phoneVal}
@@ -558,7 +562,11 @@ export default function Company360Modal({
                                     {p.label || 'Mobile'}
                                   </span>
                                   {isRestricted && (
-                                    <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400 font-sans uppercase">
+                                    <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold font-sans uppercase border ${
+                                      restriction === 'Invalid'
+                                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                                        : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                                    }`}>
                                       {badgeText}
                                     </span>
                                   )}

@@ -768,6 +768,10 @@ export default function CompanyModal({
     try {
       if (editingCompany && editingCompany.id) {
         const updatedComp: Company = { id: editingCompany.id, ...rawCompany };
+        await safeUpdateDoc('companies', editingCompany.id, {
+          ...rawCompany,
+          restricted_lines: editingRestrictedLines
+        });
         await CompanyRepository.updateCompany(editingCompany.id, updatedComp);
         await logAudit(editingCompany.id, 'company', 'update', editingCompany, rawCompany);
 
@@ -1803,7 +1807,7 @@ export default function CompanyModal({
                       return (
                         <div key={idx} className="flex items-center justify-between text-xs py-0.5">
                           <div className="flex items-center space-x-2">
-                            <Phone className={`w-3.5 h-3.5 shrink-0 ${isRestricted ? 'text-rose-500' : 'text-blue-500'}`} />
+                            <Phone className={`w-3.5 h-3.5 shrink-0 ${isRestricted ? (restriction === 'Invalid' ? 'text-amber-500' : 'text-rose-500') : 'text-blue-500'}`} />
                             {isRestricted ? (
                               <span className="font-mono font-bold text-slate-400 line-through cursor-not-allowed" title={`Restricted line (${badgeText})`}>
                                 {ph.number}
@@ -1823,7 +1827,11 @@ export default function CompanyModal({
                               {ph.label || 'Telephone'}
                             </span>
                             {isRestricted && (
-                              <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400 font-sans uppercase">
+                              <span className={`ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold font-sans uppercase border ${
+                                restriction === 'Invalid'
+                                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                                  : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                              }`}>
                                 {badgeText}
                               </span>
                             )}
@@ -2018,7 +2026,7 @@ export default function CompanyModal({
                             return (
                               <div key={pIdx} className="flex items-center justify-between text-xs py-0.5">
                                 <div className="flex items-center space-x-2">
-                                  <Phone className={`w-3.5 h-3.5 shrink-0 ${isRestricted ? 'text-rose-500' : 'text-blue-500'}`} />
+                                  <Phone className={`w-3.5 h-3.5 shrink-0 ${isRestricted ? (restriction === 'Invalid' ? 'text-amber-500' : 'text-rose-500') : 'text-blue-500'}`} />
                                   {isRestricted ? (
                                     <span className="font-mono font-bold text-slate-400 line-through cursor-not-allowed" title={`Restricted line (${badgeText})`}>
                                       {ph.number}
@@ -2038,7 +2046,11 @@ export default function CompanyModal({
                                     {ph.label}
                                   </span>
                                   {isRestricted && (
-                                    <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400 font-sans uppercase">
+                                    <span className={`ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold font-sans uppercase border ${
+                                      restriction === 'Invalid'
+                                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                                        : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                                    }`}>
                                       {badgeText}
                                     </span>
                                   )}
@@ -2756,7 +2768,11 @@ export default function CompanyModal({
                             <span>{p.number}</span>
                           )}
                           {isRestricted && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400 font-sans uppercase">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-sans uppercase border ${
+                              p.restriction === 'Invalid'
+                                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                                : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                            }`}>
                               {badgeText}
                             </span>
                           )}

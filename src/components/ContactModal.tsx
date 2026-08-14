@@ -3,6 +3,7 @@ import { CustomLabelSelect, PHONE_LABEL_DEFAULT_OPTIONS, EMAIL_LABEL_DEFAULT_OPT
 import { X, User, Building2, Phone, Mail, Plus, Trash2, ShieldAlert, Check, ArrowRightLeft, Sparkles } from 'lucide-react';
 import { CallLogEntry, Company, Contact, ContactMethod, LabeledPhone, LabeledEmail, LabeledHandle, UserProfile, getContactPhones, getContactEmails, getContactHandles, getCompanyPhones, getCompanyEmails } from '../types';
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc } from '../firebase';
+import { CompanyRepository } from '../services/repositories/CompanyRepository';
 import { generateContactSearchTerms } from '../utils/defaults';
 import { recordAuditLog } from '../utils/auditLogger';
 import { doc, writeBatch } from 'firebase/firestore';
@@ -312,6 +313,7 @@ export default function ContactModal({
       if (isEditing && contact?.id) {
         await safeUpdateDoc('contacts', contact.id, payload);
         finalContactObj = { id: contact.id, ...payload };
+        await CompanyRepository.saveContact(finalContactObj);
         await recordAuditLog({
           document_id: contact.id,
           entity_type: 'contact',
@@ -326,6 +328,7 @@ export default function ContactModal({
         const res = await safeAddDoc('contacts', payload);
         const newId = res?.id || ('cont_' + Date.now());
         finalContactObj = { id: newId, ...payload };
+        await CompanyRepository.saveContact(finalContactObj);
         await recordAuditLog({
           document_id: newId,
           entity_type: 'contact',
