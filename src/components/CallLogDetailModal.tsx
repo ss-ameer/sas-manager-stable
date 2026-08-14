@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { CallLogEntry, Company, Contact, Enquiry, UserProfile, Workspace, getCompanyPhones, CallStatus } from '../types';
+import { CallLogEntry, Company, Contact, Enquiry, UserProfile, Workspace, getCompanyPhones, getCompanyEmails, getContactPhones, isSamePhoneNumber, CallStatus } from '../types';
 import LeadConversionModal from './LeadConversionModal';
 import { getReferenceId } from '../utils/refId';
 import { canEditOrDeleteRecord, isRecordOwner } from '../utils/permissions';
 import { safeUpdateDoc, safeSetDoc } from '../firebase';
 import { CallLogRepository } from '../services/repositories/CallLogRepository';
-import { SYSTEM_CALL_OUTCOMES, SYSTEM_CALL_STATUSES } from '../utils/defaults';
+import { CompanyRepository } from '../services/repositories/CompanyRepository';
+import { SYSTEM_CALL_OUTCOMES, SYSTEM_CALL_STATUSES, SYSTEM_CALL_PURPOSES } from '../utils/defaults';
 import {
   PhoneCall,
   Building2,
@@ -86,6 +87,12 @@ export default function CallLogDetailModal({
   const [editRequirementNotes, setEditRequirementNotes] = useState('');
   const [editNextFollowupDate, setEditNextFollowupDate] = useState('');
   const [editMainlineTag, setEditMainlineTag] = useState('Front Desk');
+  const [editChannel, setEditChannel] = useState<string>('Call');
+  const [editDate, setEditDate] = useState<string>('');
+  const [editEmailAddress, setEditEmailAddress] = useState<string>('');
+  const [editEmailSubject, setEditEmailSubject] = useState<string>('');
+  const [editLocationOrLink, setEditLocationOrLink] = useState<string>('');
+  const [editFollowupIntent, setEditFollowupIntent] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
   if (!entry) return null;
@@ -114,7 +121,20 @@ export default function CallLogDetailModal({
     setEditOutcome(entry.outcome || '');
     setEditPurpose(entry.purpose || 'Prospecting / Intro');
     setEditRequirementNotes(entry.requirement_notes || '');
-    setEditNextFollowupDate(entry.next_followup_date || '');
+    const formatToDatetimeLocal = (dateStr?: string): string => {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr.length >= 10 ? `${dateStr.slice(0, 10)}T09:00` : '';
+      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 16);
+    };
+    setEditDate(formatToDatetimeLocal(entry.date));
+    setEditNextFollowupDate(formatToDatetimeLocal(entry.next_followup_date));
+    setEditChannel(entry.channel || 'Call');
+    setEditEmailAddress(entry.email_address || (entry.channel === 'Email' ? entry.contact_phone || entry.unlinked_contact_info : '') || linkedContact?.email || '');
+    setEditEmailSubject(entry.email_subject || '');
+    setEditLocationOrLink(entry.location_or_link || '');
+    setEditFollowupIntent(entry.followup_intent || '');
     setIsEditing(true);
   };
 
@@ -133,16 +153,65 @@ export default function CallLogDetailModal({
         company_id: resolvedCompId,
         company_name: resolvedCompName,
         contact_id: isCompanyMainline ? undefined : (editContactId || undefined),
-        contact_name: isCompanyMainline ? '' : editContactName,
+        contact_name: isCompanyMainline ? undefined : (editContactName || undefined),
         contact_phone: editContactPhone,
+        date: editDate || entry.date,
         status: editStatus,
         outcome: editOutcome,
         purpose: editPurpose,
         requirement_notes: editRequirementNotes,
         next_followup_date: editNextFollowupDate || undefined,
+        channel: editChannel,
+        email_address: editChannel === 'Email' ? (editEmailAddress || undefined) : undefined,
+        email_subject: editChannel === 'Email' ? (editEmailSubject || undefined) : undefined,
+        location_or_link: (editChannel === 'Meeting' || editChannel === 'Site Visit') ? (editLocationOrLink || undefined) : undefined,
+        followup_intent: editNextFollowupDate ? (editFollowupIntent || undefined) : undefined,
         updatedAt: new Date().toISOString(),
         last_modified_by_name: currentUser?.full_name || 'System Operator'
       };
+
+      if (resolvedCompId) {
+        const targetComp = companies.find((c) => c.id === resolvedCompId) || linkedCompany;
+        if (targetComp) {
+          let compUpdated = false;
+          let updatedComp = { ...targetComp };
+
+          if (isCompanyMainline) {
+            if (editContactPhone && editContactPhone.trim()) {
+              const phoneTrim = editContactPhone.trim();
+              if (!updatedComp.general_phone) {
+                updatedComp.general_phone = phoneTrim;
+                compUpdated = true;
+              }
+              const existingPhones = getCompanyPhones(targetComp);
+              if (!existingPhones.some((p) => isSamePhoneNumber(p.number || p.value, phoneTrim))) {
+                const tagLabel = editMainlineTag.trim() || 'Front Desk';
+                const newPhoneObj = { id: `phone_${Date.now()}`, label: tagLabel, number: phoneTrim };
+                updatedComp.phones = [...(updatedComp.phones || []), newPhoneObj];
+                compUpdated = true;
+              }
+            }
+            if (editEmailAddress && editEmailAddress.trim()) {
+              const emailTrim = editEmailAddress.trim().toLowerCase();
+              if (!updatedComp.general_email) {
+                updatedComp.general_email = emailTrim;
+                compUpdated = true;
+              }
+              const existingEmails = getCompanyEmails(targetComp);
+              if (!existingEmails.some((e) => (e.email || e.value || '').toLowerCase() === emailTrim)) {
+                const newEmailObj = { id: `email_${Date.now()}`, label: 'Main', email: editEmailAddress.trim() };
+                updatedComp.emails = [...(updatedComp.emails || []), newEmailObj];
+                compUpdated = true;
+              }
+            }
+            if (compUpdated) {
+              updatedComp.updatedAt = new Date().toISOString();
+              await safeSetDoc('companies', resolvedCompId, updatedComp);
+              await CompanyRepository.saveCompany(updatedComp);
+            }
+          }
+        }
+      }
 
       if (entry.id) {
         await safeUpdateDoc('call_logs', entry.id, {
@@ -152,11 +221,17 @@ export default function CallLogDetailModal({
           contact_id: updatedEntry.contact_id || null,
           contact_name: updatedEntry.contact_name || null,
           contact_phone: updatedEntry.contact_phone || null,
+          date: updatedEntry.date,
           status: updatedEntry.status,
           outcome: updatedEntry.outcome || null,
           purpose: updatedEntry.purpose || null,
           requirement_notes: updatedEntry.requirement_notes || null,
           next_followup_date: updatedEntry.next_followup_date || null,
+          channel: updatedEntry.channel,
+          email_address: updatedEntry.email_address || null,
+          email_subject: updatedEntry.email_subject || null,
+          location_or_link: updatedEntry.location_or_link || null,
+          followup_intent: updatedEntry.followup_intent || null,
           updatedAt: updatedEntry.updatedAt,
           last_modified_by_name: updatedEntry.last_modified_by_name
         });
@@ -310,8 +385,18 @@ export default function CallLogDetailModal({
         {/* Modal Header */}
         <div className="p-6 bg-slate-950 text-white border-b border-slate-800/80 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shrink-0">
-              <PhoneCall className="w-5 h-5" />
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md shrink-0 ${
+              (entry.interaction_type || '').toLowerCase().includes('email') ? 'bg-purple-600' :
+              (entry.interaction_type || '').toLowerCase().includes('message') ? 'bg-emerald-600' :
+              (entry.interaction_type || '').toLowerCase().includes('meeting') ? 'bg-amber-600' : 'bg-blue-600'
+            }`}>
+              {(() => {
+                const t = (entry.interaction_type || (entry.email_address ? 'email' : 'call')).toLowerCase();
+                if (t.includes('email') || t.includes('mail')) return <Mail className="w-5 h-5 text-white" />;
+                if (t.includes('message') || t.includes('whatsapp') || t.includes('sms')) return <MessageSquare className="w-5 h-5 text-white" />;
+                if (t.includes('meeting') || t.includes('visit') || t.includes('demo')) return <Calendar className="w-5 h-5 text-white" />;
+                return <PhoneCall className="w-5 h-5 text-white" />;
+              })()}
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -432,11 +517,38 @@ export default function CallLogDetailModal({
                   </label>
                   <input
                     type="text"
+                    list="modal-contact-person-suggestions"
                     value={editContactName}
-                    onChange={(e) => setEditContactName(e.target.value)}
-                    placeholder="Type contact person name freely..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditContactName(val);
+                      const comp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
+                      const compContacts = comp ? contacts.filter((ct) => ct.company_id === comp.id) : [];
+                      const matched = compContacts.find((c) => (c.full_name || '').toLowerCase() === val.toLowerCase());
+                      if (matched) {
+                        setEditContactId(matched.id || '');
+                        const phones = getContactPhones(matched);
+                        if (matched.mobile || matched.landline || phones[0]?.number) {
+                          setEditContactPhone(matched.mobile || matched.landline || phones[0]?.number || '');
+                        }
+                      } else {
+                        setEditContactId('');
+                      }
+                    }}
+                    placeholder="Type or select contact person name..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none font-medium"
                   />
+                  <datalist id="modal-contact-person-suggestions">
+                    {(() => {
+                      const comp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
+                      const compContacts = comp ? contacts.filter((ct) => ct.company_id === comp.id) : [];
+                      return compContacts.map((ct, idx) => (
+                        <option key={ct.id ? `${ct.id}_${idx}` : `m_ct_${idx}`} value={ct.full_name}>
+                          {ct.full_name} {ct.designation ? `(${ct.designation})` : ''} {ct.mobile ? `- ${ct.mobile}` : ''}
+                        </option>
+                      ));
+                    })()}
+                  </datalist>
                   {(() => {
                     const comp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
                     const compContacts = comp ? contacts.filter((ct) => ct.company_id === comp.id) : [];
@@ -490,51 +602,98 @@ export default function CallLogDetailModal({
             </div>
 
             {/* Phone Number Field & Company-Level Phone Selector */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                Phone Number
-              </label>
-              <input
-                type="text"
-                value={editContactPhone}
-                onChange={(e) => setEditContactPhone(e.target.value)}
-                placeholder="Type phone number freely (e.g. +971 50 123 4567)..."
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono text-blue-300 placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-              />
+            {(editChannel === 'Call' || editChannel === 'WhatsApp') && (
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="text"
+                  value={editContactPhone}
+                  onChange={(e) => setEditContactPhone(e.target.value)}
+                  placeholder="Type phone number freely (e.g. +971 50 123 4567)..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono text-blue-300 placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                />
 
-              {/* Direct Company Line Selector Pills */}
-              {(() => {
-                const activeComp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
-                const compPhones = getCompanyPhones(activeComp);
-                if (compPhones.length === 0) return null;
+                {/* Direct Company Line Selector Pills */}
+                {(() => {
+                  const activeComp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
+                  const compPhones = getCompanyPhones(activeComp);
+                  if (compPhones.length === 0) return null;
 
-                return (
-                  <div className="mt-2 p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-blue-300 flex items-center gap-1">
-                        <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Select Company Phone Line:</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400">Click to assign line</span>
+                  return (
+                    <div className="mt-2 p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-blue-300 flex items-center gap-1">
+                          <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Select Company Phone Line:</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400">Click to assign line</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {compPhones.map((ph, idx) => (
+                          <button
+                            key={`cp_edit_${idx}`}
+                            type="button"
+                            onClick={() => setEditContactPhone(ph.number)}
+                            className="text-xs px-2.5 py-1 rounded-lg bg-blue-950/80 hover:bg-blue-900 text-blue-200 font-mono border border-blue-800/80 transition cursor-pointer flex items-center gap-1.5 font-bold"
+                            title={`Set phone number to ${ph.label || 'Company Line'}: ${ph.number}`}
+                          >
+                            <span className="text-slate-400 font-normal">{ph.label || 'Front Desk'}:</span>
+                            <span>{ph.number}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {compPhones.map((ph, idx) => (
-                        <button
-                          key={`cp_edit_${idx}`}
-                          type="button"
-                          onClick={() => setEditContactPhone(ph.number)}
-                          className="text-xs px-2.5 py-1 rounded-lg bg-blue-950/80 hover:bg-blue-900 text-blue-200 font-mono border border-blue-800/80 transition cursor-pointer flex items-center gap-1.5 font-bold"
-                          title={`Set phone number to ${ph.label || 'Company Line'}: ${ph.number}`}
-                        >
-                          <span className="text-slate-400 font-normal">{ph.label || 'Front Desk'}:</span>
-                          <span>{ph.number}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Dynamic Fields for Email / Meeting */}
+            {editChannel === 'Email' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={editEmailAddress}
+                    onChange={(e) => setEditEmailAddress(e.target.value)}
+                    placeholder="e.g. client@company.com..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    Email Subject
+                  </label>
+                  <input
+                    type="text"
+                    value={editEmailSubject}
+                    onChange={(e) => setEditEmailSubject(e.target.value)}
+                    placeholder="e.g. Revised Quotation for Ref #1234..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:border-blue-500 focus:outline-none font-medium"
+                  />
+                </div>
+              </div>
+            )}
+
+            {(editChannel === 'Meeting' || editChannel === 'Site Visit') && (
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  Location / Meeting Link
+                </label>
+                <input
+                  type="text"
+                  value={editLocationOrLink}
+                  onChange={(e) => setEditLocationOrLink(e.target.value)}
+                  placeholder="e.g. Client Office / Google Meet link..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:border-blue-500 focus:outline-none font-medium"
+                />
+              </div>
+            )}
 
             {/* Status, Outcome & Purpose */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -578,13 +737,20 @@ export default function CallLogDetailModal({
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                   Interaction Purpose
                 </label>
-                <input
-                  type="text"
+                <select
                   value={editPurpose}
                   onChange={(e) => setEditPurpose(e.target.value)}
-                  placeholder="e.g. Validation, Prospecting / Intro..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                />
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-semibold focus:border-blue-500 focus:outline-none cursor-pointer"
+                >
+                  {editPurpose && !SYSTEM_CALL_PURPOSES.includes(editPurpose) && (
+                    <option value={editPurpose}>{editPurpose}</option>
+                  )}
+                  {SYSTEM_CALL_PURPOSES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -625,7 +791,7 @@ export default function CallLogDetailModal({
                     )}
                   </div>
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={editNextFollowupDate}
                     onChange={(e) => setEditNextFollowupDate(e.target.value)}
                     style={{ colorScheme: 'dark' }}
@@ -654,7 +820,9 @@ export default function CallLogDetailModal({
                           onClick={() => {
                             const d = new Date();
                             d.setDate(d.getDate() + btn.days);
-                            setEditNextFollowupDate(d.toISOString().split('T')[0]);
+                            d.setHours(9, 0, 0, 0);
+                            const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+                            setEditNextFollowupDate(local.toISOString().slice(0, 16));
                           }}
                           className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-bold transition cursor-pointer"
                         >
@@ -664,14 +832,30 @@ export default function CallLogDetailModal({
                     </div>
                   )}
 
-                  {/* Part 4: Persistent Date Confirmation Badge */}
+                  {/* Persistent Date Confirmation Badge */}
                   {editNextFollowupDate && (
                     <div className="mt-2 flex items-center justify-between px-3 py-1.5 rounded-lg bg-blue-950/80 border border-blue-500/60 text-blue-200 text-xs font-mono font-bold shadow-xs">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                        <span>Scheduled: {new Date(editNextFollowupDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        <span>Scheduled: {new Date(editNextFollowupDate).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    </div>
+                  )}
+
+                  {/* Follow-Up Intent / Reason Input Field */}
+                  {editNextFollowupDate && (
+                    <div className="mt-2.5">
+                      <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                        Follow-up Intent / Agenda
+                      </label>
+                      <input
+                        type="text"
+                        value={editFollowupIntent}
+                        onChange={(e) => setEditFollowupIntent(e.target.value)}
+                        placeholder="e.g. Check on PO approval, Send revised quote..."
+                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none font-medium"
+                      />
                     </div>
                   )}
                 </div>

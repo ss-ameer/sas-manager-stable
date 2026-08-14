@@ -20,7 +20,8 @@ import {
   Clock,
   CheckCircle2,
   Tag,
-  MessageSquare
+  MessageSquare,
+  Calendar
 } from 'lucide-react';
 import { safeDeleteDoc, safeSetDoc } from '../firebase';
 import { CompanyRepository } from '../services/repositories/CompanyRepository';
@@ -83,13 +84,13 @@ export default function Company360Modal({
   const [selectedContactToEdit, setSelectedContactToEdit] = useState<Contact | null>(null);
 
   const company = companies.find((c) => c.id === companyId);
-  const [temperatureVal, setTemperatureVal] = useState<'Cold' | 'Warm' | 'Hot'>('Cold');
+  const [temperatureVal, setTemperatureVal] = useState<'Cold' | 'Warm' | 'Hot' | 'DNC'>('Cold');
 
   useEffect(() => {
     if (company) {
-      setTemperatureVal((company.temperature as any) || 'Cold');
+      setTemperatureVal((company.temperature as any) || (company.is_dnc ? 'DNC' : 'Cold'));
     }
-  }, [company?.temperature]);
+  }, [company?.temperature, company?.is_dnc]);
 
   const handleDeleteContact = async (c: Contact) => {
     const targetId = c?.id || (c as any)?._id;
@@ -148,10 +149,17 @@ export default function Company360Modal({
   const relationshipVal = company.relationship || 'Prospect';
 
   const handleCycleTemperature = async () => {
-    const nextTemp: 'Cold' | 'Warm' | 'Hot' =
-      temperatureVal === 'Cold' ? 'Warm' : temperatureVal === 'Warm' ? 'Hot' : 'Cold';
+    const nextTemp: 'Cold' | 'Warm' | 'Hot' | 'DNC' =
+      temperatureVal === 'Cold' ? 'Warm' :
+      temperatureVal === 'Warm' ? 'Hot' :
+      temperatureVal === 'Hot' ? 'DNC' : 'Cold';
     setTemperatureVal(nextTemp);
-    const updated = { ...company, temperature: nextTemp, updatedAt: new Date().toISOString() };
+    const updated = {
+      ...company,
+      temperature: nextTemp,
+      is_dnc: nextTemp === 'DNC',
+      updatedAt: new Date().toISOString()
+    };
     await safeSetDoc('companies', company.id, updated);
     await CompanyRepository.saveCompany(updated);
     if (setCompanies) {
@@ -159,16 +167,19 @@ export default function Company360Modal({
     }
   };
 
-  const getTempBadgeClass = (temp: string) => {
+  const getTempBadgeConfig = (temp: string) => {
     const t = temp.toLowerCase();
-    if (t === 'hot') return 'bg-rose-500 text-white font-extrabold border-rose-400';
-    if (t === 'warm') return 'bg-amber-500 text-slate-950 font-extrabold border-amber-400';
-    if (t === 'cold') return 'bg-cyan-500 text-slate-950 font-extrabold border-cyan-400';
-    return 'bg-slate-700 text-slate-200 border-slate-600';
+    if (t === 'dnc') return { label: 'DNC 🚫', className: 'bg-rose-950 text-rose-200 font-black border-rose-600 ring-1 ring-rose-500 shadow-sm shadow-rose-950' };
+    if (t === 'hot') return { label: 'Hot 🔥', className: 'bg-rose-500 text-white font-black border-rose-400' };
+    if (t === 'warm') return { label: 'Warm 🌤️', className: 'bg-amber-500 text-slate-950 font-black border-amber-400' };
+    if (t === 'cold') return { label: 'Cold ❄️', className: 'bg-cyan-500 text-slate-950 font-black border-cyan-400' };
+    return { label: temp, className: 'bg-slate-700 text-slate-200 border-slate-600' };
   };
 
   const compPhones = getCompanyPhones(company);
   const compEmails = getCompanyEmails(company);
+
+  const badgeConfig = getTempBadgeConfig(temperatureVal);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-hidden animate-fade-in">
@@ -200,15 +211,15 @@ export default function Company360Modal({
                 <button
                   type="button"
                   onClick={handleCycleTemperature}
-                  className={`px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider border flex items-center space-x-1 cursor-pointer transition hover:scale-105 ${getTempBadgeClass(temperatureVal)}`}
-                  title="Click to cycle Temperature (Cold -> Warm -> Hot)"
+                  className={`px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider border flex items-center space-x-1 cursor-pointer transition hover:scale-105 ${badgeConfig.className}`}
+                  title="Click to cycle Temperature (Cold ❄️ -> Warm 🌤️ -> Hot 🔥 -> DNC 🚫)"
                 >
-                  <span>{temperatureVal}</span>
+                  <span>{badgeConfig.label}</span>
                 </button>
 
-                {company.is_dnc && (
-                  <span className="px-2.5 py-0.5 rounded-md text-xs font-black bg-red-600 text-white flex items-center space-x-1">
-                    <AlertTriangle className="w-3 h-3" />
+                {(company.is_dnc || company.temperature === 'DNC') && (
+                  <span className="px-2.5 py-0.5 rounded-md text-xs font-black bg-rose-900 text-white flex items-center space-x-1 border border-rose-700">
+                    <AlertTriangle className="w-3 h-3 text-rose-300" />
                     <span>DO NOT CALL (DNC)</span>
                   </span>
                 )}
@@ -434,10 +445,14 @@ export default function Company360Modal({
                   {companyContacts.map((contact) => {
                     const cPhones = getContactPhones(contact);
                     const cEmails = getContactEmails(contact);
+                    const firstPhone = cPhones[0]?.value || cPhones[0]?.number || contact.mobile || contact.landline || '';
+                    const firstCleanPhone = firstPhone.replace(/[^0-9]/g, '');
+                    const firstEmail = cEmails[0]?.value || cEmails[0]?.email || contact.email || '';
+
                     return (
                       <div
                         key={contact.id}
-                        className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 hover:border-blue-300 dark:hover:border-blue-500 transition shadow-sm relative group space-y-2"
+                        className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 hover:border-blue-300 dark:hover:border-blue-500 transition shadow-sm relative group space-y-2.5"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -457,6 +472,49 @@ export default function Company360Modal({
                             {contact.designation && (
                               <p className="text-xs text-slate-500 font-medium mt-0.5">{contact.designation}</p>
                             )}
+
+                            {/* 1-Click Quick Action Mini Toolbar */}
+                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                              {firstPhone && (
+                                <a
+                                  href={`tel:${firstPhone}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(ev) => handleOutboundInteraction(ev, 'Call', contact)}
+                                  className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                  title="1-Click Dial"
+                                >
+                                  <Phone className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                                  <span>Dial</span>
+                                </a>
+                              )}
+                              {firstCleanPhone && (
+                                <a
+                                  href={`https://wa.me/${firstCleanPhone}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(ev) => handleOutboundInteraction(ev, 'WhatsApp', contact, `https://wa.me/${firstCleanPhone}`)}
+                                  className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                  title="1-Click WhatsApp"
+                                >
+                                  <MessageSquare className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                  <span>WhatsApp</span>
+                                </a>
+                              )}
+                              {firstEmail && (
+                                <a
+                                  href={`mailto:${firstEmail}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(ev) => handleOutboundInteraction(ev, 'Email', contact)}
+                                  className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                  title="1-Click Email"
+                                >
+                                  <Mail className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                  <span>Email</span>
+                                </a>
+                              )}
+                            </div>
                           </div>
 
                           <div className="flex items-center space-x-1 shrink-0">
@@ -484,7 +542,7 @@ export default function Company360Modal({
                         </div>
 
                         {/* Phone numbers list */}
-                        <div className="text-xs space-y-1 pt-1 border-t border-slate-100">
+                        <div className="text-xs space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
                           {cPhones.map((p, pIdx) => {
                             const phoneVal = p.value || p.number || '';
                             const cleanPhone = phoneVal.replace(/[^0-9]/g, '');
@@ -506,17 +564,29 @@ export default function Company360Modal({
                                     {p.label || 'Mobile'}
                                   </span>
                                 </div>
-                                {cleanPhone && (
-                                  <button
-                                    type="button"
-                                    onClick={(ev) => handleOutboundInteraction(ev, 'WhatsApp', contact, waUrl)}
-                                    className="px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer font-sans"
-                                    title="Send WhatsApp & Log Activity"
+                                <div className="flex items-center gap-1">
+                                  <a
+                                    href={`tel:${phoneVal}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(ev) => handleOutboundInteraction(ev, 'Call', contact)}
+                                    className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
+                                    title="Call Phone"
                                   >
-                                    <MessageSquare className="w-3 h-3 text-emerald-600" />
-                                    <span>WhatsApp</span>
-                                  </button>
-                                )}
+                                    <Phone className="w-3 h-3" />
+                                  </a>
+                                  {cleanPhone && (
+                                    <button
+                                      type="button"
+                                      onClick={(ev) => handleOutboundInteraction(ev, 'WhatsApp', contact, waUrl)}
+                                      className="px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer font-sans"
+                                      title="Send WhatsApp & Log Activity"
+                                    >
+                                      <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                      <span>WhatsApp</span>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
@@ -525,22 +595,34 @@ export default function Company360Modal({
                           {cEmails.map((e, eIdx) => {
                             const emailVal = e.value || e.email || '';
                             return (
-                              <div key={eIdx} className="flex items-center space-x-2 text-slate-600 font-sans truncate py-0.5">
-                                <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <div key={eIdx} className="flex items-center justify-between text-slate-600 font-sans truncate py-0.5">
+                                <div className="flex items-center space-x-2 truncate">
+                                  <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <a
+                                    href={`mailto:${emailVal}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(ev) => handleOutboundInteraction(ev, 'Email', contact)}
+                                    className="hover:underline truncate text-slate-800 dark:text-slate-200 font-medium cursor-pointer"
+                                  >
+                                    {emailVal}
+                                  </a>
+                                  {e.label && (
+                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold shrink-0 border border-slate-200">
+                                      {e.label}
+                                    </span>
+                                  )}
+                                </div>
                                 <a
                                   href={`mailto:${emailVal}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(ev) => handleOutboundInteraction(ev, 'Email', contact)}
-                                  className="hover:underline truncate text-slate-800 dark:text-slate-200 font-medium cursor-pointer"
+                                  className="p-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition shrink-0 ml-1"
+                                  title="Send Email"
                                 >
-                                  {emailVal}
+                                  <Mail className="w-3 h-3 text-purple-600" />
                                 </a>
-                                {e.label && (
-                                  <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold shrink-0 border border-slate-200">
-                                    {e.label}
-                                  </span>
-                                )}
                               </div>
                             );
                           })}
@@ -563,46 +645,61 @@ export default function Company360Modal({
                 </div>
               ) : (
                 <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden bg-white">
-                  {companyCallLogs.map((log) => (
-                    <div key={log.id} className="p-4 hover:bg-slate-50 transition">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs font-bold text-slate-900">{log.date}</span>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                            {log.status}
-                          </span>
-                          {log.outcome && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                              {log.outcome}
+                  {companyCallLogs.map((log) => {
+                    const type = (log.interaction_type || '').toLowerCase();
+                    return (
+                      <div key={log.id} className="p-4 hover:bg-slate-50 transition">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2">
+                            {/* Dynamic Leading History Symbol */}
+                            <div className={`p-1.5 rounded-lg border flex items-center justify-center shrink-0 ${
+                              type.includes('email') ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                              type.includes('message') || type.includes('whatsapp') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                              type.includes('meeting') || type.includes('visit') ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                              'bg-blue-50 text-blue-700 border-blue-200'
+                            }`}>
+                              {type.includes('email') ? <Mail className="w-3.5 h-3.5" /> :
+                               type.includes('message') || type.includes('whatsapp') ? <MessageSquare className="w-3.5 h-3.5" /> :
+                               type.includes('meeting') || type.includes('visit') ? <Calendar className="w-3.5 h-3.5" /> :
+                               <PhoneCall className="w-3.5 h-3.5" />}
+                            </div>
+                            <span className="text-xs font-bold text-slate-900">{log.date}</span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              {log.status}
                             </span>
-                          )}
+                            {log.outcome && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                {log.outcome}
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="text-xs text-slate-500 font-semibold">
+                            Logged by: {log.logged_by}
+                          </span>
                         </div>
 
-                        <span className="text-xs text-slate-500 font-semibold">
-                          Logged by: {log.logged_by}
-                        </span>
+                        {log.contact_name && (
+                          <p className="text-xs text-slate-600 font-semibold mt-1">
+                            Contact: {log.contact_name} {log.contact_phone ? `(${log.contact_phone})` : ''}
+                          </p>
+                        )}
+
+                        {log.requirement_notes && (
+                          <p className="text-xs text-slate-700 mt-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                            {log.requirement_notes}
+                          </p>
+                        )}
+
+                        {log.next_followup_date && (
+                          <div className="mt-2 text-[11px] font-bold text-amber-700 flex items-center space-x-1">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            <span>Follow-up scheduled for: {log.next_followup_date}</span>
+                          </div>
+                        )}
                       </div>
-
-                      {log.contact_name && (
-                        <p className="text-xs text-slate-600 font-semibold mt-1">
-                          Contact: {log.contact_name} {log.contact_phone ? `(${log.contact_phone})` : ''}
-                        </p>
-                      )}
-
-                      {log.requirement_notes && (
-                        <p className="text-xs text-slate-700 mt-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                          {log.requirement_notes}
-                        </p>
-                      )}
-
-                      {log.next_followup_date && (
-                        <div className="mt-2 text-[11px] font-bold text-amber-700 flex items-center space-x-1">
-                          <Clock className="w-3 h-3 text-amber-600" />
-                          <span>Follow-up scheduled for: {log.next_followup_date}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

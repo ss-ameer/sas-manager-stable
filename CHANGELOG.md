@@ -2,6 +2,24 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.66.0] - 2026-08-14
+
+### Added & Refactored
+- **Phase 4: UI Polish, Quick Actions, & Purpose Dropdowns (`src/components/CallLogManager.tsx`, `src/components/Company360Modal.tsx`, `src/components/CallLogDetailModal.tsx`, `src/components/QuickActivityDrawer.tsx`, `src/utils/defaults.ts`)**:
+  - **History Symbols**: Injected dynamic leading interaction icons (`<PhoneCall />`, `<Mail />`, `<MessageSquare />`, `<Calendar />`) across Operator Queue, Call Log History table, Activity Log Details modal, and Company 360 Call Operations timeline based on `interaction_type`.
+  - **Contact Quick Actions**: Embedded 1-click Quick Action mini-buttons (Dial, Email, WhatsApp) directly next to contact details in `Company360Modal.tsx`. Ensured WhatsApp links clean non-digits via regex (`replace(/[^0-9]/g, '')`).
+  - **List Sorting Controls**: Integrated date sorting toggles ("Date: Oldest First" / "Date: Newest First") across the Operator Queue and Full Call History views in `CallLogManager.tsx`.
+  - **Expanded & Preserved Call Purpose Dropdowns**: Expanded `SYSTEM_CALL_PURPOSES` presets in `defaults.ts` and updated `CallLogDetailModal.tsx` and `QuickActivityDrawer.tsx` dropdowns to seamlessly handle standard presets and custom values.
+
+## [0.65.0] - 2026-08-14
+
+### Added & Refactored
+- **Phase 3: DNC & Temperature Restructure (`src/types.ts`, `src/utils/defaults.ts`, `src/components/CompanyModal.tsx`, `src/components/Company360Modal.tsx`, `src/components/ContactModal.tsx`)**:
+  - **Company Temperature Model Extension**: Extended `CompanyTemperature` type definition and defaults to include `'DNC'`. Configured heat color map to assign `'DNC'` a high-visibility rose/dark red badge theme (`#e11d48`).
+  - **4-Stage Temperature Cycling**: Upgraded company heat badges across `CompanyModal.tsx` and `Company360Modal.tsx` to cycle across 4 stages: Cold ❄️ -> Warm 🌤️ -> Hot 🔥 -> DNC 🚫. Cycling to DNC automatically sets `is_dnc: true` on the company document.
+  - **Form UI Cleanup**: Removed legacy standalone "Is DNC" checkbox from `CompanyModal.tsx` form, consolidating company DNC management into the Temperature selector.
+  - **Sleek Modern Contact DNC Toggle**: Replaced standard checkbox in `ContactModal.tsx` with an interactive toggle switch, warning banner container, and context-aware reason input field.
+
 ## [0.64.1] - 2026-08-12
 
 ### Fixed

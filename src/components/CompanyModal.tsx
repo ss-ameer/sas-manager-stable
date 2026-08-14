@@ -133,15 +133,48 @@ export default function CompanyModal({
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
 
   const handleCycleCompanyTemperature = async (comp: Company) => {
-    const curTemp = comp.temperature || 'Cold';
-    const nextTemp: 'Cold' | 'Warm' | 'Hot' =
-      curTemp === 'Cold' ? 'Warm' : curTemp === 'Warm' ? 'Hot' : 'Cold';
-    const updatedComp = { ...comp, temperature: nextTemp, updatedAt: new Date().toISOString() };
+    const curTemp = comp.temperature || (comp.is_dnc ? 'DNC' : 'Cold');
+    const nextTemp: 'Cold' | 'Warm' | 'Hot' | 'DNC' =
+      curTemp === 'Cold' ? 'Warm' :
+      curTemp === 'Warm' ? 'Hot' :
+      curTemp === 'Hot' ? 'DNC' : 'Cold';
+    const updatedComp = {
+      ...comp,
+      temperature: nextTemp,
+      is_dnc: nextTemp === 'DNC',
+      updatedAt: new Date().toISOString()
+    };
     await safeSetDoc('companies', comp.id, updatedComp);
     await CompanyRepository.saveCompany(updatedComp);
     if (setCompanies) {
       setCompanies((prev) => prev.map((c) => (c.id === comp.id ? updatedComp : c)));
     }
+  };
+
+  const getCompanyTempBadge = (tempVal?: string, isDnc?: boolean) => {
+    const val = (tempVal || (isDnc ? 'DNC' : 'Cold')).toLowerCase();
+    if (val === 'dnc') {
+      return {
+        label: 'DNC 🚫',
+        className: 'bg-rose-950 text-rose-200 border-rose-600 font-black ring-1 ring-rose-500 shadow-xs'
+      };
+    }
+    if (val === 'hot') {
+      return {
+        label: 'Hot 🔥',
+        className: 'bg-rose-500 text-white border-rose-600 font-black'
+      };
+    }
+    if (val === 'warm') {
+      return {
+        label: 'Warm 🌤️',
+        className: 'bg-amber-500 text-slate-950 border-amber-600 font-black'
+      };
+    }
+    return {
+      label: 'Cold ❄️',
+      className: 'bg-cyan-500 text-slate-950 border-cyan-600 font-black'
+    };
   };
   const [viewMode, setViewMode] = useState<'companies' | 'contacts' | 'phones'>('companies');
   const [relationshipFilter, setRelationshipFilter] = useState<string>('ALL');
@@ -220,7 +253,7 @@ export default function CompanyModal({
           entityName: c.display_name,
           companyId: c.id,
           location: `${c.city}, ${c.country}`,
-          isDnc: c.is_dnc
+          isDnc: c.is_dnc || c.temperature === 'DNC'
         });
       }
     });
@@ -686,6 +719,7 @@ export default function CompanyModal({
       emails: legacyEmails as any,
       relationship,
       temperature,
+      is_dnc: temperature === 'DNC',
       notes: notes.trim(),
       search_terms: searchTerms,
       created_by_uid: editingCompany?.created_by_uid || user?.uid || '',
@@ -1477,9 +1511,7 @@ export default function CompanyModal({
                           const isSelected = selectedCompanyId === c.id;
                           const linkCount = enquiries.filter((e) => e.company_id === c.id).length;
                           const relVal = c.relationship || 'Prospect';
-                          const tempVal = c.temperature || 'Cold';
-                          const isHot = tempVal.toLowerCase() === 'hot';
-                          const isWarm = tempVal.toLowerCase() === 'warm';
+                          const tempBadge = getCompanyTempBadge(c.temperature, c.is_dnc);
                           const phones = getCompanyPhones(c);
                           const emails = getCompanyEmails(c);
 
@@ -1514,14 +1546,10 @@ export default function CompanyModal({
                                       e.stopPropagation();
                                       handleCycleCompanyTemperature(c);
                                     }}
-                                    className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider border inline-block cursor-pointer transition hover:scale-105 ${
-                                      isHot ? 'bg-rose-500 text-white border-rose-600' :
-                                      isWarm ? 'bg-amber-500 text-slate-950 border-amber-600' :
-                                      'bg-cyan-500 text-slate-950 border-cyan-600'
-                                    }`}
-                                    title="Click to cycle Temperature (Cold -> Warm -> Hot)"
+                                    className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider border inline-block cursor-pointer transition hover:scale-105 ${tempBadge.className}`}
+                                    title="Click to cycle Temperature (Cold ❄️ -> Warm 🌤️ -> Hot 🔥 -> DNC 🚫)"
                                   >
-                                    {tempVal}
+                                    {tempBadge.label}
                                   </button>
                                 </div>
                               </td>
@@ -1567,9 +1595,7 @@ export default function CompanyModal({
                       const isSelected = selectedCompanyId === c.id;
                       const linkCount = enquiries.filter((e) => e.company_id === c.id).length;
                       const relVal = c.relationship || 'Prospect';
-                      const tempVal = c.temperature || 'Cold';
-                      const isHot = tempVal.toLowerCase() === 'hot';
-                      const isWarm = tempVal.toLowerCase() === 'warm';
+                      const tempBadge = getCompanyTempBadge(c.temperature, c.is_dnc);
 
                       return (
                         <button
@@ -1584,12 +1610,8 @@ export default function CompanyModal({
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-sm font-semibold block truncate font-sans">{c.display_name}</span>
-                              <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider border shrink-0 ${
-                                isHot ? 'bg-rose-500 text-white border-rose-600' :
-                                isWarm ? 'bg-amber-500 text-slate-950 border-amber-600' :
-                                'bg-cyan-500 text-slate-950 border-cyan-600'
-                              }`}>
-                                {tempVal}
+                              <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider border shrink-0 ${tempBadge.className}`}>
+                                {tempBadge.label}
                               </span>
                             </div>
 
@@ -1638,18 +1660,19 @@ export default function CompanyModal({
                       <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                         {selectedCompany.relationship || 'Prospect'}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCycleCompanyTemperature(selectedCompany)}
-                        className={`px-2 py-0.5 rounded text-[11px] font-black uppercase border cursor-pointer transition hover:scale-105 ${
-                          (selectedCompany.temperature || 'Cold').toLowerCase() === 'hot' ? 'bg-rose-500 text-white border-rose-600' :
-                          (selectedCompany.temperature || 'Cold').toLowerCase() === 'warm' ? 'bg-amber-500 text-slate-950 border-amber-600' :
-                          'bg-cyan-500 text-slate-950 border-cyan-600'
-                        }`}
-                        title="Click to cycle Temperature (Cold -> Warm -> Hot)"
-                      >
-                        {selectedCompany.temperature || 'Cold'}
-                      </button>
+                      {(() => {
+                        const selBadge = getCompanyTempBadge(selectedCompany.temperature, selectedCompany.is_dnc);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => handleCycleCompanyTemperature(selectedCompany)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-black uppercase border cursor-pointer transition hover:scale-105 ${selBadge.className}`}
+                            title="Click to cycle Temperature (Cold ❄️ -> Warm 🌤️ -> Hot 🔥 -> DNC 🚫)"
+                          >
+                            {selBadge.label}
+                          </button>
+                        );
+                      })()}
                     </div>
                     <p className="text-xs font-mono text-slate-500 uppercase tracking-wider bg-slate-50 px-2 py-0.5 rounded border border-slate-200 w-fit">
                       Canonical Base: {selectedCompany.canonical_name}

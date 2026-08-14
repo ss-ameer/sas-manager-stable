@@ -13,6 +13,7 @@ import {
   XCircle,
   AlertCircle,
   Plus,
+  ArrowUpDown,
   Search,
   Filter,
   Building,
@@ -143,6 +144,8 @@ export default function CallLogManager({
 }: CallLogManagerProps) {
   const [subTab, setSubTab] = useState<'queue' | 'log'>(initialSubTab);
   const [queueTimeframe, setQueueTimeframe] = useState<'today' | 'upcoming' | 'all'>('today');
+  const [queueSortOrder, setQueueSortOrder] = useState<'oldest' | 'newest'>('oldest');
+  const [historySortOrder, setHistorySortOrder] = useState<'newest' | 'oldest'>('newest');
 
   const [confirmResolver, setConfirmResolver] = useState<((val: boolean) => void) | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -545,16 +548,22 @@ export default function CallLogManager({
       });
   }, [workspaceCallLogs, todayStr, companyMap, contactMap]);
 
-  // Filtered Queue Items by timeframe toggle
+  // Filtered Queue Items by timeframe toggle & date sort
   const queueItems = useMemo(() => {
+    let base = allScheduledQueueItems;
     if (queueTimeframe === 'today') {
-      return allScheduledQueueItems.filter((i) => i.date <= todayStr);
+      base = allScheduledQueueItems.filter((i) => i.date <= todayStr);
+    } else if (queueTimeframe === 'upcoming') {
+      base = allScheduledQueueItems.filter((i) => i.date > todayStr);
     }
-    if (queueTimeframe === 'upcoming') {
-      return allScheduledQueueItems.filter((i) => i.date > todayStr);
-    }
-    return allScheduledQueueItems;
-  }, [allScheduledQueueItems, queueTimeframe, todayStr]);
+    return [...base].sort((a, b) => {
+      if (queueSortOrder === 'oldest') {
+        return a.date.localeCompare(b.date);
+      } else {
+        return b.date.localeCompare(a.date);
+      }
+    });
+  }, [allScheduledQueueItems, queueTimeframe, todayStr, queueSortOrder]);
 
   // Stats Counters
   const stats = useMemo(() => {
@@ -1151,7 +1160,7 @@ export default function CallLogManager({
 
   // Filtered History List
   const filteredHistoryLogs = useMemo(() => {
-    return workspaceCallLogs.filter((l) => {
+    const list = workspaceCallLogs.filter((l) => {
       if (statusFilter !== 'all') {
         const normFilter = statusFilter.toLowerCase().trim();
         const normLogStatus = (l.status || '').toLowerCase().trim();
@@ -1187,7 +1196,17 @@ export default function CallLogManager({
       }
       return true;
     });
-  }, [workspaceCallLogs, statusFilter, outcomeFilter, geographyFilter, searchTerm]);
+
+    return [...list].sort((a, b) => {
+      const dateA = a.created_at || a.date || '';
+      const dateB = b.created_at || b.date || '';
+      if (historySortOrder === 'newest') {
+        return dateB.localeCompare(dateA);
+      } else {
+        return dateA.localeCompare(dateB);
+      }
+    });
+  }, [workspaceCallLogs, statusFilter, outcomeFilter, geographyFilter, searchTerm, historySortOrder]);
 
   return (
     <>
@@ -1357,12 +1376,24 @@ export default function CallLogManager({
                 <span>All ({allScheduledQueueItems.length})</span>
               </button>
             </div>
+
+            {/* Sort Toggle for Queue */}
+            <button
+              type="button"
+              onClick={() => setQueueSortOrder((prev) => (prev === 'oldest' ? 'newest' : 'oldest'))}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+              title="Toggle Queue Date Sorting"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Sort: {queueSortOrder === 'oldest' ? 'Oldest First' : 'Newest First'}</span>
+            </button>
           </div>
 
           <div className="space-y-3">
             {queueItems.map((item) => {
               const isOverdue = item.date < todayStr;
               const isToday = item.date === todayStr;
+              const type = (item.interaction_type || '').toLowerCase();
 
               return (
                 <div
@@ -1375,13 +1406,27 @@ export default function CallLogManager({
                 >
                   <div className="flex items-start space-x-4">
                     <div
-                      className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 font-bold ${
+                      className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 font-bold text-white shadow ${
                         isOverdue
-                          ? 'bg-rose-600 text-white shadow'
-                          : 'bg-blue-600 text-white shadow'
+                          ? 'bg-rose-600'
+                          : type.includes('email')
+                          ? 'bg-purple-600'
+                          : type.includes('message') || type.includes('whatsapp')
+                          ? 'bg-emerald-600'
+                          : type.includes('meeting') || type.includes('visit')
+                          ? 'bg-amber-600'
+                          : 'bg-blue-600'
                       }`}
                     >
-                      <Phone className="w-5 h-5" />
+                      {type.includes('email') ? (
+                        <Mail className="w-5 h-5 text-white" />
+                      ) : type.includes('message') || type.includes('whatsapp') ? (
+                        <MessageSquare className="w-5 h-5 text-white" />
+                      ) : type.includes('meeting') || type.includes('visit') ? (
+                        <Calendar className="w-5 h-5 text-white" />
+                      ) : (
+                        <PhoneCall className="w-5 h-5 text-white" />
+                      )}
                     </div>
 
                     <div className="space-y-1">
@@ -1599,6 +1644,16 @@ export default function CallLogManager({
                   </option>
                 ))}
               </select>
+
+              {/* History Sort Order */}
+              <select
+                value={historySortOrder}
+                onChange={(e) => setHistorySortOrder(e.target.value as 'newest' | 'oldest')}
+                className="px-3 py-2 text-xs border border-slate-300 rounded-xl bg-slate-50 font-semibold cursor-pointer"
+              >
+                <option value="newest">Date: Newest First</option>
+                <option value="oldest">Date: Oldest First</option>
+              </select>
             </div>
           </div>
 
@@ -1663,17 +1718,31 @@ export default function CallLogManager({
                         />
                       </td>
                       <td className="p-3.5">
-                        <div className="flex items-center space-x-1.5">
-                          <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-100 text-blue-700 border border-slate-200 inline-block">
-                            {getReferenceId('CL', log, callLogs)}
-                          </span>
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                            type === 'email' ? 'bg-purple-100 text-purple-800' :
-                            type === 'message' ? 'bg-emerald-100 text-emerald-800' :
-                            'bg-blue-100 text-blue-800'
+                        <div className="flex items-center space-x-2">
+                          <div className={`p-1.5 rounded-lg border flex items-center justify-center shrink-0 ${
+                            type.includes('email') ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                            type.includes('message') || type.includes('whatsapp') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            type.includes('meeting') || type.includes('visit') ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            'bg-blue-50 text-blue-700 border-blue-200'
                           }`}>
-                            {type === 'email' ? 'Email' : type === 'message' ? 'Msg' : 'Call'}
-                          </span>
+                            {type.includes('email') ? <Mail className="w-3.5 h-3.5" /> :
+                             type.includes('message') || type.includes('whatsapp') ? <MessageSquare className="w-3.5 h-3.5" /> :
+                             type.includes('meeting') || type.includes('visit') ? <Calendar className="w-3.5 h-3.5" /> :
+                             <PhoneCall className="w-3.5 h-3.5" />}
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-100 text-blue-700 border border-slate-200 inline-block">
+                              {getReferenceId('CL', log, callLogs)}
+                            </span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase w-fit ${
+                              type.includes('email') ? 'bg-purple-100 text-purple-800' :
+                              type.includes('message') || type.includes('whatsapp') ? 'bg-emerald-100 text-emerald-800' :
+                              type.includes('meeting') || type.includes('visit') ? 'bg-amber-100 text-amber-800' :
+                              'bg-blue-100 text-blue-800'
+                            }`}>
+                              {type.includes('email') ? 'Email' : type.includes('message') ? 'Msg' : type.includes('meeting') ? 'Meeting' : 'Call'}
+                            </span>
+                          </div>
                         </div>
                       </td>
                       <td className="p-3.5">

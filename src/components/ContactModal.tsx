@@ -684,28 +684,55 @@ export default function ContactModal({
               </span>
             </label>
 
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
-              <label className="flex items-center space-x-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isDnc}
-                  onChange={(e) => setIsDnc(e.target.checked)}
-                  className="w-4 h-4 text-rose-600 bg-slate-950 border-slate-700 rounded focus:ring-rose-500"
-                />
-                <span className="text-xs font-bold text-rose-400 flex items-center space-x-1">
-                  <ShieldAlert className="w-3.5 h-3.5" />
-                  <span>Flag as Do Not Call (DNC)</span>
-                </span>
-              </label>
+            {/* Sleek Modern DNC Toggle & Alert Pill */}
+            <div className={`p-3.5 rounded-xl border transition-all ${
+              isDnc
+                ? 'bg-rose-950/40 border-rose-600/80 shadow-md shadow-rose-950/20'
+                : 'bg-slate-950/80 border-slate-800'
+            }`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className={`p-1.5 rounded-lg shrink-0 ${isDnc ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                    <ShieldAlert className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className={`text-xs font-bold block ${isDnc ? 'text-rose-200' : 'text-slate-300'}`}>
+                      Do Not Call (DNC) Restriction
+                    </span>
+                    <span className="text-[10px] text-slate-400 block leading-tight">
+                      {isDnc ? 'Contact is flagged for no direct outreach' : 'Allow direct communications and outreach'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDnc(!isDnc)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isDnc ? 'bg-rose-600' : 'bg-slate-700'
+                  }`}
+                  title={isDnc ? 'Disable DNC restriction' : 'Enable DNC restriction'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isDnc ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
 
               {isDnc && (
-                <input
-                  type="text"
-                  value={dncReason}
-                  onChange={(e) => setDncReason(e.target.value)}
-                  placeholder="Reason for DNC request..."
-                  className="w-full px-3 py-1.5 text-xs border border-rose-900/60 bg-slate-900 rounded-lg text-rose-200 placeholder-rose-800/60 focus:ring-1 focus:ring-rose-500"
-                />
+                <div className="mt-3 pt-2.5 border-t border-rose-900/40">
+                  <label className="block text-[10px] font-mono text-rose-300 uppercase tracking-wider mb-1 font-bold">
+                    DNC Reason / Notes
+                  </label>
+                  <input
+                    type="text"
+                    value={dncReason}
+                    onChange={(e) => setDncReason(e.target.value)}
+                    placeholder="e.g. Requested opt-out via email, Unsubscribed..."
+                    className="w-full px-3 py-2 text-xs border border-rose-800/80 bg-slate-900 rounded-lg text-rose-100 placeholder-rose-700 focus:border-rose-500 focus:outline-none font-medium"
+                  />
+                </div>
               )}
             </div>
           </div>

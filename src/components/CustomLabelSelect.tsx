@@ -44,7 +44,9 @@ export function CustomLabelSelect({
   const isStandardOption = options.includes(value);
   const [isCustomMode, setIsCustomMode] = useState(!isStandardOption && value !== '');
 
-  if (isCustomMode) {
+  const isCustom = isCustomMode || (!isStandardOption && value !== '');
+
+  if (isCustom) {
     return (
       <div className={`flex items-center gap-1 ${className}`}>
         <input
@@ -52,7 +54,7 @@ export function CustomLabelSelect({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-800 text-slate-100 focus:border-amber-500 focus:outline-none"
+          className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-800 text-slate-100 focus:border-amber-500 focus:outline-none font-medium"
           autoFocus
         />
         <button
@@ -74,12 +76,13 @@ export function CustomLabelSelect({
 
   return (
     <select
-      value={value}
+      value={isStandardOption ? value : (options[0] || 'Main')}
       onChange={(e) => {
         if (e.target.value === '__OTHER_CUSTOM__') {
           setIsCustomMode(true);
           onChange('');
         } else {
+          setIsCustomMode(false);
           onChange(e.target.value);
         }
       }}

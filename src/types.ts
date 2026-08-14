@@ -82,7 +82,7 @@ export type CompanyRelationship =
   | 'Competitor'
   | string;
 
-export type CompanyTemperature = 'Hot' | 'Warm' | 'Cold' | string;
+export type CompanyTemperature = 'Hot' | 'Warm' | 'Cold' | 'DNC' | string;
 
 export interface SoftDeleteFields {
   is_deleted?: boolean;
@@ -497,6 +497,8 @@ export interface ActivityLogEntry extends SoftDeleteFields {
   message_platform?: string;
   geography?: string; // Configurable geography/region field
   purpose?: string; // Call purpose / reason (e.g. Prospecting, Quote Follow-Up, Technical Support, Payment Collection)
+  location_or_link?: string;
+  followup_intent?: string;
   concerned_persons?: string[];
   concerned_person?: string;
   createdAt?: string;

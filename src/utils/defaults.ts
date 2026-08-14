@@ -26,15 +26,21 @@ export const SYSTEM_CALL_OUTCOMES = [
 
 export const SYSTEM_CALL_PURPOSES = [
   'Validation',
+  'Prospecting / Cold Outreach',
   'Prospecting / Intro',
-  'Quote Follow-up',
+  'Quote Follow-Up',
+  'Order Confirmation',
   'Technical Review',
   'Commercial Negotiation',
   'Payment / Invoicing',
   'Customer Care',
-  'Relationship Maintenance / Courtesy Call',
+  'Account Management',
+  'Re-engagement',
+  'Meeting / Demo',
   'Complaint / Issue Resolution',
-  'General Inquiry'
+  'Relationship Maintenance / Courtesy Call',
+  'General Inquiry',
+  'Other'
 ];
 
 export const SYSTEM_CALL_STATUS_DESCRIPTIONS: Record<string, string> = {
@@ -90,7 +96,8 @@ export const SYSTEM_COMPANY_RELATIONSHIPS = [
 export const SYSTEM_COMPANY_TEMPERATURES = [
   'Hot',
   'Warm',
-  'Cold'
+  'Cold',
+  'DNC'
 ];
 
 export const SYSTEM_RELATIONSHIP_COLORS: Record<string, string> = {
@@ -105,7 +112,8 @@ export const SYSTEM_RELATIONSHIP_COLORS: Record<string, string> = {
 export const SYSTEM_TEMPERATURE_COLORS: Record<string, string> = {
   'Hot': '#ef4444',  // Red
   'Warm': '#f59e0b', // Amber
-  'Cold': '#06b6d4'  // Cyan / Blue
+  'Cold': '#06b6d4', // Cyan / Blue
+  'DNC': '#e11d48'   // Rose / Dark Red
 };
 
 export function healDropdownOptions(

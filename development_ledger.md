@@ -1,5 +1,47 @@
 # Development Ledger
 
+## Session: 2026-08-14 (Phase 4: UI Polish, Quick Actions, & Purpose Dropdowns)
+
+### Goals
+- Inject dynamic leading history symbols (`PhoneCall`, `Mail`, `MessageSquare`, `Calendar`) into log entries across Operator Queue, History table, Activity Details, and Company 360 Call Operations.
+- Add 1-click Quick Action mini-buttons (Dial, Email, WhatsApp) to contact cards in `Company360Modal.tsx` with non-digit stripping regex for WhatsApp URLs.
+- Implement list sorting controls ("Date: Oldest First" / "Date: Newest First") in `CallLogManager.tsx` for Operator Queue and Call History views.
+- Expand `SYSTEM_CALL_PURPOSES` presets in `defaults.ts` and update `CallLogDetailModal.tsx` and `QuickActivityDrawer.tsx` purpose select dropdowns.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/utils/defaults.ts` | Expanded `SYSTEM_CALL_PURPOSES` preset list to cover all standard interaction categories. |
+| `/src/components/CallLogManager.tsx` | Added queue & history sorting states and controls; injected dynamic history symbol icons into Operator Queue and History table. |
+| `/src/components/Company360Modal.tsx` | Added 1-click Contact Quick Action mini-buttons (Dial, Email, WhatsApp) and dynamic leading icons in Call Operations timeline. |
+| `/src/components/CallLogDetailModal.tsx` | Updated modal header icon to dynamic interaction icon and wired Interaction Purpose select dropdown to `SYSTEM_CALL_PURPOSES`. |
+| `/src/components/QuickActivityDrawer.tsx` | Updated Call Purpose select dropdown to support `SYSTEM_CALL_PURPOSES` and preserve custom values seamlessly. |
+| `/package.json` | Bumped version to `0.66.0`. |
+| `/CHANGELOG.md` | Logged version `0.66.0` release notes. |
+
+## Session: 2026-08-14 (Phase 3: DNC & Temperature Restructure)
+
+### Goals
+- Extend `CompanyTemperature` model and defaults to include `'DNC'`.
+- Upgrade 3-stage company heat badge cycling to a 4-stage cycle: Cold ❄️ -> Warm 🌤️ -> Hot 🔥 -> DNC 🚫 in `CompanyModal.tsx` and `Company360Modal.tsx`.
+- Auto-set `is_dnc: true` on company records when temperature is set or cycled to DNC.
+- Remove redundant "Is DNC" form checkbox from company creation/edit forms.
+- Re-architect Contact DNC flag in `ContactModal.tsx` with a modern toggle switch and alert container.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/types.ts` | Extended `CompanyTemperature` type definition to include `'DNC'`. |
+| `/src/utils/defaults.ts` | Added `'DNC'` to `SYSTEM_COMPANY_TEMPERATURES` and configured rose color mapping in `SYSTEM_TEMPERATURE_COLORS`. |
+| `/src/components/CompanyModal.tsx` | Updated 4-stage temperature badge rendering and cycling, mapped `is_dnc` on submit, and updated company card filters. |
+| `/src/components/Company360Modal.tsx` | Implemented 4-stage temperature badge cycling (`Cold` -> `Warm` -> `Hot` -> `DNC`) and updated company header badge. |
+| `/src/components/ContactModal.tsx` | Replaced legacy checkbox with modern toggle switch and styled warning container for DNC restrictions. |
+| `/package.json` | Bumped version to `0.65.0`. |
+| `/CHANGELOG.md` | Logged 0.65.0 release notes. |
+| `/development_ledger.md` | Added session record. |
+
 ## Session: 2026-08-12 (Fix React Duplicate Key Error in Quick Activity Drawer)
 
 ### Goals
