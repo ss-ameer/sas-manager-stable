@@ -1,5 +1,23 @@
 # Development Ledger
 
+## Session: 2026-08-14 (Target Mode & Phone Dropdown Overhaul)
+
+### Goals
+- Refine target mode toggle labels ("Contact Person" vs "Company Mainline") with clean state resets upon mode switches in `QuickActivityDrawer.tsx`.
+- Add dedicated Company Line dropdown with options for saved front desk/main lines, custom line tags, "+ Add New Company Line" mode, and inline "Call" action buttons.
+- Build dedicated Contact Person phone selector mapping saved numbers (`Mobile`, `Landline`, direct numbers) with "+ Add New Contact Detail" mode and inline "Call" action buttons.
+- Add `cursor-pointer` utility class to Edit Log action button in `CallLogManager.tsx`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/QuickActivityDrawer.tsx` | Refined target mode toggles, added state cleanup handlers on mode switch, implemented separated Company Line and Contact Detail phone dropdowns with inline Call buttons. |
+| `/src/components/CallLogManager.tsx` | Added `cursor-pointer` to Edit Log button in log details. |
+| `/package.json` | Bumped version to `0.66.1`. |
+| `/CHANGELOG.md` | Logged version `0.66.1` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
 ## Session: 2026-08-14 (Phase 4: UI Polish, Quick Actions, & Purpose Dropdowns)
 
 ### Goals

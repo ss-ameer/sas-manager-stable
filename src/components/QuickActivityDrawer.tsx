@@ -278,7 +278,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [selectedContactPhone, setSelectedContactPhone] = useState<string>(contactPhone || '');
   const [selectedContactEmail, setSelectedContactEmail] = useState<string>('');
   const [isAddingNewContact, setIsAddingNewContact] = useState<boolean>(false);
-  const [isAddingNewPhone, setIsAddingNewPhone] = useState<boolean>(false);
+  const [isAddingNewContactPhone, setIsAddingNewContactPhone] = useState<boolean>(false);
+  const [isAddingNewCompanyLine, setIsAddingNewCompanyLine] = useState<boolean>(false);
   const [selectedEnquiryId, setSelectedEnquiryId] = useState<string>(enquiryId || '');
   const [selectedEnquiryQuoteRef, setSelectedEnquiryQuoteRef] = useState<string>('');
   const [companySearchQuery, setCompanySearchQuery] = useState<string>('');
@@ -574,13 +575,57 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setSelectedEnquiryId('');
     setSelectedEnquiryQuoteRef('');
     setIsAddingNewContact(false);
-    setIsAddingNewPhone(false);
+    setIsAddingNewContactPhone(false);
+    setIsAddingNewCompanyLine(false);
   };
 
   const availableCompanyContacts = useMemo(() => {
     if (!selectedCompanyId) return [];
-    return (contacts || []).filter((c) => c.company_id === selectedCompanyId);
+    return (contacts || []).filter((c) => c.company_id === selectedCompanyId || c.company_ids?.includes(selectedCompanyId));
   }, [contacts, selectedCompanyId]);
+
+  const selectedContactObj = useMemo(() => {
+    if (!selectedContactId) return null;
+    return availableCompanyContacts.find((c) => c.id === selectedContactId) || null;
+  }, [availableCompanyContacts, selectedContactId]);
+
+  const selectedContactSavedNumbers = useMemo(() => {
+    if (!selectedContactObj) return [];
+    const list: Array<{ number: string; label: string }> = [];
+    const cPhones = getContactPhones(selectedContactObj);
+    if (selectedContactObj.mobile) {
+      list.push({ number: selectedContactObj.mobile, label: 'Mobile' });
+    }
+    if (selectedContactObj.landline) {
+      list.push({ number: selectedContactObj.landline, label: 'Landline' });
+    }
+    cPhones.forEach((p) => {
+      if (p.number && !list.some((existing) => isSamePhoneNumber(existing.number, p.number))) {
+        list.push({ number: p.number, label: p.label || 'Direct' });
+      }
+    });
+    return list;
+  }, [selectedContactObj]);
+
+  const selectedCompanyObj = useMemo(() => {
+    if (!selectedCompanyId) return null;
+    return companies.find((c) => c.id === selectedCompanyId) || null;
+  }, [companies, selectedCompanyId]);
+
+  const companyMainlines = useMemo(() => {
+    if (!selectedCompanyObj) return [];
+    const list: Array<{ number: string; label: string }> = [];
+    const compPhones = getCompanyPhones(selectedCompanyObj);
+    if (selectedCompanyObj.general_phone) {
+      list.push({ number: selectedCompanyObj.general_phone, label: 'Main' });
+    }
+    compPhones.forEach((p) => {
+      if (p.number && !list.some((existing) => isSamePhoneNumber(existing.number, p.number))) {
+        list.push({ number: p.number, label: p.label || 'Front Desk' });
+      }
+    });
+    return list;
+  }, [selectedCompanyObj]);
 
   const handleSelectContact = (cId: string) => {
     setSelectedContactId(cId);
@@ -588,12 +633,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     if (found) {
       setSelectedContactName(found.full_name || '');
       const phones = getContactPhones(found);
-      setSelectedContactPhone(found.mobile || found.landline || phones[0]?.number || '');
+      const firstPhone = found.mobile || found.landline || phones[0]?.number || '';
+      setSelectedContactPhone(firstPhone);
       setSelectedContactEmail(found.email || '');
+      setIsAddingNewContactPhone(false);
     } else {
       setSelectedContactName('');
       setSelectedContactPhone('');
       setSelectedContactEmail('');
+      setIsAddingNewContactPhone(false);
     }
   };
 
@@ -778,7 +826,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setSelectedEnquiryId(enquiryId || '');
     setSelectedEnquiryQuoteRef('');
     setIsAddingNewContact(false);
-    setIsAddingNewPhone(false);
+    setIsAddingNewContactPhone(false);
+    setIsAddingNewCompanyLine(false);
 
     if (isListening && recognitionRef.current) {
       recognitionRef.current.stop();
@@ -1464,12 +1513,17 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   </div>
                 )}
 
-                {/* Target Selection Toggle (Contact vs. Company Mainline) */}
+                {/* Target Selection Toggle (Contact Person vs. Company Mainline) */}
                 {selectedCompanyId && (
                   <div className="flex items-center gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800 my-1">
                     <button
                       type="button"
-                      onClick={() => setCrmTargetType('contact')}
+                      onClick={() => {
+                        setCrmTargetType('contact');
+                        setIsAddingNewCompanyLine(false);
+                        setSelectedContactPhone('');
+                        setSelectedContactEmail('');
+                      }}
                       className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                         crmTargetType === 'contact'
                           ? 'bg-blue-600 text-white shadow-xs'
@@ -1477,12 +1531,14 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       }`}
                     >
                       <User className="w-3.5 h-3.5" />
-                      <span>Log against Contact</span>
+                      <span>Contact Person</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => {
                         setCrmTargetType('company_mainline');
+                        setIsAddingNewContact(false);
+                        setIsAddingNewContactPhone(false);
                         setSelectedContactId('');
                         setSelectedContactName('');
                         setSelectedContactEmail('');
@@ -1505,27 +1561,31 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       }`}
                     >
                       <Building2 className="w-3.5 h-3.5" />
-                      <span>Log against Company Mainline</span>
+                      <span>Company Mainline</span>
                     </button>
                   </div>
                 )}
 
-                {/* Contact, Phone & Email Creatable Hybrid Inputs */}
+                {/* Contact & Phone Dropdowns */}
                 {selectedCompanyId && (
                   <div className="space-y-3 pt-1">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {crmTargetType === 'contact' ? (
                         <div>
                           {isAddingNewContact ? (
                             <div className="space-y-1">
                               <div className="flex items-center justify-between">
-                                <label className="block text-xs font-medium text-slate-300">New Contact Name</label>
+                                <label className="block text-xs font-medium text-slate-300">New Contact Person Name</label>
                                 <button
                                   type="button"
-                                  onClick={() => setIsAddingNewContact(false)}
+                                  onClick={() => {
+                                    setIsAddingNewContact(false);
+                                    setSelectedContactId('');
+                                    setSelectedContactName('');
+                                  }}
                                   className="text-[10px] text-blue-400 hover:underline cursor-pointer"
                                 >
-                                  &larr; Select Existing
+                                  &larr; Select Existing Contact
                                 </button>
                               </div>
                               <input
@@ -1535,7 +1595,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                   setSelectedContactName(e.target.value);
                                   setSelectedContactId('');
                                 }}
-                                placeholder="Enter Contact Person Full Name..."
+                                placeholder="Enter new contact person name..."
                                 className="w-full rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                                 autoFocus
                               />
@@ -1549,12 +1609,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                 value={selectedContactId || (selectedContactName ? 'CUSTOM' : '')}
                                 onChange={(e) => {
                                   const val = e.target.value;
-                                  if (val === 'ADD_NEW') {
+                                  if (val === 'CREATE_NEW') {
                                     setIsAddingNewContact(true);
                                     setSelectedContactId('');
                                     setSelectedContactName('');
                                     setSelectedContactPhone('');
                                     setSelectedContactEmail('');
+                                    setIsAddingNewContactPhone(true);
                                   } else if (val && val !== 'CUSTOM') {
                                     setIsAddingNewContact(false);
                                     handleSelectContact(val);
@@ -1577,58 +1638,123 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                 {selectedContactName && !availableCompanyContacts.some((c) => c.id === selectedContactId) && (
                                   <option value="CUSTOM">{selectedContactName} (Custom/Unsaved)</option>
                                 )}
-                                <option value="ADD_NEW" className="font-bold text-blue-400 bg-slate-900">+ Add New Contact</option>
+                                <option value="CREATE_NEW" className="font-bold text-blue-400 bg-slate-900">+ Create New Contact Person</option>
                               </select>
                             </div>
                           )}
                         </div>
                       ) : (
                         <div>
-                          <label className="block text-xs font-medium text-amber-300 mb-1.5 flex items-center justify-between">
-                            <span>Phone Tag / Label</span>
-                            <span className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Company Line</span>
-                          </label>
-                          <input
-                            type="text"
-                            list="mainline-tag-suggestions"
-                            value={mainlineTag}
-                            onChange={(e) => setMainlineTag(e.target.value)}
-                            placeholder="e.g. Front Desk, Support, Main..."
-                            className="w-full rounded-lg bg-slate-950 border border-amber-500/40 px-3 py-2 text-xs text-amber-100 placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400 font-medium"
-                          />
-                          <datalist id="mainline-tag-suggestions">
-                            <option value="Front Desk" />
-                            <option value="Main / Reception" />
-                            <option value="Support / Helpdesk" />
-                            <option value="Sales Line" />
-                            <option value="Boardroom / HQ" />
-                          </datalist>
+                          {isAddingNewCompanyLine ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-xs font-medium text-amber-300">New Company Line</label>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsAddingNewCompanyLine(false)}
+                                  className="text-[10px] text-amber-400 hover:underline cursor-pointer"
+                                >
+                                  &larr; Select Saved Line
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <input
+                                  type="text"
+                                  value={selectedContactPhone}
+                                  onChange={(e) => setSelectedContactPhone(e.target.value)}
+                                  placeholder="Enter line phone number..."
+                                  className="w-full rounded-lg bg-slate-950 border border-amber-500/50 px-3 py-2 text-xs text-amber-100 font-mono placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400"
+                                  autoFocus
+                                />
+                                <input
+                                  type="text"
+                                  value={mainlineTag}
+                                  onChange={(e) => setMainlineTag(e.target.value)}
+                                  placeholder="Line tag (e.g. Front Desk)..."
+                                  className="w-full rounded-lg bg-slate-950 border border-amber-500/50 px-3 py-2 text-xs text-amber-100 placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-amber-300 mb-1.5">
+                                Company Line
+                              </label>
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={selectedContactPhone}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === 'ADD_NEW_LINE') {
+                                      setIsAddingNewCompanyLine(true);
+                                      setSelectedContactPhone('');
+                                      setMainlineTag('Front Desk');
+                                    } else {
+                                      setIsAddingNewCompanyLine(false);
+                                      setSelectedContactPhone(val);
+                                      const matched = companyMainlines.find((m) => m.number === val);
+                                      if (matched) {
+                                        setMainlineTag(matched.label || 'Front Desk');
+                                      }
+                                    }
+                                  }}
+                                  className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-amber-100 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400 font-mono cursor-pointer"
+                                >
+                                  <option value="">-- Select Company Line --</option>
+                                  {companyMainlines.map((m, idx) => (
+                                    <option key={`m_${idx}`} value={m.number}>
+                                      {m.number} — {m.label || 'Front Desk'}
+                                    </option>
+                                  ))}
+                                  {selectedContactPhone && !companyMainlines.some((m) => m.number === selectedContactPhone) && (
+                                    <option value={selectedContactPhone}>{selectedContactPhone} ({mainlineTag || 'Main'})</option>
+                                  )}
+                                  <option value="ADD_NEW_LINE" className="font-bold text-amber-400 bg-slate-900">+ Add New Company Line</option>
+                                </select>
+                                {selectedContactPhone.trim() && (
+                                  <a
+                                    href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                                    title={`Call ${selectedContactPhone}`}
+                                  >
+                                    <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                    <span>Call</span>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* Dynamic Interaction Fields based on selected Channel */}
-                      {(channel === 'Call' || channel === 'WhatsApp') && (
+                      {/* Phone Detail Field for Contact Person Mode */}
+                      {crmTargetType === 'contact' && (channel === 'Call' || channel === 'WhatsApp') && (
                         <div>
-                          {isAddingNewPhone ? (
+                          {isAddingNewContactPhone || isAddingNewContact ? (
                             <div className="space-y-1">
                               <div className="flex items-center justify-between">
-                                <label className="block text-xs font-medium text-slate-300">New Phone Line / Number</label>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsAddingNewPhone(false)}
-                                  className="text-[10px] text-blue-400 hover:underline cursor-pointer"
-                                >
-                                  &larr; Select Line
-                                </button>
+                                <label className="block text-xs font-medium text-slate-300">New Phone Number</label>
+                                {!isAddingNewContact && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsAddingNewContactPhone(false)}
+                                    className="text-[10px] text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    &larr; Select Saved Number
+                                  </button>
+                                )}
                               </div>
                               <div className="flex items-center gap-1.5">
                                 <input
                                   type="text"
                                   value={selectedContactPhone}
                                   onChange={(e) => setSelectedContactPhone(e.target.value)}
-                                  placeholder="Enter Phone Number..."
+                                  placeholder="Enter phone number..."
                                   className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
-                                  autoFocus
+                                  autoFocus={isAddingNewContactPhone}
                                 />
                                 {selectedContactPhone.trim() && (
                                   <a
@@ -1648,59 +1774,33 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                           ) : (
                             <div>
                               <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                                Phone Number / Line
+                                Contact Detail / Phone
                               </label>
                               <div className="flex items-center gap-1.5">
                                 <select
                                   value={selectedContactPhone}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    if (val === 'ADD_NEW') {
-                                      setIsAddingNewPhone(true);
+                                    if (val === 'ADD_NEW_DETAIL') {
+                                      setIsAddingNewContactPhone(true);
                                       setSelectedContactPhone('');
                                     } else {
-                                      setIsAddingNewPhone(false);
+                                      setIsAddingNewContactPhone(false);
                                       setSelectedContactPhone(val);
                                     }
                                   }}
                                   className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono cursor-pointer"
                                 >
-                                  <option value="">-- Select Phone Line --</option>
-                                  {(() => {
-                                    const selComp = companies.find((c) => c.id === selectedCompanyId);
-                                    const compPhones = selComp ? getCompanyPhones(selComp) : [];
-                                    const contactPhones = availableCompanyContacts.flatMap((c) => {
-                                      const cPhones = getContactPhones(c);
-                                      const list: Array<{ number: string; label: string }> = [];
-                                      if (c.mobile) list.push({ number: c.mobile, label: `${c.full_name} (Mobile)` });
-                                      if (c.landline) list.push({ number: c.landline, label: `${c.full_name} (Landline)` });
-                                      cPhones.forEach(p => list.push({ number: p.number, label: `${c.full_name} (${p.label || 'Direct'})` }));
-                                      return list;
-                                    });
-                                    const allPhones = [
-                                      ...compPhones.map(p => ({ number: p.number, label: `Company Line (${p.label || 'Main'})` })),
-                                      ...contactPhones
-                                    ];
-                                    const seen = new Set<string>();
-                                    const unique = allPhones.filter(p => {
-                                      if (!p.number || seen.has(p.number)) return false;
-                                      seen.add(p.number);
-                                      return true;
-                                    });
-                                    return (
-                                      <>
-                                        {unique.map((p, idx) => (
-                                          <option key={`p_${idx}`} value={p.number}>
-                                            {p.number} — {p.label}
-                                          </option>
-                                        ))}
-                                        {selectedContactPhone && !unique.some((p) => p.number === selectedContactPhone) && (
-                                          <option value={selectedContactPhone}>{selectedContactPhone} (Current Line)</option>
-                                        )}
-                                      </>
-                                    );
-                                  })()}
-                                  <option value="ADD_NEW" className="font-bold text-blue-400 bg-slate-900">+ Add New Number/Line</option>
+                                  <option value="">-- Select Phone Number --</option>
+                                  {selectedContactSavedNumbers.map((p, idx) => (
+                                    <option key={`p_${idx}`} value={p.number}>
+                                      {p.number} — {p.label}
+                                    </option>
+                                  ))}
+                                  {selectedContactPhone && !selectedContactSavedNumbers.some((p) => p.number === selectedContactPhone) && (
+                                    <option value={selectedContactPhone}>{selectedContactPhone} (Current)</option>
+                                  )}
+                                  <option value="ADD_NEW_DETAIL" className="font-bold text-blue-400 bg-slate-900">+ Add New Contact Detail</option>
                                 </select>
                                 {selectedContactPhone.trim() && (
                                   <a
@@ -1718,33 +1818,6 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                               </div>
                             </div>
                           )}
-
-                          {/* Company-Level Phone Selector Pills */}
-                          {(() => {
-                            const selComp = companies.find((c) => c.id === selectedCompanyId);
-                            const compPhones = selComp ? getCompanyPhones(selComp) : [];
-                            if (compPhones.length === 0) return null;
-                            return (
-                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Company Lines:</span>
-                                {compPhones.map((p, idx) => (
-                                  <button
-                                    key={`cp_${idx}`}
-                                    type="button"
-                                    onClick={() => {
-                                      setIsAddingNewPhone(false);
-                                      setSelectedContactPhone(p.number);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 hover:bg-blue-950/80 text-blue-200 hover:text-white border border-slate-800 hover:border-blue-500/50 shadow-2xs transition cursor-pointer group"
-                                    title={`Set Phone to ${p.label || 'Front Desk'}: ${p.number}`}
-                                  >
-                                    <span className="text-slate-400 group-hover:text-blue-300 text-[11px] font-medium">{p.label || 'Front Desk'}:</span>
-                                    <span className="font-mono font-bold text-blue-300 group-hover:text-blue-200">{p.number}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            );
-                          })()}
                         </div>
                       )}
 

@@ -1529,7 +1529,7 @@ export default function CallLogManager({
                             onClick={() => {
                               setSelectedDetailEntry(item);
                             }}
-                            className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition flex items-center justify-center bg-white"
+                            className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition flex items-center justify-center bg-white cursor-pointer"
                             title="Edit Log"
                           >
                             <Edit3 className="w-4 h-4" />

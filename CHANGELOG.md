@@ -2,6 +2,15 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.66.1] - 2026-08-14
+
+### Fixed & Refactored
+- **Target Mode & Phone Dropdown Overhaul in Quick Activity Drawer (`src/components/QuickActivityDrawer.tsx`, `src/components/CallLogManager.tsx`)**:
+  - **Refined Target Mode Toggle**: Relabeled toggle buttons to "Contact Person" vs "Company Mainline" with clean state resets (clearing phone numbers, emails, and toggles) when switching target logging modes.
+  - **Dedicated Company Line Dropdown**: Added dedicated company mainline selector with options for saved front desk/main lines, custom line tags, "+ Add New Company Line" mode, and inline "Call" action buttons.
+  - **Separated Contact Person Phone Selector**: Built dedicated contact phone detail dropdown mapping saved numbers (`Mobile`, `Landline`, direct numbers) for selected personnel with "+ Add New Contact Detail" mode and inline "Call" action buttons.
+  - **Call Log Manager Cursor Polish**: Added explicit `cursor-pointer` utility to the Edit Log action button in `CallLogManager.tsx`.
+
 ## [0.66.0] - 2026-08-14
 
 ### Added & Refactored
