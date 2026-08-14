@@ -897,6 +897,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         outcome.toLowerCase().includes('opt-out') ||
         outcome.toLowerCase().includes('opt_out');
 
+      const isInvalidNumberCall =
+        channel === 'Call' &&
+        (status === 'Invalid Number' ||
+         status === 'Dead / Invalid Number' ||
+         status?.toLowerCase().includes('invalid number') ||
+         status?.toLowerCase() === 'invalid' ||
+         outcome === 'Dead / Invalid Number' ||
+         outcome?.toLowerCase().includes('invalid number'));
+
       const userUid = currentUserUid || user?.uid || '';
       const userName = currentUserName || user?.full_name || user?.username || user?.email || currentUserInitials || 'System';
 
@@ -964,6 +973,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 }
               }
 
+              if (isInvalidNumberCall && selectedContactPhone && selectedContactPhone.trim()) {
+                const phoneTrim = selectedContactPhone.trim();
+                updatedComp.restricted_lines = {
+                  ...(updatedComp.restricted_lines || {}),
+                  [phoneTrim]: 'Invalid'
+                };
+                compUpdated = true;
+              }
+
               if (compUpdated) {
                 updatedComp.updatedAt = nowIso;
                 await safeSetDoc('companies', selectedCompanyId, updatedComp);
@@ -1012,6 +1030,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 }
               }
 
+              if (isInvalidNumberCall && selectedContactPhone && selectedContactPhone.trim()) {
+                const phoneTrim = selectedContactPhone.trim();
+                updatedComp.restricted_lines = {
+                  ...(updatedComp.restricted_lines || {}),
+                  [phoneTrim]: 'Invalid'
+                };
+                compUpdated = true;
+              }
+
               if (compUpdated) {
                 updatedComp.updatedAt = nowIso;
                 await safeSetDoc('companies', selectedCompanyId, updatedComp);
@@ -1043,7 +1070,10 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     email: selectedContactEmail ? selectedContactEmail.trim() : '',
                     is_primary: false,
                     createdAt: nowIso,
-                    updatedAt: nowIso
+                    updatedAt: nowIso,
+                    ...(isInvalidNumberCall && selectedContactPhone && selectedContactPhone.trim() ? {
+                      restricted_lines: { [selectedContactPhone.trim()]: 'Invalid' }
+                    } : {})
                   };
 
                   await safeSetDoc('contacts', newContactId, newContact);
@@ -1080,6 +1110,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       if (!updatedCt.email) updatedCt.email = selectedContactEmail.trim();
                       ctChanged = true;
                     }
+                  }
+
+                  if (isInvalidNumberCall && selectedContactPhone && selectedContactPhone.trim()) {
+                    const pTrim = selectedContactPhone.trim();
+                    updatedCt.restricted_lines = {
+                      ...(updatedCt.restricted_lines || {}),
+                      [pTrim]: 'Invalid'
+                    };
+                    ctChanged = true;
                   }
 
                   if (ctChanged) {
@@ -1161,6 +1200,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
               updatedAt: nowIso
             };
 
+            if (isInvalidNumberCall && dialedPhone) {
+              newComp.restricted_lines = {
+                ...(newComp.restricted_lines || {}),
+                [dialedPhone]: 'Invalid'
+              };
+            }
+
             await safeSetDoc('companies', targetCompId, newComp);
             await CompanyRepository.saveCompany(newComp);
             targetComp = newComp;
@@ -1191,8 +1237,14 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
               if (expressRelationship || expressTemperature) {
                 enrichedComp.relationship = expressRelationship || enrichedComp.relationship || 'Prospect';
                 enrichedComp.temperature = expressTemperature || enrichedComp.temperature || 'Cold';
-                await CompanyRepository.saveCompany(enrichedComp);
               }
+              if (isInvalidNumberCall && dialedPhone) {
+                enrichedComp.restricted_lines = {
+                  ...(enrichedComp.restricted_lines || {}),
+                  [dialedPhone]: 'Invalid'
+                };
+              }
+              await CompanyRepository.saveCompany(enrichedComp);
               targetComp = enrichedComp;
 
               if (setCompanies) {
@@ -1234,7 +1286,10 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 emails: validContactEmails.map((e) => ({ id: e.id, label: e.label || 'Direct', email: e.email.trim() })),
                 is_primary: true,
                 createdAt: nowIso,
-                updatedAt: nowIso
+                updatedAt: nowIso,
+                ...(isInvalidNumberCall && primaryContactPhone ? {
+                  restricted_lines: { [primaryContactPhone]: 'Invalid' }
+                } : {})
               };
 
               await safeSetDoc('contacts', targetContactId, newContact);
@@ -1258,6 +1313,14 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   ctChanged = true;
                 }
               });
+
+              if (isInvalidNumberCall && primaryContactPhone) {
+                updatedCt.restricted_lines = {
+                  ...(updatedCt.restricted_lines || {}),
+                  [primaryContactPhone]: 'Invalid'
+                };
+                ctChanged = true;
+              }
 
               if (ctChanged) {
                 updatedCt.updatedAt = nowIso;
@@ -1286,6 +1349,62 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
           // Fall back to standard unlinked log if ONLY phone/email provided
           resolvedUnlinkedName = unlinkedName.trim() || undefined;
           resolvedUnlinkedInfo = primaryCompPhone || primaryCompEmail || primaryContactPhone || primaryContactEmail || unlinkedContactInfo.trim() || undefined;
+        }
+      }
+
+      // Universal post-resolution auto-flagging for Invalid Number calls
+      if (isInvalidNumberCall) {
+        const dialedNum = (resolvedContactPhone || selectedContactPhone || '').trim();
+        if (dialedNum) {
+          if (resolvedContactId) {
+            const targetCt = (contacts || []).find((c) => c.id === resolvedContactId);
+            if (targetCt) {
+              const currentRestrictions = targetCt.restricted_lines || {};
+              if (currentRestrictions[dialedNum] !== 'Invalid') {
+                const updatedCt: Contact = {
+                  ...targetCt,
+                  restricted_lines: {
+                    ...currentRestrictions,
+                    [dialedNum]: 'Invalid'
+                  },
+                  updatedAt: nowIso
+                };
+                await safeSetDoc('contacts', resolvedContactId, updatedCt);
+                await CompanyRepository.saveContact(updatedCt);
+                if (setContacts) {
+                  setContacts((prev) => prev.map((c) => (c.id === resolvedContactId ? updatedCt : c)));
+                }
+                if (onUpdateContact) {
+                  onUpdateContact(updatedCt);
+                }
+              }
+            }
+          }
+
+          if (resolvedCompanyId) {
+            const targetComp = (companies || []).find((c) => c.id === resolvedCompanyId);
+            if (targetComp) {
+              const currentRestrictions = targetComp.restricted_lines || {};
+              if (currentRestrictions[dialedNum] !== 'Invalid') {
+                const updatedComp: Company = {
+                  ...targetComp,
+                  restricted_lines: {
+                    ...currentRestrictions,
+                    [dialedNum]: 'Invalid'
+                  },
+                  updatedAt: nowIso
+                };
+                await safeSetDoc('companies', resolvedCompanyId, updatedComp);
+                await CompanyRepository.saveCompany(updatedComp);
+                if (setCompanies) {
+                  setCompanies((prev) => prev.map((c) => (c.id === resolvedCompanyId ? updatedComp : c)));
+                }
+                if (onUpdateCompany) {
+                  onUpdateCompany(updatedComp);
+                }
+              }
+            }
+          }
         }
       }
 
@@ -1781,11 +1900,17 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                 className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer"
                               >
                                 <option value="">-- Select Contact Person --</option>
-                                {availableCompanyContacts.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}
-                                  </option>
-                                ))}
+                                {availableCompanyContacts.map((c) => {
+                                  const selComp = companies.find((comp) => comp.id === selectedCompanyId);
+                                  const mobTrim = (c.mobile || '').trim();
+                                  const res = (mobTrim && (c.restricted_lines?.[c.mobile] || c.restricted_lines?.[mobTrim] || selComp?.restricted_lines?.[c.mobile] || selComp?.restricted_lines?.[mobTrim])) || (c.is_dnc ? 'DNC' : undefined);
+                                  const badge = res === 'DNC' ? ' 🚫 [DNC]' : res === 'Invalid' ? ' ⚠️ [Invalid]' : res ? ` ⚠️ [${res}]` : '';
+                                  return (
+                                    <option key={c.id} value={c.id}>
+                                      {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}{badge}
+                                    </option>
+                                  );
+                                })}
                                 {selectedContactName && !availableCompanyContacts.some((c) => c.id === selectedContactId) && (
                                   <option value="CUSTOM">{selectedContactName} (Custom/Unsaved)</option>
                                 )}
@@ -1862,13 +1987,26 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                   className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-amber-100 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400 font-mono cursor-pointer"
                                 >
                                   <option value="">-- Select Company Line --</option>
-                                  {companyMainlines.map((m, idx) => (
-                                    <option key={`m_${idx}`} value={m.number}>
-                                      {m.number} — {m.label || 'Front Desk'}
-                                    </option>
-                                  ))}
+                                  {companyMainlines.map((m, idx) => {
+                                    const selComp = companies.find((c) => c.id === selectedCompanyId);
+                                    const numTrim = (m.number || '').trim();
+                                    const res = selComp?.restricted_lines?.[m.number] || selComp?.restricted_lines?.[numTrim] || (selComp?.is_dnc ? 'DNC' : undefined);
+                                    const badge = res === 'DNC' ? ' 🚫 [DNC]' : res === 'Invalid' ? ' ⚠️ [Invalid]' : res ? ` ⚠️ [${res}]` : '';
+                                    return (
+                                      <option key={`m_${idx}`} value={m.number}>
+                                        {m.number} — {m.label || 'Front Desk'}{badge}
+                                      </option>
+                                    );
+                                  })}
                                   {selectedContactPhone && !companyMainlines.some((m) => m.number === selectedContactPhone) && (
-                                    <option value={selectedContactPhone}>{selectedContactPhone} ({mainlineTag || 'Main'})</option>
+                                    <option value={selectedContactPhone}>
+                                      {selectedContactPhone} ({mainlineTag || 'Main'}){(() => {
+                                        const selComp = companies.find((c) => c.id === selectedCompanyId);
+                                        const pTrim = selectedContactPhone.trim();
+                                        const res = selComp?.restricted_lines?.[selectedContactPhone] || selComp?.restricted_lines?.[pTrim];
+                                        return res === 'DNC' ? ' 🚫 [DNC]' : res === 'Invalid' ? ' ⚠️ [Invalid]' : res ? ` ⚠️ [${res}]` : '';
+                                      })()}
+                                    </option>
                                   )}
                                   <option value="ADD_NEW_LINE" className="font-bold text-amber-400 bg-slate-900">+ Add New Company Line</option>
                                 </select>
@@ -1958,13 +2096,28 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                   className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono cursor-pointer"
                                 >
                                   <option value="">-- Select Phone Number --</option>
-                                  {selectedContactSavedNumbers.map((p, idx) => (
-                                    <option key={`p_${idx}`} value={p.number}>
-                                      {p.number} — {p.label}
-                                    </option>
-                                  ))}
+                                  {selectedContactSavedNumbers.map((p, idx) => {
+                                    const selCt = contacts.find((c) => c.id === selectedContactId);
+                                    const selComp = companies.find((c) => c.id === selectedCompanyId);
+                                    const numTrim = (p.number || '').trim();
+                                    const res = selCt?.restricted_lines?.[p.number] || selCt?.restricted_lines?.[numTrim] || selComp?.restricted_lines?.[p.number] || selComp?.restricted_lines?.[numTrim] || (selCt?.is_dnc ? 'DNC' : undefined);
+                                    const badge = res === 'DNC' ? ' 🚫 [DNC]' : res === 'Invalid' ? ' ⚠️ [Invalid]' : res ? ` ⚠️ [${res}]` : '';
+                                    return (
+                                      <option key={`p_${idx}`} value={p.number}>
+                                        {p.number} — {p.label}{badge}
+                                      </option>
+                                    );
+                                  })}
                                   {selectedContactPhone && !selectedContactSavedNumbers.some((p) => p.number === selectedContactPhone) && (
-                                    <option value={selectedContactPhone}>{selectedContactPhone} (Current)</option>
+                                    <option value={selectedContactPhone}>
+                                      {selectedContactPhone} (Current){(() => {
+                                        const selCt = contacts.find((c) => c.id === selectedContactId);
+                                        const selComp = companies.find((c) => c.id === selectedCompanyId);
+                                        const pTrim = selectedContactPhone.trim();
+                                        const res = selCt?.restricted_lines?.[selectedContactPhone] || selCt?.restricted_lines?.[pTrim] || selComp?.restricted_lines?.[selectedContactPhone] || selComp?.restricted_lines?.[pTrim];
+                                        return res === 'DNC' ? ' 🚫 [DNC]' : res === 'Invalid' ? ' ⚠️ [Invalid]' : res ? ` ⚠️ [${res}]` : '';
+                                      })()}
+                                    </option>
                                   )}
                                   <option value="ADD_NEW_DETAIL" className="font-bold text-blue-400 bg-slate-900">+ Add New Contact Detail</option>
                                 </select>

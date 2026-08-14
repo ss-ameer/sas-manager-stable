@@ -52,7 +52,28 @@ export default function ContactModal({
   const [phones, setPhones] = useState<ContactMethod[]>([{ id: 'ct_init_p1', label: 'Mobile', value: '' }]);
   const [emails, setEmails] = useState<ContactMethod[]>([{ id: 'ct_init_e1', label: 'Work', value: '' }]);
   const [handles, setHandles] = useState<LabeledHandle[]>([]);
+  const [editingRestrictedLines, setEditingRestrictedLines] = useState<Record<string, 'DNC' | 'Invalid'>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  const toggleRestriction = (val: string) => {
+    const trimmed = val.trim();
+    if (!trimmed) return;
+
+    setEditingRestrictedLines((prev) => {
+      const current = prev[trimmed] || prev[val];
+      const nextMap = { ...prev };
+
+      if (!current) {
+        nextMap[trimmed] = 'Invalid';
+      } else if (current === 'Invalid') {
+        nextMap[trimmed] = 'DNC';
+      } else {
+        delete nextMap[trimmed];
+        delete nextMap[val];
+      }
+      return nextMap;
+    });
+  };
 
   const selectedCompany = companies.find((c) => c.id === companyId);
   const availableCompanyPhones = selectedCompany ? getCompanyPhones(selectedCompany) : [];
@@ -157,6 +178,9 @@ export default function ContactModal({
         // Populate handles
         const existingHandles = getContactHandles(contact);
         setHandles(existingHandles.length > 0 ? existingHandles : []);
+
+        // Populate restricted lines
+        setEditingRestrictedLines(contact.restricted_lines ? { ...contact.restricted_lines } : {});
       } else {
         setCompanyId(initialCompanyId || '');
         setFullName('');
@@ -167,6 +191,7 @@ export default function ContactModal({
         setPhones([{ id: generateCtId(), label: 'Mobile', value: '' }]);
         setEmails([{ id: generateCtId(), label: 'Work', value: '' }]);
         setHandles([]);
+        setEditingRestrictedLines({});
       }
     }
   }, [isOpen, contact, initialCompanyId]);
@@ -261,6 +286,7 @@ export default function ContactModal({
       phones: legacyPhones as any,
       emails: legacyEmails as any,
       handles: validHandles,
+      restricted_lines: editingRestrictedLines,
       is_primary: isPrimary,
       is_dnc: isDnc,
       dnc_reason: isDnc ? dncReason.trim() : '',
@@ -512,38 +538,73 @@ export default function ContactModal({
               </div>
             )}
 
-            {phones.map((p, idx) => (
-              <div key={p.id || idx} className="flex items-center space-x-2">
-                <select
-                  value={p.label}
-                  onChange={(e) => handlePhoneChange(idx, 'label', e.target.value)}
-                  className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-semibold shrink-0"
-                >
-                  {PHONE_LABEL_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={p.value}
-                  onChange={(e) => handlePhoneChange(idx, 'value', e.target.value)}
-                  placeholder="e.g. +971 50 123 4567"
-                  className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 font-mono text-slate-100 placeholder-slate-600"
-                />
-                {phones.length > 1 && (
+            {phones.map((p, idx) => {
+              const phoneVal = p.value.trim();
+              const currentRestriction = editingRestrictedLines[phoneVal] || editingRestrictedLines[p.value];
+
+              return (
+                <div key={p.id || idx} className="flex items-center space-x-2">
+                  <select
+                    value={p.label}
+                    onChange={(e) => handlePhoneChange(idx, 'label', e.target.value)}
+                    className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-semibold shrink-0"
+                  >
+                    {PHONE_LABEL_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={p.value}
+                    onChange={(e) => handlePhoneChange(idx, 'value', e.target.value)}
+                    placeholder="e.g. +971 50 123 4567"
+                    className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 font-mono text-slate-100 placeholder-slate-600 min-w-0"
+                  />
+
                   <button
                     type="button"
-                    onClick={() => handleRemovePhone(idx)}
-                    className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800/60 transition cursor-pointer"
-                    title="Remove Phone"
+                    onClick={() => toggleRestriction(p.value)}
+                    disabled={!p.value.trim()}
+                    className={`px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0 ${
+                      currentRestriction === 'DNC'
+                        ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 hover:bg-rose-500/30'
+                        : currentRestriction === 'Invalid'
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 hover:bg-amber-500/30'
+                        : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-300'
+                    }`}
+                    title={
+                      currentRestriction === 'DNC'
+                        ? 'Restriction: DNC (Click to Clear)'
+                        : currentRestriction === 'Invalid'
+                        ? 'Restriction: Invalid (Click for DNC)'
+                        : 'Line Active (Click to flag Invalid)'
+                    }
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <ShieldAlert className={`w-3.5 h-3.5 ${
+                      currentRestriction === 'DNC'
+                        ? 'text-rose-400'
+                        : currentRestriction === 'Invalid'
+                        ? 'text-amber-400'
+                        : 'text-slate-500'
+                    }`} />
+                    <span>{currentRestriction || 'Clear'}</span>
                   </button>
-                )}
-              </div>
-            ))}
+
+                  {phones.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePhone(idx)}
+                      className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800/60 transition cursor-pointer shrink-0"
+                      title="Remove Phone"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Emails Section */}
@@ -585,38 +646,73 @@ export default function ContactModal({
               </div>
             )}
 
-            {emails.map((e, idx) => (
-              <div key={e.id || idx} className="flex items-center space-x-2">
-                <select
-                  value={e.label}
-                  onChange={(eVal) => handleEmailChange(idx, 'label', eVal.target.value)}
-                  className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-semibold shrink-0"
-                >
-                  {EMAIL_LABEL_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="email"
-                  value={e.value}
-                  onChange={(eVal) => handleEmailChange(idx, 'value', eVal.target.value)}
-                  placeholder="e.g. john@company.com"
-                  className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-sans placeholder-slate-600"
-                />
-                {emails.length > 1 && (
+            {emails.map((e, idx) => {
+              const emailVal = e.value.trim();
+              const currentRestriction = editingRestrictedLines[emailVal] || editingRestrictedLines[e.value];
+
+              return (
+                <div key={e.id || idx} className="flex items-center space-x-2">
+                  <select
+                    value={e.label}
+                    onChange={(eVal) => handleEmailChange(idx, 'label', eVal.target.value)}
+                    className="w-32 px-2.5 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-semibold shrink-0"
+                  >
+                    {EMAIL_LABEL_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="email"
+                    value={e.value}
+                    onChange={(eVal) => handleEmailChange(idx, 'value', eVal.target.value)}
+                    placeholder="e.g. john@company.com"
+                    className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-slate-950 text-slate-100 font-sans placeholder-slate-600 min-w-0"
+                  />
+
                   <button
                     type="button"
-                    onClick={() => handleRemoveEmail(idx)}
-                    className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800/60 transition cursor-pointer"
-                    title="Remove Email"
+                    onClick={() => toggleRestriction(e.value)}
+                    disabled={!e.value.trim()}
+                    className={`px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0 ${
+                      currentRestriction === 'DNC'
+                        ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 hover:bg-rose-500/30'
+                        : currentRestriction === 'Invalid'
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 hover:bg-amber-500/30'
+                        : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-300'
+                    }`}
+                    title={
+                      currentRestriction === 'DNC'
+                        ? 'Restriction: DNC (Click to Clear)'
+                        : currentRestriction === 'Invalid'
+                        ? 'Restriction: Invalid (Click for DNC)'
+                        : 'Address Active (Click to flag Invalid)'
+                    }
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <ShieldAlert className={`w-3.5 h-3.5 ${
+                      currentRestriction === 'DNC'
+                        ? 'text-rose-400'
+                        : currentRestriction === 'Invalid'
+                        ? 'text-amber-400'
+                        : 'text-slate-500'
+                    }`} />
+                    <span>{currentRestriction || 'Clear'}</span>
                   </button>
-                )}
-              </div>
-            ))}
+
+                  {emails.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveEmail(idx)}
+                      className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800/60 transition cursor-pointer shrink-0"
+                      title="Remove Email"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Messaging & Social Handles Section */}

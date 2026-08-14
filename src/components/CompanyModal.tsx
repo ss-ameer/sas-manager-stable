@@ -243,10 +243,13 @@ export default function CompanyModal({
       contactId?: string;
       location?: string;
       isDnc?: boolean;
+      restriction?: 'DNC' | 'Invalid';
     }> = [];
 
     companies.forEach((c) => {
       if (c.general_phone) {
+        const numTrim = c.general_phone.trim();
+        const restriction = c.restricted_lines?.[c.general_phone] || c.restricted_lines?.[numTrim] || (c.is_dnc || c.temperature === 'DNC' ? 'DNC' : undefined);
         list.push({
           id: `comp_phone_${c.id}`,
           number: c.general_phone,
@@ -254,7 +257,8 @@ export default function CompanyModal({
           entityName: c.display_name,
           companyId: c.id,
           location: `${c.city}, ${c.country}`,
-          isDnc: c.is_dnc || c.temperature === 'DNC'
+          isDnc: c.is_dnc || c.temperature === 'DNC',
+          restriction
         });
       }
     });
@@ -263,6 +267,8 @@ export default function CompanyModal({
       const comp = companies.find((c) => c.id === ct.company_id);
       const loc = comp ? `${comp.city}, ${comp.country}` : 'UAE';
       if (ct.mobile) {
+        const numTrim = ct.mobile.trim();
+        const restriction = ct.restricted_lines?.[ct.mobile] || ct.restricted_lines?.[numTrim] || comp?.restricted_lines?.[ct.mobile] || comp?.restricted_lines?.[numTrim] || (ct.is_dnc || comp?.is_dnc ? 'DNC' : undefined);
         list.push({
           id: `ct_mob_${ct.id}`,
           number: ct.mobile,
@@ -272,10 +278,13 @@ export default function CompanyModal({
           companyId: ct.company_id,
           contactId: ct.id,
           location: loc,
-          isDnc: ct.is_dnc || comp?.is_dnc
+          isDnc: ct.is_dnc || comp?.is_dnc,
+          restriction
         });
       }
       if (ct.landline) {
+        const numTrim = ct.landline.trim();
+        const restriction = ct.restricted_lines?.[ct.landline] || ct.restricted_lines?.[numTrim] || comp?.restricted_lines?.[ct.landline] || comp?.restricted_lines?.[numTrim] || (ct.is_dnc || comp?.is_dnc ? 'DNC' : undefined);
         list.push({
           id: `ct_land_${ct.id}`,
           number: ct.landline,
@@ -285,7 +294,8 @@ export default function CompanyModal({
           companyId: ct.company_id,
           contactId: ct.id,
           location: loc,
-          isDnc: ct.is_dnc || comp?.is_dnc
+          isDnc: ct.is_dnc || comp?.is_dnc,
+          restriction
         });
       }
     });
@@ -519,6 +529,27 @@ export default function CompanyModal({
   const [generalEmail, setGeneralEmail] = useState('');
   const [companyPhones, setCompanyPhones] = useState<ContactMethod[]>([{ id: 'init_p1', label: 'Landline', value: '' }]);
   const [companyEmails, setCompanyEmails] = useState<ContactMethod[]>([{ id: 'init_e1', label: 'Work', value: '' }]);
+  const [editingRestrictedLines, setEditingRestrictedLines] = useState<Record<string, 'DNC' | 'Invalid'>>({});
+
+  const togglePhoneRestriction = (phoneVal: string) => {
+    const trimmed = phoneVal.trim();
+    if (!trimmed) return;
+
+    setEditingRestrictedLines((prev) => {
+      const current = prev[trimmed] || prev[phoneVal];
+      const nextMap = { ...prev };
+
+      if (!current) {
+        nextMap[trimmed] = 'Invalid';
+      } else if (current === 'Invalid') {
+        nextMap[trimmed] = 'DNC';
+      } else {
+        delete nextMap[trimmed];
+        delete nextMap[phoneVal];
+      }
+      return nextMap;
+    });
+  };
   const [relationship, setRelationship] = useState<string>('Prospect');
   const [temperature, setTemperature] = useState<string>('Cold');
   const [notes, setNotes] = useState('');
@@ -590,6 +621,7 @@ export default function CompanyModal({
     setGeneralEmail('');
     setCompanyPhones([{ id: generateCmId(), label: 'Landline', value: '' }]);
     setCompanyEmails([{ id: generateCmId(), label: 'Work', value: '' }]);
+    setEditingRestrictedLines({});
     setRelationship('Prospect');
     setTemperature('Cold');
     setNotes('');
@@ -614,6 +646,7 @@ export default function CompanyModal({
     setCity(comp.city);
     setGeneralPhone(comp.general_phone || comp.phone || '');
     setGeneralEmail(comp.general_email || comp.email || '');
+    setEditingRestrictedLines(comp.restricted_lines ? { ...comp.restricted_lines } : {});
 
     const existingPhones = getCompanyPhones(comp);
     const mappedPhones: ContactMethod[] = existingPhones.map((p) => ({
@@ -718,6 +751,7 @@ export default function CompanyModal({
       general_emails: validEmails,
       phones: legacyPhones as any,
       emails: legacyEmails as any,
+      restricted_lines: editingRestrictedLines,
       relationship,
       temperature,
       is_dnc: temperature === 'DNC',
@@ -1758,47 +1792,68 @@ export default function CompanyModal({
                   {getCompanyPhones(selectedCompany).length > 0 ? (
                     getCompanyPhones(selectedCompany).map((ph, idx) => {
                       const cleanNum = ph.number ? ph.number.replace(/[^0-9]/g, '') : '';
+                      const phoneVal = ph.number || '';
+                      const phoneTrim = phoneVal.trim();
+                      const restriction = selectedCompany.restricted_lines?.[phoneVal] ||
+                                          selectedCompany.restricted_lines?.[phoneTrim] ||
+                                          (selectedCompany.is_dnc ? 'DNC' : undefined);
+                      const isRestricted = Boolean(restriction);
+                      const badgeText = restriction === 'DNC' ? 'DNC' : 'INVALID';
+
                       return (
                         <div key={idx} className="flex items-center justify-between text-xs py-0.5">
                           <div className="flex items-center space-x-2">
-                            <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                            <a
-                              href={`tel:${ph.number}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="font-mono text-blue-700 hover:underline font-bold"
-                            >
-                              {ph.number}
-                            </a>
-                            <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
-                              {ph.label || 'Telephone'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <a
-                              href={`tel:${ph.number}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
-                              title="1-Click Dial"
-                            >
-                              <Phone className="w-3 h-3 text-blue-600" />
-                            </a>
-                            {cleanNum && (
+                            <Phone className={`w-3.5 h-3.5 shrink-0 ${isRestricted ? 'text-rose-500' : 'text-blue-500'}`} />
+                            {isRestricted ? (
+                              <span className="font-mono font-bold text-slate-400 line-through cursor-not-allowed" title={`Restricted line (${badgeText})`}>
+                                {ph.number}
+                              </span>
+                            ) : (
                               <a
-                                href={`https://wa.me/${cleanNum}`}
+                                href={`tel:${ph.number}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
-                                title="1-Click WhatsApp"
+                                className="font-mono text-blue-700 hover:underline font-bold"
                               >
-                                <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                {ph.number}
                               </a>
                             )}
+                            <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
+                              {ph.label || 'Telephone'}
+                            </span>
+                            {isRestricted && (
+                              <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400 font-sans uppercase">
+                                {badgeText}
+                              </span>
+                            )}
                           </div>
+                          {!isRestricted && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <a
+                                href={`tel:${ph.number}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
+                                title="1-Click Dial"
+                              >
+                                <Phone className="w-3 h-3 text-blue-600" />
+                              </a>
+                              {cleanNum && (
+                                <a
+                                  href={`https://wa.me/${cleanNum}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+                                  title="1-Click WhatsApp"
+                                >
+                                  <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                </a>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -1950,47 +2005,70 @@ export default function CompanyModal({
                         <div className="space-y-1 text-xs pt-2 border-t border-slate-200/60 w-full text-slate-600 font-sans">
                           {cPhones.map((ph, pIdx) => {
                             const cleanNum = ph.number ? ph.number.replace(/[^0-9]/g, '') : '';
+                            const phoneVal = ph.number || '';
+                            const phoneTrim = phoneVal.trim();
+                            const restriction = c.restricted_lines?.[phoneVal] ||
+                                                c.restricted_lines?.[phoneTrim] ||
+                                                selectedCompany.restricted_lines?.[phoneVal] ||
+                                                selectedCompany.restricted_lines?.[phoneTrim] ||
+                                                (c.is_dnc ? 'DNC' : undefined);
+                            const isRestricted = Boolean(restriction);
+                            const badgeText = restriction === 'DNC' ? 'DNC' : 'INVALID';
+
                             return (
                               <div key={pIdx} className="flex items-center justify-between text-xs py-0.5">
                                 <div className="flex items-center space-x-2">
-                                  <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                  <a
-                                    href={`tel:${ph.number}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="font-mono text-blue-700 hover:underline font-semibold"
-                                  >
-                                    {ph.number}
-                                  </a>
-                                  <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
-                                    {ph.label}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <a
-                                    href={`tel:${ph.number}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
-                                    title="1-Click Dial"
-                                  >
-                                    <Phone className="w-3 h-3 text-blue-600" />
-                                  </a>
-                                  {cleanNum && (
+                                  <Phone className={`w-3.5 h-3.5 shrink-0 ${isRestricted ? 'text-rose-500' : 'text-blue-500'}`} />
+                                  {isRestricted ? (
+                                    <span className="font-mono font-bold text-slate-400 line-through cursor-not-allowed" title={`Restricted line (${badgeText})`}>
+                                      {ph.number}
+                                    </span>
+                                  ) : (
                                     <a
-                                      href={`https://wa.me/${cleanNum}`}
+                                      href={`tel:${ph.number}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       onClick={(e) => e.stopPropagation()}
-                                      className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
-                                      title="1-Click WhatsApp"
+                                      className="font-mono text-blue-700 hover:underline font-semibold"
                                     >
-                                      <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                      {ph.number}
                                     </a>
                                   )}
+                                  <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-600 rounded text-[9px] font-semibold">
+                                    {ph.label}
+                                  </span>
+                                  {isRestricted && (
+                                    <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400 font-sans uppercase">
+                                      {badgeText}
+                                    </span>
+                                  )}
                                 </div>
+                                {!isRestricted && (
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <a
+                                      href={`tel:${ph.number}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
+                                      title="1-Click Dial"
+                                    >
+                                      <Phone className="w-3 h-3 text-blue-600" />
+                                    </a>
+                                    {cleanNum && (
+                                      <a
+                                        href={`https://wa.me/${cleanNum}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+                                        title="1-Click WhatsApp"
+                                      >
+                                        <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -2662,48 +2740,63 @@ export default function CompanyModal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredPhones.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50 transition">
-                    <td className="p-3.5 font-mono text-xs font-bold text-slate-900">
-                      <div className="flex items-center space-x-1.5">
-                        <span>{p.number}</span>
-                        {p.isDnc && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-600 text-white">
-                            DNC
-                          </span>
+                {filteredPhones.map((p) => {
+                  const isRestricted = Boolean(p.restriction);
+                  const badgeText = p.restriction === 'DNC' ? 'DNC' : 'INVALID';
+
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50 transition">
+                      <td className="p-3.5 font-mono text-xs font-bold text-slate-900">
+                        <div className="flex items-center space-x-1.5">
+                          {isRestricted ? (
+                            <span className="line-through text-slate-400 cursor-not-allowed" title={`Restricted line (${badgeText})`}>
+                              {p.number}
+                            </span>
+                          ) : (
+                            <span>{p.number}</span>
+                          )}
+                          {isRestricted && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-400 font-sans uppercase">
+                              {badgeText}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3.5">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            p.type === 'Mobile'
+                              ? 'bg-blue-100 text-blue-800'
+                              : p.type === 'Landline'
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-slate-100 text-slate-800'
+                          }`}
+                        >
+                          {p.type}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-bold text-slate-900">{p.entityName}</td>
+                      <td className="p-3.5 text-slate-600">{p.subText || '—'}</td>
+                      <td className="p-3.5 text-slate-500">{p.location || '—'}</td>
+                      <td className="p-3.5 text-right">
+                        {!isRestricted ? (
+                          <a
+                            href={`tel:${p.number}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center space-x-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition shadow-sm"
+                          >
+                            <PhoneCall className="w-3 h-3" />
+                            <span>Call</span>
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-sans italic">Disabled</span>
                         )}
-                      </div>
-                    </td>
-                    <td className="p-3.5">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          p.type === 'Mobile'
-                            ? 'bg-blue-100 text-blue-800'
-                            : p.type === 'Landline'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-slate-100 text-slate-800'
-                        }`}
-                      >
-                        {p.type}
-                      </span>
-                    </td>
-                    <td className="p-3.5 font-bold text-slate-900">{p.entityName}</td>
-                    <td className="p-3.5 text-slate-600">{p.subText || '—'}</td>
-                    <td className="p-3.5 text-slate-500">{p.location || '—'}</td>
-                    <td className="p-3.5 text-right">
-                      <a
-                        href={`tel:${p.number}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center space-x-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition shadow-sm"
-                      >
-                        <PhoneCall className="w-3 h-3" />
-                        <span>Call</span>
-                      </a>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {filteredPhones.length === 0 && (
                   <tr>
@@ -2891,38 +2984,73 @@ export default function CompanyModal({
                       <span>+ Add Phone</span>
                     </button>
                   </div>
-                  {companyPhones.map((ph, idx) => (
-                    <div key={ph.id || idx} className="flex items-center space-x-2">
-                      <CustomLabelSelect
-                        value={ph.label}
-                        onChange={(val) => {
-                          setCompanyPhones(prev => prev.map((item, i) => i === idx ? { ...item, label: val } : item));
-                        }}
-                        options={PHONE_LABEL_DEFAULT_OPTIONS}
-                        className="w-36 shrink-0"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Phone number..."
-                        value={ph.value}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCompanyPhones(prev => prev.map((item, i) => i === idx ? { ...item, value: val } : item));
-                        }}
-                        className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-xl font-mono bg-slate-950 text-slate-100 focus:border-indigo-500 focus:outline-none placeholder-slate-600"
-                      />
-                      {companyPhones.length > 1 && (
+                  {companyPhones.map((ph, idx) => {
+                    const phoneVal = ph.value.trim();
+                    const currentRestriction = editingRestrictedLines[phoneVal] || editingRestrictedLines[ph.value];
+
+                    return (
+                      <div key={ph.id || idx} className="flex items-center space-x-2">
+                        <CustomLabelSelect
+                          value={ph.label}
+                          onChange={(val) => {
+                            setCompanyPhones(prev => prev.map((item, i) => i === idx ? { ...item, label: val } : item));
+                          }}
+                          options={PHONE_LABEL_DEFAULT_OPTIONS}
+                          className="w-36 shrink-0"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Phone number..."
+                          value={ph.value}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCompanyPhones(prev => prev.map((item, i) => i === idx ? { ...item, value: val } : item));
+                          }}
+                          className="flex-1 px-3 py-1.5 text-xs border border-slate-800 rounded-xl font-mono bg-slate-950 text-slate-100 focus:border-indigo-500 focus:outline-none placeholder-slate-600 min-w-0"
+                        />
+
                         <button
                           type="button"
-                          onClick={() => setCompanyPhones(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1.5 text-slate-400 hover:text-rose-400 transition rounded-lg hover:bg-slate-800/60 cursor-pointer"
-                          title="Remove Phone"
+                          onClick={() => togglePhoneRestriction(ph.value)}
+                          disabled={!ph.value.trim()}
+                          className={`px-2 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-1 border transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0 ${
+                            currentRestriction === 'DNC'
+                              ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 hover:bg-rose-500/30'
+                              : currentRestriction === 'Invalid'
+                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 hover:bg-amber-500/30'
+                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-300'
+                          }`}
+                          title={
+                            currentRestriction === 'DNC'
+                              ? 'Restriction: DNC (Click to Clear)'
+                              : currentRestriction === 'Invalid'
+                              ? 'Restriction: Invalid (Click for DNC)'
+                              : 'Line Active (Click to flag Invalid)'
+                          }
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <ShieldAlert className={`w-3.5 h-3.5 ${
+                            currentRestriction === 'DNC'
+                              ? 'text-rose-400'
+                              : currentRestriction === 'Invalid'
+                              ? 'text-amber-400'
+                              : 'text-slate-500'
+                          }`} />
+                          <span>{currentRestriction || 'Clear'}</span>
                         </button>
-                      )}
-                    </div>
-                  ))}
+
+                        {companyPhones.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setCompanyPhones(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 text-slate-400 hover:text-rose-400 transition rounded-lg hover:bg-slate-800/60 cursor-pointer shrink-0"
+                            title="Remove Phone"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="space-y-3 pt-2 border-t border-slate-800">

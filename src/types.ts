@@ -124,6 +124,7 @@ export interface Company extends SoftDeleteFields {
   notes?: string;
   is_dnc?: boolean;
   dnc_reason?: string;
+  restricted_lines?: Record<string, 'DNC' | 'Invalid'>;
   search_terms?: string[];
   createdAt?: string;
   updatedAt?: string;
@@ -145,6 +146,7 @@ export interface Contact extends SoftDeleteFields {
   is_primary?: boolean;
   is_dnc?: boolean;
   dnc_reason?: string;
+  restricted_lines?: Record<string, 'DNC' | 'Invalid'>;
   createdAt?: string;
   updatedAt?: string;
 }
