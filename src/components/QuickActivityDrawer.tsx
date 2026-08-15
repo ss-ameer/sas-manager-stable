@@ -106,6 +106,61 @@ export interface ExpressEmailItem {
   email: string;
 }
 
+export const SYSTEM_CALL_PURPOSES_TAXONOMY = [
+  'Discovery / Validation',
+  'Prospecting / Cold Outreach',
+  'Follow-up / Nurture',
+  'Quote / Proposal Discussion',
+  'Relationship / Account Mgmt'
+];
+
+export const getOutcomesForStatus = (st: CallStatus | string): string[] => {
+  if (st === 'Completed') {
+    return [
+      'Meeting Booked',
+      'Quote Requested',
+      'Information Gathered',
+      'Interested (Follow-up)',
+      'Has Provider (Future Nurture)',
+      'Gatekeeper Reached / Blocked',
+      'Call Back Later',
+      'Not Interested',
+      'Disqualified',
+      'Contact Left Company'
+    ];
+  }
+  if (st === 'No Answer' || st === 'Busy') {
+    return [
+      'Left Voicemail',
+      'Unreachable'
+    ];
+  }
+  if (st === 'Invalid Number') {
+    return [
+      'Dead Line / Disconnected'
+    ];
+  }
+  if (st === 'Scheduled' || st === 'Scheduled / Planned') {
+    return [
+      'Follow-Up Scheduled',
+      'Meeting Booked',
+      'Call Back Later'
+    ];
+  }
+  return [
+    'Meeting Booked',
+    'Quote Requested',
+    'Information Gathered',
+    'Interested (Follow-up)',
+    'Has Provider (Future Nurture)',
+    'Gatekeeper Reached / Blocked',
+    'Call Back Later',
+    'Not Interested',
+    'Disqualified',
+    'Contact Left Company'
+  ];
+};
+
 const PRESET_CHIPS: PresetChip[] = [
   {
     id: 'connected',
@@ -221,9 +276,10 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   onSave
 }) => {
   const [channel, setChannel] = useState<ActivityChannel>(initialChannel || 'Call');
-  const [outcome, setOutcome] = useState<string>('Interested');
+  const [outcome, setOutcome] = useState<string>('Meeting Booked');
   const [status, setStatus] = useState<CallStatus>(initialStatus || 'Completed');
-  const [purpose, setPurpose] = useState<string>('Prospecting / Intro');
+  const [purpose, setPurpose] = useState<string>('Discovery / Validation');
+  const currentAllowedOutcomes = useMemo(() => getOutcomesForStatus(status), [status]);
   const [notes, setNotes] = useState<string>('');
   const [activityDate, setActivityDate] = useState<string>(() => getLocalDateTimeString());
   const [followupDate, setFollowupDate] = useState<string>('');
@@ -287,6 +343,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const [selectedContactId, setSelectedContactId] = useState<string>(contactId || '');
   const [selectedContactName, setSelectedContactName] = useState<string>(contactName || '');
   const [newContactDesignation, setNewContactDesignation] = useState<string>('');
+  const [newContactPhoneTag, setNewContactPhoneTag] = useState<string>('Mobile');
   const [selectedContactPhone, setSelectedContactPhone] = useState<string>(contactPhone || '');
   const [selectedContactEmail, setSelectedContactEmail] = useState<string>('');
   const [isAddingNewContact, setIsAddingNewContact] = useState<boolean>(false);
@@ -422,8 +479,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
         setChannel((activeLog.channel as ActivityChannel) || initialChannel || 'Call');
         setStatus(activeLog.status || initialStatus || 'Completed');
-        setOutcome(activeLog.outcome || 'Connected');
-        setPurpose(activeLog.purpose || 'Prospecting / Intro');
+        setOutcome(activeLog.outcome || 'Meeting Booked');
+        setPurpose(activeLog.purpose || 'Discovery / Validation');
         setNotes(activeLog.requirement_notes || (activeLog as any).notes || '');
         setWhatsappDraft(activeLog.whatsapp_draft || '');
         setEmailSubject(activeLog.email_subject || '');
@@ -459,8 +516,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
         setChannel(initialChannel || 'Call');
         setStatus(initialStatus || 'Completed');
-        setOutcome('Connected');
-        setPurpose('Prospecting / Intro');
+        setOutcome('Meeting Booked');
+        setPurpose('Discovery / Validation');
         setNotes('');
         setActivityDate(getLocalDateTimeString());
         setFollowupDate('');
@@ -507,6 +564,29 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     }
   }, [isOpen, selectedCompanyId, companies]);
 
+  // Strict target company switch tracking to prevent zombie contact state
+  const prevSelectedCompanyIdRef = useRef<string>(selectedCompanyId);
+  useEffect(() => {
+    if (!isOpen) {
+      prevSelectedCompanyIdRef.current = selectedCompanyId;
+      return;
+    }
+    if (prevSelectedCompanyIdRef.current !== selectedCompanyId) {
+      setSelectedContactId('');
+      setSelectedContactName('');
+      setSelectedContactPhone('');
+      setSelectedContactEmail('');
+      setSelectedEnquiryId('');
+      setSelectedEnquiryQuoteRef('');
+      setIsAddingNewContact(false);
+      setIsAddingNewContactPhone(false);
+      setIsAddingNewCompanyLine(false);
+      setNewContactDesignation('');
+      setNewContactPhoneTag('');
+      prevSelectedCompanyIdRef.current = selectedCompanyId;
+    }
+  }, [isOpen, selectedCompanyId]);
+
   // Automatic Primary Contact & Phone Lookup
   useEffect(() => {
     if (!isOpen || !selectedCompanyId) {
@@ -514,12 +594,13 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         setSelectedContactId('');
         setSelectedContactName('');
         setSelectedContactPhone('');
+        setSelectedContactEmail('');
       }
       return;
     }
 
     const companyContacts = (contacts || []).filter(
-      (c) => c.company_id === selectedCompanyId
+      (c) => c.company_id === selectedCompanyId || c.company_ids?.includes(selectedCompanyId)
     );
 
     if (companyContacts.length > 0) {
@@ -528,6 +609,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         setSelectedContactName(currentCt.full_name || '');
         const phones = getContactPhones(currentCt);
         setSelectedContactPhone(currentCt.mobile || currentCt.landline || phones[0]?.number || '');
+        const emails = getContactEmails(currentCt);
+        setSelectedContactEmail(currentCt.email || emails[0]?.email || '');
       } else {
         const primary = companyContacts.find((c) => c.is_primary) || companyContacts[0];
         if (primary) {
@@ -535,12 +618,21 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
           setSelectedContactName(primary.full_name || '');
           const phones = getContactPhones(primary);
           setSelectedContactPhone(primary.mobile || primary.landline || phones[0]?.number || '');
+          const emails = getContactEmails(primary);
+          setSelectedContactEmail(primary.email || emails[0]?.email || '');
+        } else {
+          setSelectedContactId('');
+          setSelectedContactName('');
+          setSelectedContactPhone('');
+          setSelectedContactEmail('');
         }
       }
-    } else if (!contactName && !contactPhone) {
+    } else {
+      // Company has no contacts: strictly clear zombie contact selection!
       setSelectedContactId('');
       setSelectedContactName('');
       setSelectedContactPhone('');
+      setSelectedContactEmail('');
     }
   }, [isOpen, selectedCompanyId, contacts]);
 
@@ -623,6 +715,30 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     if (!selectedCompanyId) return null;
     return companies.find((c) => c.id === selectedCompanyId) || null;
   }, [companies, selectedCompanyId]);
+
+  const handleUpdateCompanyTemperature = async (newTemp: 'Cold' | 'Warm' | 'Hot' | 'DNC') => {
+    const targetId = selectedCompanyId || companyId;
+    if (!targetId) return;
+    const comp = selectedCompanyObj || (companies || []).find((c) => c.id === targetId);
+    if (!comp) return;
+
+    const isDnc = newTemp === 'DNC';
+    const updatedComp: Company = {
+      ...comp,
+      temperature: isDnc ? 'DNC' : newTemp,
+      is_dnc: isDnc,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (setCompanies) {
+      setCompanies((prev) => prev.map((c) => (c.id === targetId ? updatedComp : c)));
+    }
+    if (onUpdateCompany) {
+      onUpdateCompany(updatedComp);
+    }
+    await safeSetDoc('companies', targetId, updatedComp);
+    await CompanyRepository.saveCompany(updatedComp);
+  };
 
   const companyMainlines = useMemo(() => {
     if (!selectedCompanyObj) return [];
@@ -816,9 +932,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     setExpressContactEmails([{ id: makeExpressId('cte'), label: 'Direct', email: '' }]);
 
     setChannel('Call');
-    setOutcome('Connected');
+    setOutcome('Meeting Booked');
     setStatus('Completed');
-    setPurpose('Prospecting / Intro');
+    setPurpose('Discovery / Validation');
     setNotes('');
     setActivityDate(new Date().toISOString().slice(0, 16));
     setFollowupDate('');
@@ -1160,15 +1276,16 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         const allPhones = [...expressCompanyPhones, ...expressContactPhones];
         const selectedDialedObj = allPhones.find((p) => p.id === primaryDialedPhoneId && p.number.trim());
 
-        const primaryCompPhone = validCompPhones[0]?.number.trim() || validContactPhones[0]?.number.trim() || '';
-        const primaryCompEmail = validCompEmails[0]?.email.trim() || validContactEmails[0]?.email.trim() || '';
+        // Strictly isolate company payload from contact person payload
+        const primaryCompPhone = validCompPhones[0]?.number.trim() || '';
+        const primaryCompEmail = validCompEmails[0]?.email.trim() || '';
+
+        const primaryContactPhone = validContactPhones[0]?.number.trim() || '';
+        const primaryContactEmail = validContactEmails[0]?.email.trim() || '';
 
         const dialedPhone = selectedDialedObj
           ? selectedDialedObj.number.trim()
-          : validContactPhones[0]?.number.trim() || primaryCompPhone;
-
-        const primaryContactPhone = dialedPhone || primaryCompPhone;
-        const primaryContactEmail = validContactEmails[0]?.email.trim() || primaryCompEmail;
+          : primaryContactPhone || primaryCompPhone;
 
         if (compName) {
           // 1. Check or Create Company
@@ -1667,7 +1784,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       <span>Target Account</span>
                       <span className="text-[10px] text-blue-400 font-mono">Fixed Context</span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
                         <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
                         <span>{selectedCompanyName || companyName || 'Company Account'}</span>
@@ -1679,6 +1796,34 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                         </div>
                       )}
                     </div>
+
+                    {/* Context Link & Company Temperature Control */}
+                    <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-700/60">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Context link reserved for log drawer view
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 hover:underline transition cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>[View Previous Logs]</span>
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Temp:</span>
+                        <select
+                          value={selectedCompanyObj?.is_dnc ? 'DNC' : (selectedCompanyObj?.temperature || 'Cold')}
+                          onChange={(e) => handleUpdateCompanyTemperature(e.target.value as any)}
+                          className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-slate-900 border border-slate-700 text-slate-200 focus:border-blue-500 focus:outline-hidden cursor-pointer"
+                        >
+                          <option value="Cold">Cold ❄️</option>
+                          <option value="Warm">Warm 🌤️</option>
+                          <option value="Hot">Hot 🔥</option>
+                          <option value="DNC">DNC 🚫</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2 relative">
@@ -1687,30 +1832,60 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     </label>
 
                     {selectedCompanyId ? (
-                      <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-blue-500/50 text-xs">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
-                          <div>
-                            <span className="font-bold text-slate-100">{selectedCompanyName}</span>
-                            <p className="text-[10px] text-slate-400 font-mono">Selected Account</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-blue-500/50 text-xs">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
+                            <div>
+                              <span className="font-bold text-slate-100">{selectedCompanyName}</span>
+                              <p className="text-[10px] text-slate-400 font-mono">Selected Account</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCompanyId('');
+                              setSelectedCompanyName('');
+                              setSelectedContactId('');
+                              setSelectedContactName('');
+                              setSelectedContactPhone('');
+                              setSelectedEnquiryId('');
+                              setSelectedEnquiryQuoteRef('');
+                              setIsComboboxOpen(true);
+                            }}
+                            className="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors cursor-pointer"
+                          >
+                            Change
+                          </button>
+                        </div>
+
+                        {/* Context Link & Company Temperature Control */}
+                        <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Context link reserved for log drawer view
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 hover:underline transition cursor-pointer"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>[View Previous Logs]</span>
+                          </button>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Temp:</span>
+                            <select
+                              value={selectedCompanyObj?.is_dnc ? 'DNC' : (selectedCompanyObj?.temperature || 'Cold')}
+                              onChange={(e) => handleUpdateCompanyTemperature(e.target.value as any)}
+                              className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-slate-900 border border-slate-700 text-slate-200 focus:border-blue-500 focus:outline-hidden cursor-pointer"
+                            >
+                              <option value="Cold">Cold ❄️</option>
+                              <option value="Warm">Warm 🌤️</option>
+                              <option value="Hot">Hot 🔥</option>
+                              <option value="DNC">DNC 🚫</option>
+                            </select>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedCompanyId('');
-                            setSelectedCompanyName('');
-                            setSelectedContactId('');
-                            setSelectedContactName('');
-                            setSelectedContactPhone('');
-                            setSelectedEnquiryId('');
-                            setSelectedEnquiryQuoteRef('');
-                            setIsComboboxOpen(true);
-                          }}
-                          className="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors cursor-pointer"
-                        >
-                          Change
-                        </button>
                       </div>
                     ) : (
                       <div className="relative">
@@ -1828,23 +2003,27 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       {crmTargetType === 'contact' ? (
                         <div>
                           {isAddingNewContact ? (
-                            <div className="space-y-2">
+                            <div className="space-y-2.5 p-3 rounded-xl bg-slate-900/80 border border-blue-500/40">
                               <div className="flex items-center justify-between">
-                                <label className="block text-xs font-semibold text-slate-300">New Contact Person Details</label>
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-300">
+                                  <UserPlus className="w-3.5 h-3.5 text-blue-400" />
+                                  <span>New Contact Person</span>
+                                </div>
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setIsAddingNewContact(false);
                                     setSelectedContactId('');
                                     setSelectedContactName('');
-                                    setNewContactDesignation('');
+                                    setSelectedContactPhone('');
                                   }}
-                                  className="text-[10px] text-blue-400 hover:underline cursor-pointer"
+                                  className="text-[10px] font-semibold text-slate-400 hover:text-rose-300 cursor-pointer"
                                 >
-                                  &larr; Select Existing Contact
+                                  &larr; Select Existing
                                 </button>
                               </div>
-                              <div className="flex flex-col gap-2.5">
+
+                              <div className="flex flex-col gap-2.5 pt-1">
                                 <div>
                                   <label className="block text-[11px] font-medium text-slate-300 mb-1">
                                     Full Name <span className="text-blue-400">*</span>
@@ -1856,22 +2035,40 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                       setSelectedContactName(e.target.value);
                                       setSelectedContactId('');
                                     }}
-                                    placeholder="Enter new contact person name..."
+                                    placeholder="Enter full name..."
                                     className="w-full rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                                     autoFocus
                                   />
                                 </div>
+
                                 <div>
                                   <label className="block text-[11px] font-medium text-slate-300 mb-1">
-                                    Role / Designation
+                                    Phone Number
                                   </label>
                                   <input
                                     type="text"
-                                    value={newContactDesignation}
-                                    onChange={(e) => setNewContactDesignation(e.target.value)}
-                                    placeholder="e.g. Sales Manager, CTO, Director..."
-                                    className="w-full rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                                    value={selectedContactPhone}
+                                    onChange={(e) => setSelectedContactPhone(e.target.value)}
+                                    placeholder="+971 50 123 4567"
+                                    className="w-full rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 font-mono placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
                                   />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                                    Contact Tag / Label
+                                  </label>
+                                  <select
+                                    value={newContactPhoneTag}
+                                    onChange={(e) => setNewContactPhoneTag(e.target.value)}
+                                    className="w-full rounded-lg bg-slate-950 border border-blue-500/50 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden cursor-pointer"
+                                  >
+                                    <option value="Mobile">Mobile</option>
+                                    <option value="Direct Line">Direct Line</option>
+                                    <option value="Work">Work</option>
+                                    <option value="Personal">Personal</option>
+                                    <option value="General">General</option>
+                                  </select>
                                 </div>
                               </div>
                             </div>
@@ -1907,12 +2104,22 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                 <option value="">-- Select Contact Person --</option>
                                 {availableCompanyContacts.map((c) => {
                                   const selComp = companies.find((comp) => comp.id === selectedCompanyId);
-                                  const mobTrim = (c.mobile || '').trim();
+                                  const rawMobile = (c.mobile || '').trim();
+                                  let cleanMobile = rawMobile.replace(/^(mobile|direct line|work|phone|tel)[:\s-]+/i, '').trim();
+                                  if (cleanMobile) {
+                                    const parts = cleanMobile.split(/\s*[\(\)\/,-]\s*/).map((s) => s.trim()).filter(Boolean);
+                                    if (parts.length > 1 && parts.every((p) => p === parts[0])) {
+                                      cleanMobile = parts[0];
+                                    }
+                                  }
+                                  const mobTrim = cleanMobile || rawMobile;
                                   const res = (mobTrim && (c.restricted_lines?.[c.mobile] || c.restricted_lines?.[mobTrim] || selComp?.restricted_lines?.[c.mobile] || selComp?.restricted_lines?.[mobTrim])) || (c.is_dnc ? 'DNC' : undefined);
                                   const badge = res === 'DNC' ? ' 🚫 [DNC]' : res === 'Invalid' ? ' ⚠️ [Invalid]' : res ? ` ⚠️ [${res}]` : '';
+                                  const desigPart = c.designation ? ` (${c.designation.trim()})` : '';
+                                  const phonePart = cleanMobile ? ` — ${cleanMobile}` : '';
                                   return (
                                     <option key={c.id} value={c.id}>
-                                      {c.full_name} {c.designation ? `(${c.designation})` : ''} {c.mobile ? `- ${c.mobile}` : ''}{badge}
+                                      {c.full_name}{desigPart}{phonePart}{badge}
                                     </option>
                                   );
                                 })}
@@ -2203,9 +2410,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       )}
                   </div>
 
-                  {/* Inline New Contact Creation: Reveal Designation/Role field when contact name does not exist in company */}
-                  {crmTargetType === 'contact' && selectedContactName.trim() && !availableCompanyContacts.some((c) => (c.full_name || '').trim().toLowerCase() === selectedContactName.trim().toLowerCase()) && (
-                    <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  {/* Inline New Contact Creation banner (without duplicate designation input) */}
+                  {crmTargetType === 'contact' && selectedContactName.trim() && !availableCompanyContacts.some((c) => (c.full_name || '').trim().toLowerCase() === selectedContactName.trim().toLowerCase()) && !isAddingNewContact && (
+                    <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-200 flex items-center justify-between gap-2.5">
                       <div className="flex items-center gap-2">
                         <UserPlus className="w-4 h-4 text-blue-400 shrink-0" />
                         <div>
@@ -2213,40 +2420,42 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                           <span className="font-semibold text-blue-300">{selectedContactName.trim()}</span> will be created and assigned to company.
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-                        <label className="text-[11px] font-bold text-blue-300 uppercase tracking-wider whitespace-nowrap">
-                          Role / Designation:
-                        </label>
-                        <input
-                          type="text"
-                          value={newContactDesignation}
-                          onChange={(e) => setNewContactDesignation(e.target.value)}
-                          placeholder="e.g. Sales Manager, CTO..."
-                          className="w-full sm:w-48 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-blue-500/50 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:outline-none"
-                        />
-                      </div>
                     </div>
                   )}
                 </div>
                 )}
 
                 {/* Linked Enquiry / Quote Reference Selector */}
-                {selectedCompanyId && availableCompanyEnquiries.length > 0 && (
+                {selectedCompanyId && (
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Linked Proposal / Quote Reference
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
+                      <span>Linked Proposal / Enquiry</span>
+                      {selectedEnquiryQuoteRef && (
+                        <span className="text-[10px] text-blue-400 font-mono">
+                          Ref: {selectedEnquiryQuoteRef}
+                        </span>
+                      )}
                     </label>
                     <select
                       value={selectedEnquiryId}
                       onChange={(e) => handleSelectEnquiry(e.target.value)}
-                      className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                      disabled={availableCompanyEnquiries.length === 0}
+                      className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-medium"
                     >
-                      <option value="">-- No Specific Proposal Link --</option>
-                      {availableCompanyEnquiries.map((e, idx) => (
-                        <option key={e.id ? `${e.id}_${idx}` : `enq_${idx}`} value={e.id}>
-                          {e.quote_ref_no || `Enquiry #${e.sn}`} ({e.status}) {e.value_aed ? `- AED ${e.value_aed.toLocaleString()}` : ''}
+                      {availableCompanyEnquiries.length > 0 ? (
+                        <>
+                          <option value="">-- Select Linked Proposal / Enquiry --</option>
+                          {availableCompanyEnquiries.map((e, idx) => (
+                            <option key={e.id ? `${e.id}_${idx}` : `enq_${idx}`} value={e.id}>
+                              {e.quote_ref_no || `Enquiry #${e.sn}`} ({e.status}) {e.value_aed ? `- AED ${e.value_aed.toLocaleString()}` : ''}
+                            </option>
+                          ))}
+                        </>
+                      ) : (
+                        <option value="" disabled>
+                          No active enquiries found
                         </option>
-                      ))}
+                      )}
                     </select>
                   </div>
                 )}
@@ -2726,20 +2935,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     onClick={() => {
                       const newStatus = st.id as CallStatus;
                       setStatus(newStatus);
-                      if (newStatus === 'Busy') {
-                        setOutcome('Line Busy');
-                      } else if (newStatus === 'No Answer') {
-                        setOutcome('No Answer');
-                      } else if (newStatus === 'Invalid Number') {
-                        setOutcome('Wrong Number / Invalid');
-                      } else if (newStatus === 'Scheduled' || newStatus === 'Scheduled / Planned') {
-                        if (!outcome || outcome === 'Interested' || outcome === 'Line Busy' || outcome === 'No Answer') {
-                          setOutcome('Follow-Up Scheduled');
-                        }
-                      } else if (newStatus === 'Completed') {
-                        if (!outcome || outcome === 'Follow-Up Scheduled' || outcome === 'Line Busy' || outcome === 'No Answer') {
-                          setOutcome('Interested');
-                        }
+                      const allowed = getOutcomesForStatus(newStatus);
+                      if (!allowed.includes(outcome)) {
+                        setOutcome(allowed[0]);
                       }
                     }}
                     className={`py-2 px-2 rounded-lg text-xs font-medium transition-all text-center ${
@@ -2763,25 +2961,16 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 <select
                   value={outcome}
                   onChange={(e) => setOutcome(e.target.value)}
-                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-semibold cursor-pointer"
                 >
-                  <option value="Connected">Connected</option>
-                  <option value="Interested">Interested</option>
-                  <option value="Interested - Quote Requested">Interested - Quote Requested</option>
-                  <option value="Left Voicemail">Left Voicemail</option>
-                  <option value="Follow-Up Scheduled">Follow-Up Scheduled</option>
-                  <option value="Proposal / Quote Requested">Proposal / Quote Requested</option>
-                  <option value="Deal Closed / Won">Deal Closed / Won</option>
-                  <option value="General Support / Inquiry">General Support / Inquiry</option>
-                  <option value="Call Back Later">Call Back Later</option>
-                  <option value="Call Dropped / Disconnected">Call Dropped / Disconnected</option>
-                  <option value="Line Busy">Line Busy</option>
-                  <option value="No Answer">No Answer / Unreachable</option>
-                  <option value="Not Interested">Not Interested</option>
-                  <option value="Wrong Number / Invalid">Wrong Number / Invalid</option>
-                  <option value="Meeting Scheduled">Meeting Scheduled</option>
-                  <option value="Site Visit Completed">Site Visit Completed</option>
-                  <option value="dnc_opt_out">Opt-Out / Do Not Contact (DNC)</option>
+                  {outcome && !currentAllowedOutcomes.includes(outcome) && (
+                    <option value={outcome}>{outcome}</option>
+                  )}
+                  {currentAllowedOutcomes.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -2794,10 +2983,10 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   onChange={(e) => setPurpose(e.target.value)}
                   className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-semibold cursor-pointer"
                 >
-                  {purpose && !SYSTEM_CALL_PURPOSES.includes(purpose) && (
+                  {purpose && !SYSTEM_CALL_PURPOSES_TAXONOMY.includes(purpose) && (
                     <option value={purpose}>{purpose}</option>
                   )}
-                  {SYSTEM_CALL_PURPOSES.map((p) => (
+                  {SYSTEM_CALL_PURPOSES_TAXONOMY.map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>
@@ -2882,8 +3071,8 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
             </div>
 
             {/* Date & Follow-Up Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+              <div className="flex flex-col justify-end h-full">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                   Activity Date & Time
                 </label>
@@ -2908,7 +3097,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 const isFollowupMissing = isFollowupEncouraged && !followupDate;
 
                 return (
-                  <div>
+                  <div className="flex flex-col justify-end h-full">
                     <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
                       <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                         <span>Next Follow-up Date</span>

@@ -2,7 +2,42 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
-## [0.66.4] - 2026-08-14
+## [0.67.1] - 2026-08-15
+
+### Fixed & Visual Polish
+- **Surgical Strike 5.1: The Final Sweep (`src/components/CompanyModal.tsx`, `src/components/Company360Modal.tsx`)**:
+  - **Part 1 - WhatsApp Link Sanitization**: Implemented `sanitizeWhatsAppNumber` helper function across `CompanyModal.tsx` and `Company360Modal.tsx`. Strips non-digit characters and automatically replaces leading `0` with the `971` UAE country code for 10-digit mobile numbers starting with `05` (e.g. `0501234567` -> `971501234567`), fixing broken `wa.me` links.
+  - **Part 2 - Typo Eradication**: Removed redundant `+` prefixes from button text nodes in `CompanyModal` (`Add Contact`, `Add Phone`, `Add Email`) and `Company360Modal` (`Add Contact Person`), eliminating duplicate `+ + Add` rendering beside `<Plus />` icons.
+
+## [0.67.0] - 2026-08-15
+
+### Added & Refactored
+- **Surgical Strike 4.2: Batch Actions & History Injection (`src/components/CallLogManager.tsx`, `src/components/CompanyModal.tsx`)**:
+  - **Part 1 - Batch Action Engine (`CallLogManager.tsx`)**:
+    - **Batch Actions Toolbar**: Implemented contextual toolbar rendering when `selectedLogIds.length > 0` in the history tab.
+    - **Batch Delete**: Integrated confirmation dialog (`askConfirm`) and automated batch deletion from Firestore (`safeDeleteDoc`) and local state (`setCallLogs`), followed by toast feedback and selection clearing.
+    - **Batch Reassign**: Added UI trigger button ready for operator assignment workflows with toast notification.
+  - **Part 2 - Company History Injection (`CompanyModal.tsx`)**:
+    - **Recent Interactions Section**: Injected a read-only "Recent Interactions" section at the bottom of the standard company view displaying up to 5 recent interaction logs.
+    - **Interaction Details**: Rendered Date, Operator, Call Status, and Call Outcome badges for each log.
+    - **Empty State**: Added "No recent interactions found" placeholder when no logs exist for the company.
+    - **1-Click Activity Drawer Integration**: Added "+ Log Interaction" shortcut button triggering `onOpenActivityDrawer`.
+
+## [0.66.6] - 2026-08-15
+
+### Fixed & Visual Cleanup
+- **Surgical Strike 4.1: Call Log Visual Cleanup (`src/components/CallLogManager.tsx`)**:
+  - **Part 1 - Log Table Purge**: Enforced strict exclusion of `Scheduled / Planned` items from the "Full Call History & Search" tab, reserving scheduled tasks strictly for the Operator Call Queue. Updated tab count badge to accurately reflect filtered historical logs.
+  - **Part 2 - Scheduled Status Badge Softening**: Preserved sleek blue status badge styling (`bg-blue-500/20 text-blue-400 border-blue-500/40`) for `Scheduled / Planned` items in call log badges.
+  - **Part 3 - Humanized Overdue Dates**: Implemented `formatOverdueDisplayDate` to format overdue ISO timestamps into human-readable strings (e.g. `Aug 13, 10:51 AM` or `Aug 13`), preventing raw unformatted ISO strings from appearing in warning badges while handling undefined/missing values safely.
+
+## [0.66.5] - 2026-08-15
+
+### Fixed & Refactored
+- **Surgical Strike 3.2: Edit Flow Unification (`src/components/CallLogDetailModal.tsx`, `src/components/CallLogManager.tsx`)**:
+  - **Converted Center Modal to Read-Only Viewer**: Completely removed redundant internal `isEditing` state, form inputs, and `handleSaveEdit` logic from `CallLogDetailModal.tsx`.
+  - **Unified Edit Action Routing**: Re-wired the "Edit Log" action button inside `CallLogDetailModal` and `CallLogManager` to close the detail modal (`onClose`) and route editing directly to `QuickActivityDrawer` in edit mode (`onOpenActivityDrawer({ existingLog: entry, logToEdit: entry })`).
+
 
 ### Fixed
 - **Quick Activity Drawer Dynamic Input Layout Refactor (`src/components/QuickActivityDrawer.tsx`)**:

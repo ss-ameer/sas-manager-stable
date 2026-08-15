@@ -1,5 +1,72 @@
 # Development Ledger
 
+## Session: 2026-08-15 (Surgical Strike 5.1: The Final Sweep)
+
+### Goals
+- Implement `sanitizeWhatsAppNumber` helper in `CompanyModal.tsx` and `Company360Modal.tsx` to handle 10-digit UAE mobile numbers starting with `05` by replacing leading `0` with `971` (e.g. `0501234567` -> `971501234567`).
+- Remove redundant `+` text prefixes from button nodes rendering beside `<Plus />` icons in `CompanyModal.tsx` (`Add Contact`, `Add Phone`, `Add Email`) and `Company360Modal.tsx` (`Add Contact Person`).
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CompanyModal.tsx` | Added `sanitizeWhatsAppNumber` helper function, updated company and contact level WhatsApp link generation, and removed redundant `+` prefixes from button text labels. |
+| `/src/components/Company360Modal.tsx` | Added `sanitizeWhatsAppNumber` helper function, updated contact phone WhatsApp link generation, and removed redundant `+` prefixes from button text labels. |
+| `/package.json` | Bumped version to `0.67.1`. |
+| `/CHANGELOG.md` | Logged version `0.67.1` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
+## Session: 2026-08-15 (Surgical Strike 4.2: Batch Actions & History Injection)
+
+### Goals
+- Render a "Batch Actions" toolbar UI in `CallLogManager.tsx` whenever `selectedLogIds.length > 0`.
+- Wire up red "Batch Delete" button with confirmation prompt, database deletion via `safeDeleteDoc`, state cleanup via `setCallLogs`, and selection clearing.
+- Add "Batch Reassign" button UI element ready for future reassign workflows.
+- Inject "Recent Interactions" section into `CompanyModal.tsx` showing the 3 to 5 most recent activity logs for the selected company with Date, Operator, Call Status, and Call Outcome.
+- Display "No recent interactions found" placeholder when no logs exist for the company.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CallLogManager.tsx` | Added Batch Actions toolbar with selection count badge, "Batch Reassign" button, and "Batch Delete" button wired to confirmation and `safeDeleteDoc`. |
+| `/src/components/CompanyModal.tsx` | Added `recentCompanyLogs` memoization and injected "Recent Interactions" section at bottom of company inspection view with Date, Operator, Status, Outcome, and "+ Log Interaction" shortcut. |
+| `/package.json` | Bumped version to `0.67.0`. |
+| `/CHANGELOG.md` | Logged version `0.67.0` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
+## Session: 2026-08-15 (Surgical Strike 4.1: Call Log Visual Cleanup)
+
+### Goals
+- Exclude `Scheduled / Planned` items from the "Full Call History & Search" tab so that history only displays completed or past interactions.
+- Ensure `Scheduled / Planned` status badges use sleek blue styling (`bg-blue-500/20 text-blue-400 border-blue-500/40`).
+- Format raw ISO timestamps in overdue warning badges into clean human-readable date strings (e.g. "Aug 13, 10:51 AM" or "Aug 13").
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CallLogManager.tsx` | Added `formatOverdueDisplayDate` helper; updated `filteredHistoryLogs` to strictly filter out `scheduled` statuses; updated tab header counter; humanized overdue date badge formatting. |
+| `/package.json` | Bumped version to `0.66.6`. |
+| `/CHANGELOG.md` | Logged version `0.66.6` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
+## Session: 2026-08-15 (Surgical Strike 3.2: Edit Flow Unification)
+
+### Goals
+- Convert `CallLogDetailModal.tsx` into a strictly read-only detailed viewer by removing redundant internal `isEditing` state, form inputs, and `handleSaveEdit` logic.
+- Route all Edit action button triggers inside `CallLogDetailModal` and `CallLogManager` to close the modal and open `QuickActivityDrawer` in edit mode.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CallLogDetailModal.tsx` | Converted center modal to read-only viewer. Removed internal `isEditing` state, form fields, and `handleSaveEdit` function. Connected Edit button to `onClose` and `onEdit` callback. |
+| `/src/components/CallLogManager.tsx` | Updated `onEdit` prop handler for `CallLogDetailModal` to close the modal and trigger `onOpenActivityDrawer` in edit mode with `existingLog` and `logToEdit`. |
+| `/package.json` | Bumped version to `0.66.5`. |
+| `/CHANGELOG.md` | Logged version `0.66.5` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
 ## Session: 2026-08-14 (Fix Cramped Inline Inputs in QuickActivityDrawer)
 
 ### Goals

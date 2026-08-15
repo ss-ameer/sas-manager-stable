@@ -1,13 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { CustomLabelSelect, PHONE_LABEL_DEFAULT_OPTIONS, EMAIL_LABEL_DEFAULT_OPTIONS } from './CustomLabelSelect';
 import { X, User, Building2, Phone, Mail, Plus, Trash2, ShieldAlert, Check, ArrowRightLeft, Sparkles } from 'lucide-react';
-import { CallLogEntry, Company, Contact, ContactMethod, LabeledPhone, LabeledEmail, LabeledHandle, UserProfile, getContactPhones, getContactEmails, getContactHandles, getCompanyPhones, getCompanyEmails } from '../types';
+import { CallLogEntry, Company, Contact, ContactMethod, LabeledPhone, LabeledEmail, LabeledHandle, UserProfile, getContactPhones, getContactEmails, getContactHandles, getCompanyPhones, getCompanyEmails, isSamePhoneNumber } from '../types';
 import { safeAddDoc, safeUpdateDoc, safeDeleteDoc } from '../firebase';
 import { CompanyRepository } from '../services/repositories/CompanyRepository';
 import { generateContactSearchTerms } from '../utils/defaults';
 import { recordAuditLog } from '../utils/auditLogger';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
+
+export function normalizePhoneKey(phone?: string): string {
+  if (!phone) return '';
+  const trimmed = phone.trim();
+  const hasLeadingPlus = trimmed.startsWith('+');
+  const digitsOnly = trimmed.replace(/[^\d]/g, '');
+  if (!digitsOnly) return '';
+  return hasLeadingPlus ? `+${digitsOnly}` : digitsOnly;
+}
+
+export function getLineRestriction(
+  restrictedLinesMap?: Record<string, 'DNC' | 'Invalid'>,
+  phoneStr?: string,
+  isDncFallback?: boolean
+): 'DNC' | 'Invalid' | undefined {
+  if (!phoneStr) return isDncFallback ? 'DNC' : undefined;
+  if (!restrictedLinesMap) return isDncFallback ? 'DNC' : undefined;
+  const normKey = normalizePhoneKey(phoneStr);
+  const trimmed = phoneStr.trim();
+  return (
+    restrictedLinesMap[normKey] ||
+    restrictedLinesMap[trimmed] ||
+    restrictedLinesMap[phoneStr] ||
+    (isDncFallback ? 'DNC' : undefined)
+  );
+}
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -57,19 +83,20 @@ export default function ContactModal({
   const [isSaving, setIsSaving] = useState(false);
 
   const toggleRestriction = (val: string) => {
-    const trimmed = val.trim();
-    if (!trimmed) return;
+    const normKey = normalizePhoneKey(val);
+    if (!normKey) return;
 
     setEditingRestrictedLines((prev) => {
-      const current = prev[trimmed] || prev[val];
+      const current = prev[normKey] || prev[val.trim()] || prev[val];
       const nextMap = { ...prev };
 
       if (!current) {
-        nextMap[trimmed] = 'Invalid';
+        nextMap[normKey] = 'Invalid';
       } else if (current === 'Invalid') {
-        nextMap[trimmed] = 'DNC';
+        nextMap[normKey] = 'DNC';
       } else {
-        delete nextMap[trimmed];
+        delete nextMap[normKey];
+        delete nextMap[val.trim()];
         delete nextMap[val];
       }
       return nextMap;
@@ -95,17 +122,20 @@ export default function ContactModal({
     const updatedCompany: Company = {
       ...selectedCompany,
       phones: updatedPhones as any,
+      general_phones: updatedPhones as any,
       general_phone: updatedPhones[0]?.value || updatedPhones[0]?.number || ''
     };
 
     try {
-      await safeUpdateDoc('companies', selectedCompany.id, {
+      await safeUpdateDoc('companies', selectedCompany.id!, {
         phones: updatedPhones,
+        general_phones: updatedPhones,
         general_phone: updatedPhones[0]?.value || updatedPhones[0]?.number || '',
         last_modified_by_uid: user?.uid || '',
         last_modified_by_name: user?.full_name || user?.username || user?.email || 'Unknown User',
         updatedAt: new Date().toISOString()
       });
+      await CompanyRepository.updateCompany(selectedCompany.id!, updatedCompany);
       if (setCompanies) {
         setCompanies((prev) => prev.map((c) => (c.id === selectedCompany.id ? updatedCompany : c)));
       }
@@ -129,17 +159,20 @@ export default function ContactModal({
     const updatedCompany: Company = {
       ...selectedCompany,
       emails: updatedEmails as any,
+      general_emails: updatedEmails as any,
       general_email: updatedEmails[0]?.value || updatedEmails[0]?.email || ''
     };
 
     try {
-      await safeUpdateDoc('companies', selectedCompany.id, {
+      await safeUpdateDoc('companies', selectedCompany.id!, {
         emails: updatedEmails,
+        general_emails: updatedEmails,
         general_email: updatedEmails[0]?.value || updatedEmails[0]?.email || '',
         last_modified_by_uid: user?.uid || '',
         last_modified_by_name: user?.full_name || user?.username || user?.email || 'Unknown User',
         updatedAt: new Date().toISOString()
       });
+      await CompanyRepository.updateCompany(selectedCompany.id!, updatedCompany);
       if (setCompanies) {
         setCompanies((prev) => prev.map((c) => (c.id === selectedCompany.id ? updatedCompany : c)));
       }
@@ -181,7 +214,17 @@ export default function ContactModal({
         setHandles(existingHandles.length > 0 ? existingHandles : []);
 
         // Populate restricted lines
-        setEditingRestrictedLines(contact.restricted_lines ? { ...contact.restricted_lines } : {});
+        if (contact.restricted_lines) {
+          const normMap: Record<string, 'DNC' | 'Invalid'> = {};
+          Object.entries(contact.restricted_lines).forEach(([k, v]) => {
+            const normK = normalizePhoneKey(k);
+            if (normK) normMap[normK] = v;
+            normMap[k.trim()] = v;
+          });
+          setEditingRestrictedLines(normMap);
+        } else {
+          setEditingRestrictedLines({});
+        }
       } else {
         setCompanyId(initialCompanyId || '');
         setFullName('');
@@ -301,6 +344,49 @@ export default function ContactModal({
     };
 
     try {
+      // PART 2: Remove claimed/assigned phones & emails from selectedCompany's unassigned pool
+      if (selectedCompany) {
+        const compPhones = getCompanyPhones(selectedCompany);
+        const compEmails = getCompanyEmails(selectedCompany);
+
+        const contactPhoneVals = validPhones.map((p) => p.value.trim()).filter(Boolean);
+        const contactEmailVals = validEmails.map((e) => e.value.trim().toLowerCase()).filter(Boolean);
+
+        const remainingPhones = compPhones.filter(
+          (p) => !contactPhoneVals.some((cp) => isSamePhoneNumber(p.value || p.number, cp))
+        );
+        const remainingEmails = compEmails.filter(
+          (e) => !contactEmailVals.includes((e.value || e.email || '').trim().toLowerCase())
+        );
+
+        if (remainingPhones.length !== compPhones.length || remainingEmails.length !== compEmails.length) {
+          const updatedCompany: Company = {
+            ...selectedCompany,
+            phones: remainingPhones as any,
+            general_phones: remainingPhones as any,
+            general_phone: remainingPhones[0]?.value || remainingPhones[0]?.number || '',
+            emails: remainingEmails as any,
+            general_emails: remainingEmails as any,
+            general_email: remainingEmails[0]?.value || remainingEmails[0]?.email || '',
+            updatedAt: new Date().toISOString()
+          };
+
+          await safeUpdateDoc('companies', selectedCompany.id!, {
+            phones: remainingPhones,
+            general_phones: remainingPhones,
+            general_phone: remainingPhones[0]?.value || remainingPhones[0]?.number || '',
+            emails: remainingEmails,
+            general_emails: remainingEmails,
+            general_email: remainingEmails[0]?.value || remainingEmails[0]?.email || '',
+            updatedAt: new Date().toISOString()
+          });
+          await CompanyRepository.updateCompany(selectedCompany.id!, updatedCompany);
+          if (setCompanies) {
+            setCompanies((prev) => prev.map((c) => (c.id === selectedCompany.id ? updatedCompany : c)));
+          }
+        }
+      }
+
       if (isPrimary) {
         // Reset primary flag for other contacts under same company
         const batch = writeBatch(db);
@@ -542,8 +628,7 @@ export default function ContactModal({
             )}
 
             {phones.map((p, idx) => {
-              const phoneVal = p.value.trim();
-              const currentRestriction = editingRestrictedLines[phoneVal] || editingRestrictedLines[p.value];
+              const currentRestriction = getLineRestriction(editingRestrictedLines, p.value);
 
               return (
                 <div key={p.id || idx} className="flex items-center space-x-2">
@@ -650,8 +735,7 @@ export default function ContactModal({
             )}
 
             {emails.map((e, idx) => {
-              const emailVal = e.value.trim();
-              const currentRestriction = editingRestrictedLines[emailVal] || editingRestrictedLines[e.value];
+              const currentRestriction = getLineRestriction(editingRestrictedLines, e.value);
 
               return (
                 <div key={e.id || idx} className="flex items-center space-x-2">

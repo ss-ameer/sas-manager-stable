@@ -81,6 +81,31 @@ export function formatActivityDate(dateStr?: string): string {
   }
 }
 
+export function formatOverdueDisplayDate(dateStr?: string): string {
+  if (!dateStr) return 'Date Unknown';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()];
+    const day = d.getDate();
+    let hours = d.getHours();
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+
+    const hasTime = dateStr.includes('T') || dateStr.includes(':');
+    if (hasTime) {
+      return `${month} ${day}, ${hours}:${minutes} ${ampm}`;
+    } else {
+      return `${month} ${day}`;
+    }
+  } catch {
+    return dateStr;
+  }
+}
+
 import { DropdownOption } from '../types';
 import { PageHeader, PageBody } from './layout/UiContainer';
 
@@ -384,8 +409,8 @@ export default function CallLogManager({
 
     if (s === 'scheduled' || s === 'scheduled / planned' || s.includes('scheduled')) {
       return (
-        <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-          <Clock className="w-3 h-3 text-amber-400" />
+        <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/40">
+          <Clock className="w-3 h-3 text-blue-400" />
           <span>Scheduled / Planned</span>
         </span>
       );
@@ -1210,14 +1235,15 @@ export default function CallLogManager({
   // Filtered History List
   const filteredHistoryLogs = useMemo(() => {
     const list = workspaceCallLogs.filter((l) => {
+      // Exclude Scheduled / Planned calls from Full Call History tab
+      const normLogStatus = (l.status || '').toLowerCase().trim();
+      if (normLogStatus === 'scheduled' || normLogStatus === 'scheduled / planned' || normLogStatus.includes('scheduled')) {
+        return false;
+      }
+
       if (statusFilter !== 'all') {
         const normFilter = statusFilter.toLowerCase().trim();
-        const normLogStatus = (l.status || '').toLowerCase().trim();
-        if (normFilter === 'scheduled' || normFilter === 'scheduled / planned') {
-          if (normLogStatus !== 'scheduled' && normLogStatus !== 'scheduled / planned') return false;
-        } else if (normLogStatus !== normFilter) {
-          return false;
-        }
+        if (normLogStatus !== normFilter) return false;
       }
       if (outcomeFilter !== 'all' && l.outcome !== outcomeFilter) return false;
       if (geographyFilter !== 'all' && l.geography !== geographyFilter) return false;
@@ -1364,7 +1390,7 @@ export default function CallLogManager({
           }`}
         >
           <ListFilter className="w-4 h-4" />
-          <span>Full Call History & Search ({workspaceCallLogs.length})</span>
+          <span>Full Call History & Search ({filteredHistoryLogs.length})</span>
         </button>
       </div>
 
@@ -1492,7 +1518,7 @@ export default function CallLogManager({
                         )}
                         {isOverdue && (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white tracking-wider">
-                            OVERDUE ({item.date})
+                            OVERDUE ({formatOverdueDisplayDate(item.date)})
                           </span>
                         )}
                         {isToday && (
@@ -1715,28 +1741,87 @@ export default function CallLogManager({
 
           {/* Call History Card List */}
           <div className="space-y-3">
-            {/* Select All Bar */}
-            <div className="flex items-center justify-between px-2 text-xs font-semibold text-slate-500">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={
-                    filteredHistoryLogs.length > 0 &&
-                    filteredHistoryLogs.every((l) => l.id && selectedLogIds.includes(l.id))
-                  }
-                  onChange={(e) => {
-                    const allIds = filteredHistoryLogs.map((l) => l.id!).filter(Boolean);
-                    if (e.target.checked) {
-                      setSelectedLogIds((prev) => Array.from(new Set([...prev, ...allIds])));
-                    } else {
-                      setSelectedLogIds((prev) => prev.filter((id) => !allIds.includes(id)));
+            {/* Select All & Batch Actions Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-500">
+              <div className="flex items-center space-x-3">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={
+                      filteredHistoryLogs.length > 0 &&
+                      filteredHistoryLogs.every((l) => l.id && selectedLogIds.includes(l.id))
                     }
-                  }}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                />
-                <span>Select All ({filteredHistoryLogs.length})</span>
-              </label>
-              <span>Showing {filteredHistoryLogs.length} interaction logs</span>
+                    onChange={(e) => {
+                      const allIds = filteredHistoryLogs.map((l) => l.id!).filter(Boolean);
+                      if (e.target.checked) {
+                        setSelectedLogIds((prev) => Array.from(new Set([...prev, ...allIds])));
+                      } else {
+                        setSelectedLogIds((prev) => prev.filter((id) => !allIds.includes(id)));
+                      }
+                    }}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span>Select All ({filteredHistoryLogs.length})</span>
+                </label>
+
+                {selectedLogIds.length > 0 && (
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-2.5 py-0.5 rounded-full font-mono">
+                    {selectedLogIds.length} Selected
+                  </span>
+                )}
+              </div>
+
+              {selectedLogIds.length > 0 ? (
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 mr-1">Batch Actions:</span>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log('Batch Reassign clicked for logs:', selectedLogIds);
+                      triggerToast(`Batch Reassign queued for ${selectedLogIds.length} logs`, 'info');
+                    }}
+                    className="px-3 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer"
+                  >
+                    <Users2 className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Reassign ({selectedLogIds.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const confirmDelete = await askConfirm(
+                        'Batch Delete Logs',
+                        `Are you sure you want to delete ${selectedLogIds.length} selected interaction log(s)? This action cannot be undone.`,
+                        true,
+                        'Delete All',
+                        'Cancel'
+                      );
+                      if (!confirmDelete) return;
+
+                      try {
+                        for (const id of selectedLogIds) {
+                          await safeDeleteDoc('call_logs', id);
+                        }
+                        if (setCallLogs) {
+                          setCallLogs((prev) => prev.filter((l) => !selectedLogIds.includes(l.id!)));
+                        }
+                        triggerToast(`Successfully deleted ${selectedLogIds.length} interaction log(s)`, 'success');
+                        setSelectedLogIds([]);
+                      } catch (err: any) {
+                        console.error('Error in batch delete:', err);
+                        triggerToast('Failed to delete selected logs: ' + (err?.message || err), 'error');
+                      }
+                    }}
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete ({selectedLogIds.length})</span>
+                  </button>
+                </div>
+              ) : (
+                <span>Showing {filteredHistoryLogs.length} interaction logs</span>
+              )}
             </div>
 
             {filteredHistoryLogs.map((log) => {
@@ -3259,12 +3344,12 @@ export default function CallLogManager({
           setShowFastQueueDrawer(false);
         }}
         onEdit={(entry) => {
-          if (setCallLogs) {
-            setCallLogs((prev) => prev.map((l) => (l.id === entry.id ? entry : l)));
-          }
-          setSelectedDetailEntry(entry);
+          setSelectedDetailEntry(null);
           setShowLogModal(false);
           setShowFastQueueDrawer(false);
+          if (onOpenActivityDrawer) {
+            onOpenActivityDrawer({ existingLog: entry, logToEdit: entry });
+          }
         }}
         onDelete={async (id) => {
           const confirmDelete = await askConfirm(

@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
-import { CallLogEntry, Company, Contact, Enquiry, UserProfile, Workspace, getCompanyPhones, getCompanyEmails, getContactPhones, isSamePhoneNumber, CallStatus } from '../types';
+import { CallLogEntry, Company, Contact, Enquiry, UserProfile, Workspace, getCompanyPhones } from '../types';
 import LeadConversionModal from './LeadConversionModal';
 import { getReferenceId } from '../utils/refId';
-import { canEditOrDeleteRecord, isRecordOwner } from '../utils/permissions';
-import { safeUpdateDoc, safeSetDoc } from '../firebase';
-import { CallLogRepository } from '../services/repositories/CallLogRepository';
-import { CompanyRepository } from '../services/repositories/CompanyRepository';
-import { SYSTEM_CALL_OUTCOMES, SYSTEM_CALL_STATUSES, SYSTEM_CALL_PURPOSES } from '../utils/defaults';
+import { canEditOrDeleteRecord } from '../utils/permissions';
 import {
   PhoneCall,
   Building2,
@@ -29,8 +25,7 @@ import {
   Sparkles,
   Copy,
   Users,
-  Check,
-  Save
+  Check
 } from 'lucide-react';
 
 interface CallLogDetailModalProps {
@@ -73,28 +68,6 @@ export default function CallLogDetailModal({
   const [copiedDraft, setCopiedDraft] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState(false);
 
-  // Inline Edit Mode State
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTargetType, setEditTargetType] = useState<'contact' | 'company_mainline'>('contact');
-  const [editCompanyId, setEditCompanyId] = useState('');
-  const [editCompanyName, setEditCompanyName] = useState('');
-  const [editContactId, setEditContactId] = useState('');
-  const [editContactName, setEditContactName] = useState('');
-  const [editContactPhone, setEditContactPhone] = useState('');
-  const [editStatus, setEditStatus] = useState<CallStatus>('Completed');
-  const [editOutcome, setEditOutcome] = useState('');
-  const [editPurpose, setEditPurpose] = useState('');
-  const [editRequirementNotes, setEditRequirementNotes] = useState('');
-  const [editNextFollowupDate, setEditNextFollowupDate] = useState('');
-  const [editMainlineTag, setEditMainlineTag] = useState('Front Desk');
-  const [editChannel, setEditChannel] = useState<string>('Call');
-  const [editDate, setEditDate] = useState<string>('');
-  const [editEmailAddress, setEditEmailAddress] = useState<string>('');
-  const [editEmailSubject, setEditEmailSubject] = useState<string>('');
-  const [editLocationOrLink, setEditLocationOrLink] = useState<string>('');
-  const [editFollowupIntent, setEditFollowupIntent] = useState<string>('');
-  const [isSaving, setIsSaving] = useState(false);
-
   if (!entry) return null;
 
   const linkedCompany = entry.company_id
@@ -108,171 +81,6 @@ export default function CallLogDetailModal({
   const linkedEnquiry = entry.enquiry_id
     ? enquiries.find((e) => e.id === entry.enquiry_id)
     : null;
-
-  const startEditing = () => {
-    setEditTargetType(entry.contact_id || entry.contact_name ? 'contact' : 'company_mainline');
-    setEditMainlineTag('Front Desk');
-    setEditCompanyId(entry.company_id || '');
-    setEditCompanyName(entry.company_name || linkedCompany?.display_name || linkedCompany?.canonical_name || entry.unlinked_name || '');
-    setEditContactId(entry.contact_id || '');
-    setEditContactName(entry.contact_name || entry.unlinked_name || linkedContact?.full_name || '');
-    setEditContactPhone(entry.contact_phone || entry.unlinked_contact_info || linkedContact?.mobile || linkedContact?.landline || '');
-    setEditStatus(entry.status || 'Completed');
-    setEditOutcome(entry.outcome || '');
-    setEditPurpose(entry.purpose || 'Prospecting / Intro');
-    setEditRequirementNotes(entry.requirement_notes || '');
-    const formatToDatetimeLocal = (dateStr?: string): string => {
-      if (!dateStr) return '';
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr.length >= 10 ? `${dateStr.slice(0, 10)}T09:00` : '';
-      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-      return local.toISOString().slice(0, 16);
-    };
-    setEditDate(formatToDatetimeLocal(entry.date));
-    setEditNextFollowupDate(formatToDatetimeLocal(entry.next_followup_date));
-    setEditChannel(entry.channel || 'Call');
-    setEditEmailAddress(entry.email_address || (entry.channel === 'Email' ? entry.contact_phone || entry.unlinked_contact_info : '') || linkedContact?.email || '');
-    setEditEmailSubject(entry.email_subject || '');
-    setEditLocationOrLink(entry.location_or_link || '');
-    setEditFollowupIntent(entry.followup_intent || '');
-    setIsEditing(true);
-  };
-
-  const handleSaveEdit = async () => {
-    setIsSaving(true);
-    try {
-      const selectedComp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
-      const isCompanyMainline = editTargetType === 'company_mainline';
-      const resolvedWorkspaceId = entry.workspace_id || activeWorkspace?.id || 'ws_default';
-      const resolvedCompId = editCompanyId || entry.company_id || selectedComp?.id;
-      const resolvedCompName = editCompanyName || entry.company_name || selectedComp?.display_name || selectedComp?.canonical_name || '';
-
-      const updatedEntry: CallLogEntry = {
-        ...entry,
-        workspace_id: resolvedWorkspaceId,
-        company_id: resolvedCompId,
-        company_name: resolvedCompName,
-        contact_id: isCompanyMainline ? undefined : (editContactId || undefined),
-        contact_name: isCompanyMainline ? undefined : (editContactName || undefined),
-        contact_phone: editContactPhone,
-        date: editDate || entry.date,
-        status: editStatus,
-        outcome: editOutcome,
-        purpose: editPurpose,
-        requirement_notes: editRequirementNotes,
-        next_followup_date: editNextFollowupDate || undefined,
-        channel: editChannel,
-        email_address: editChannel === 'Email' ? (editEmailAddress || undefined) : undefined,
-        email_subject: editChannel === 'Email' ? (editEmailSubject || undefined) : undefined,
-        location_or_link: (editChannel === 'Meeting' || editChannel === 'Site Visit') ? (editLocationOrLink || undefined) : undefined,
-        followup_intent: editNextFollowupDate ? (editFollowupIntent || undefined) : undefined,
-        updatedAt: new Date().toISOString(),
-        last_modified_by_name: currentUser?.full_name || 'System Operator'
-      };
-
-      if (resolvedCompId) {
-        const targetComp = companies.find((c) => c.id === resolvedCompId) || linkedCompany;
-        if (targetComp) {
-          let compUpdated = false;
-          let updatedComp = { ...targetComp };
-
-          if (isCompanyMainline) {
-            if (editContactPhone && editContactPhone.trim()) {
-              const phoneTrim = editContactPhone.trim();
-              if (!updatedComp.general_phone) {
-                updatedComp.general_phone = phoneTrim;
-                compUpdated = true;
-              }
-              const existingPhones = getCompanyPhones(targetComp);
-              if (!existingPhones.some((p) => isSamePhoneNumber(p.number || p.value, phoneTrim))) {
-                const tagLabel = editMainlineTag.trim() || 'Front Desk';
-                const newPhoneObj = { id: `phone_${Date.now()}`, label: tagLabel, number: phoneTrim };
-                updatedComp.phones = [...(updatedComp.phones || []), newPhoneObj];
-                compUpdated = true;
-              }
-            }
-            if (editEmailAddress && editEmailAddress.trim()) {
-              const emailTrim = editEmailAddress.trim().toLowerCase();
-              if (!updatedComp.general_email) {
-                updatedComp.general_email = emailTrim;
-                compUpdated = true;
-              }
-              const existingEmails = getCompanyEmails(targetComp);
-              if (!existingEmails.some((e) => (e.email || e.value || '').toLowerCase() === emailTrim)) {
-                const newEmailObj = { id: `email_${Date.now()}`, label: 'Main', email: editEmailAddress.trim() };
-                updatedComp.emails = [...(updatedComp.emails || []), newEmailObj];
-                compUpdated = true;
-              }
-            }
-            if (compUpdated) {
-              updatedComp.updatedAt = new Date().toISOString();
-              await safeSetDoc('companies', resolvedCompId, updatedComp);
-              await CompanyRepository.saveCompany(updatedComp);
-            }
-          }
-        }
-      }
-
-      if (entry.id) {
-        await safeUpdateDoc('call_logs', entry.id, {
-          workspace_id: resolvedWorkspaceId,
-          company_id: updatedEntry.company_id || null,
-          company_name: updatedEntry.company_name || null,
-          contact_id: updatedEntry.contact_id || null,
-          contact_name: updatedEntry.contact_name || null,
-          contact_phone: updatedEntry.contact_phone || null,
-          date: updatedEntry.date,
-          status: updatedEntry.status,
-          outcome: updatedEntry.outcome || null,
-          purpose: updatedEntry.purpose || null,
-          requirement_notes: updatedEntry.requirement_notes || null,
-          next_followup_date: updatedEntry.next_followup_date || null,
-          channel: updatedEntry.channel,
-          email_address: updatedEntry.email_address || null,
-          email_subject: updatedEntry.email_subject || null,
-          location_or_link: updatedEntry.location_or_link || null,
-          followup_intent: updatedEntry.followup_intent || null,
-          updatedAt: updatedEntry.updatedAt,
-          last_modified_by_name: updatedEntry.last_modified_by_name
-        });
-      }
-
-      // Auto-Schedule Follow-Up Log if follow-up date was provided/updated
-      if (editNextFollowupDate && editNextFollowupDate.trim() !== '') {
-        const scheduledLogId = `act_${Date.now()}_fup_${Math.random().toString(36).substring(2, 7)}`;
-        const scheduledEntry: CallLogEntry = {
-          ...updatedEntry,
-          id: scheduledLogId,
-          workspace_id: resolvedWorkspaceId,
-          company_id: resolvedCompId,
-          company_name: resolvedCompName,
-          date: editNextFollowupDate,
-          status: 'Scheduled / Planned' as CallStatus,
-          outcome: 'Follow-Up Scheduled',
-          requirement_notes: '',
-          next_followup_date: undefined,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        await safeSetDoc('activity_logs', scheduledLogId, scheduledEntry);
-        await safeSetDoc('call_logs', scheduledLogId, scheduledEntry);
-        await CallLogRepository.save(scheduledEntry);
-      }
-
-      onEdit(updatedEntry);
-      if (triggerToast) {
-        triggerToast('Activity Log updated successfully', 'success');
-      }
-      setIsEditing(false);
-    } catch (err) {
-      console.error('Failed to update call log:', err);
-      if (triggerToast) {
-        triggerToast('Error saving activity log', 'error');
-      }
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const getChannelBadge = (ch?: string) => {
     const channel = (ch || entry.channel || 'Call').toLowerCase();
@@ -320,8 +128,8 @@ export default function CallLogDetailModal({
     const s = status.toLowerCase();
     if (s === 'scheduled' || s === 'scheduled / planned' || s.includes('scheduled')) {
       return (
-        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 shrink-0">
-          <Clock className="w-3 h-3 text-amber-400" />
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/40 flex items-center gap-1 shrink-0">
+          <Clock className="w-3 h-3 text-blue-400" />
           <span>Scheduled / Planned</span>
         </span>
       );
@@ -401,14 +209,14 @@ export default function CallLogDetailModal({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-bold tracking-tight text-white">
-                  {isEditing ? 'Edit Activity Log' : 'Activity Log Profile'}
+                  Activity Log Profile
                 </h2>
                 <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-800 text-blue-300 border border-slate-700 flex items-center space-x-1 shrink-0">
                   <Tag className="w-2.5 h-2.5 text-blue-400" />
                   <span>REF: {getReferenceId('CL', entry, callLogs)}</span>
                 </span>
-                {!isEditing && getChannelBadge()}
-                {!isEditing && getStatusBadge(entry.status)}
+                {getChannelBadge()}
+                {getStatusBadge(entry.status)}
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 Occurred on <strong className="text-slate-200">{formattedDate}</strong> &bull; Logged by <span className="font-semibold text-slate-200">{entry.logged_by || entry.created_by_name}</span>
@@ -425,767 +233,298 @@ export default function CallLogDetailModal({
         </div>
 
         {/* Modal Body */}
-        {isEditing ? (
-          <div className="p-6 space-y-4 flex-1 overflow-y-auto">
-            <div className="p-3 bg-blue-950/40 border border-blue-800/50 rounded-xl text-xs text-blue-200 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-400 shrink-0" />
-              <span>Modify log details below. Contact Person and Phone Number fields are completely un-restricted for direct typing and editing.</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Interaction Date & Time */}
-              <div className="col-span-full">
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Interaction Date &amp; Time</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={editDate}
-                  onChange={(e) => setEditDate(e.target.value)}
-                  style={{ colorScheme: 'dark' }}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
-                />
+        <div className="p-6 space-y-5 flex-1 overflow-y-auto">
+          {/* Outcome & Purpose Banner */}
+          {(entry.outcome || entry.purpose) && (
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-2">
+                {entry.purpose && (
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Interaction Purpose
+                    </span>
+                    <span className="inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold bg-blue-950/80 text-blue-200 border border-blue-800/80">
+                      {entry.purpose}
+                    </span>
+                  </div>
+                )}
+                {entry.outcome && (
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Logged Outcome / Result
+                    </span>
+                    <div>{getOutcomeBadge(entry.outcome)}</div>
+                  </div>
+                )}
               </div>
 
-              {/* Target Company */}
-              <div className="col-span-full">
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Target Company
-                </label>
-                <select
-                  value={editCompanyId}
-                  onChange={(e) => {
-                    const compId = e.target.value;
-                    setEditCompanyId(compId);
-                    const comp = companies.find((c) => c.id === compId);
-                    if (comp) {
-                      setEditCompanyName(comp.display_name || comp.canonical_name || '');
-                    }
-                  }}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-semibold focus:border-blue-500 focus:outline-none mb-2"
-                >
-                  <option value="">-- Unlinked / Custom Company --</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.display_name || c.canonical_name} ({c.id})
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={editCompanyName}
-                  onChange={(e) => setEditCompanyName(e.target.value)}
-                  placeholder="Company Name / Lead Title..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Target Selection Toggle (Contact vs. Company Mainline) */}
-              <div className="flex items-center gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800 my-1 col-span-full">
-                <button
-                  type="button"
-                  onClick={() => setEditTargetType('contact')}
-                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    editTargetType === 'contact'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <User className="w-3.5 h-3.5" />
-                  <span>Log against Contact</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditTargetType('company_mainline');
-                    setEditContactId('');
-                    setEditContactName('');
-                    const activeComp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
-                    if (activeComp) {
-                      const compPhones = getCompanyPhones(activeComp);
-                      if (compPhones.length > 0) {
-                        setEditContactPhone(compPhones[0].number);
-                        setEditMainlineTag(compPhones[0].label || 'Front Desk');
-                      } else if (activeComp.general_phone) {
-                        setEditContactPhone(activeComp.general_phone);
-                        setEditMainlineTag('Front Desk');
-                      }
-                    }
-                  }}
-                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    editTargetType === 'company_mainline'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span>Log against Company Mainline</span>
-                </button>
-              </div>
-
-              {/* Contact Person or Phone Tag */}
-              {editTargetType === 'contact' ? (
-                <div className="col-span-full">
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    Contact Person
-                  </label>
-                  <input
-                    type="text"
-                    list="modal-contact-person-suggestions"
-                    value={editContactName}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setEditContactName(val);
-                      const comp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
-                      const compContacts = comp ? contacts.filter((ct) => ct.company_id === comp.id) : [];
-                      const matched = compContacts.find((c) => (c.full_name || '').toLowerCase() === val.toLowerCase());
-                      if (matched) {
-                        setEditContactId(matched.id || '');
-                        const phones = getContactPhones(matched);
-                        if (matched.mobile || matched.landline || phones[0]?.number) {
-                          setEditContactPhone(matched.mobile || matched.landline || phones[0]?.number || '');
-                        }
-                      } else {
-                        setEditContactId('');
-                      }
-                    }}
-                    placeholder="Type or select contact person name..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none font-medium"
-                  />
-                  <datalist id="modal-contact-person-suggestions">
-                    {(() => {
-                      const comp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
-                      const compContacts = comp ? contacts.filter((ct) => ct.company_id === comp.id) : [];
-                      return compContacts.map((ct, idx) => (
-                        <option key={ct.id ? `${ct.id}_${idx}` : `m_ct_${idx}`} value={ct.full_name}>
-                          {ct.full_name} {ct.designation ? `(${ct.designation})` : ''} {ct.mobile ? `- ${ct.mobile}` : ''}
-                        </option>
-                      ));
-                    })()}
-                  </datalist>
-                  {(() => {
-                    const comp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
-                    const compContacts = comp ? contacts.filter((ct) => ct.company_id === comp.id) : [];
-                    if (compContacts.length === 0) return null;
-                    return (
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                        <span className="text-[10px] text-slate-400 font-medium">Company Contacts:</span>
-                        {compContacts.map((ct) => (
-                          <button
-                            key={ct.id}
-                            type="button"
-                            onClick={() => {
-                              setEditContactId(ct.id || '');
-                              setEditContactName(ct.full_name);
-                              if (ct.mobile || ct.landline) {
-                                setEditContactPhone(ct.mobile || ct.landline || '');
-                              }
-                            }}
-                            className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
-                          >
-                            {ct.full_name}
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })()}
+              {entry.next_followup_date && (
+                <div className="sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-1">
+                    Next Follow-Up Scheduled
+                  </span>
+                  <span className="text-xs font-bold text-slate-200 flex items-center sm:justify-end gap-1.5 font-mono">
+                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{new Date(entry.next_followup_date).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
+                  </span>
                 </div>
-              ) : (
-                <div className="col-span-full">
-                  <label className="block text-xs font-bold text-amber-300 uppercase tracking-wider mb-1 flex items-center justify-between">
-                    <span>Phone Tag / Label</span>
-                    <span className="text-[10px] text-amber-400 lowercase">company line</span>
-                  </label>
-                  <input
-                    type="text"
-                    list="modal-mainline-tag-suggestions"
-                    value={editMainlineTag}
-                    onChange={(e) => setEditMainlineTag(e.target.value)}
-                    placeholder="e.g. Front Desk, Support, Main..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 text-xs text-amber-100 font-medium placeholder-slate-500 focus:border-amber-400 focus:outline-none"
-                  />
-                  <datalist id="modal-mainline-tag-suggestions">
-                    <option value="Front Desk" />
-                    <option value="Main / Reception" />
-                    <option value="Support / Helpdesk" />
-                    <option value="Sales Line" />
-                    <option value="Boardroom / HQ" />
-                  </datalist>
+              )}
+            </div>
+          )}
+
+          {/* Company & Contact Details Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Company Box */}
+            <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/80 hover:border-slate-700 transition shadow-xs group">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Target Company</span>
+                </span>
+                {(() => {
+                  const targetCompanyId = entry.company_id || linkedCompany?.id;
+                  if (!targetCompanyId) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onOpenCompany360) {
+                          onClose();
+                          onOpenCompany360(targetCompanyId);
+                        }
+                      }}
+                      className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer hover:underline"
+                      title="Open 360° Company Intelligence Dashboard"
+                    >
+                      <span>Company 360°</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  );
+                })()}
+              </div>
+
+              <div className="font-bold text-slate-100 text-sm">
+                {linkedCompany ? (
+                  linkedCompany.display_name || linkedCompany.canonical_name
+                ) : entry.company_name ? (
+                  entry.company_name
+                ) : entry.unlinked_name ? (
+                  <span className="text-amber-300 font-bold">{entry.unlinked_name} <span className="text-xs font-normal text-amber-400/80">(Unsaved Lead)</span></span>
+                ) : (
+                  'Unspecified Target / Lead'
+                )}
+              </div>
+
+              {!entry.company_id && (
+                <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-slate-900 border border-blue-500/40 flex flex-wrap items-center justify-between gap-2 shadow-xs">
+                  <div>
+                    <div className="text-xs font-bold text-blue-200 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Unsaved Lead Record</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Convert this lead into a permanent CRM Company & Contact</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowConvertModal(true)}
+                    className="px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white text-xs font-extrabold rounded-lg shadow-md flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <span>🚀 Convert to CRM Client</span>
+                  </button>
+                </div>
+              )}
+
+              {linkedCompany && (
+                <div className="mt-2 text-xs text-slate-400 space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span>
+                      {linkedCompany.city ? `${linkedCompany.city}, ` : ''}{linkedCompany.country}
+                    </span>
+                  </div>
+                  {linkedCompany.general_phone && (
+                    <div className="flex items-center gap-1.5 text-slate-300 font-mono">
+                      <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span>{linkedCompany.general_phone}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Phone Number Field & Company-Level Phone Selector */}
-            {(editChannel === 'Call' || editChannel === 'WhatsApp') && (
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="text"
-                  value={editContactPhone}
-                  onChange={(e) => setEditContactPhone(e.target.value)}
-                  placeholder="Type phone number freely (e.g. +971 50 123 4567)..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono text-blue-300 placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                />
+            {/* Contact Box */}
+            <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/80 hover:border-slate-700 transition shadow-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Contact Person</span>
+              </span>
 
-                {/* Direct Company Line Selector Pills */}
+              <div className="font-bold text-slate-100 text-sm">
+                {entry.contact_name || entry.unlinked_name || 'No Personnel Contact Assigned'}
+              </div>
+
+              <div className="mt-2 text-xs text-slate-300 space-y-1">
                 {(() => {
-                  const activeComp = editCompanyId ? companies.find((c) => c.id === editCompanyId) : linkedCompany;
-                  const compPhones = getCompanyPhones(activeComp);
-                  if (compPhones.length === 0) return null;
+                  const phoneVal = entry.contact_phone || entry.unlinked_contact_info || linkedContact?.mobile || linkedContact?.landline;
+                  const emailVal = linkedContact?.email;
 
                   return (
-                    <div className="mt-2 p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-blue-300 flex items-center gap-1">
-                          <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                          <span>Select Company Phone Line:</span>
-                        </span>
-                        <span className="text-[10px] text-slate-400">Click to assign line</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {compPhones.map((ph, idx) => (
-                          <button
-                            key={`cp_edit_${idx}`}
-                            type="button"
-                            onClick={() => setEditContactPhone(ph.number)}
-                            className="text-xs px-2.5 py-1 rounded-lg bg-blue-950/80 hover:bg-blue-900 text-blue-200 font-mono border border-blue-800/80 transition cursor-pointer flex items-center gap-1.5 font-bold"
-                            title={`Set phone number to ${ph.label || 'Company Line'}: ${ph.number}`}
+                    <>
+                      {phoneVal ? (
+                        <div className="flex items-center gap-1.5 font-mono text-blue-300 font-medium">
+                          <Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                          <a
+                            href={`tel:${phoneVal}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:underline"
                           >
-                            <span className="text-slate-400 font-normal">{ph.label || 'Front Desk'}:</span>
-                            <span>{ph.number}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                            {phoneVal}
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="text-slate-500 text-xs italic">No phone logged</div>
+                      )}
+
+                      {emailVal && (
+                        <div className="flex items-center gap-1.5 text-slate-300 truncate">
+                          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <a
+                            href={`mailto:${emailVal}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:underline truncate"
+                          >
+                            {emailVal}
+                          </a>
+                        </div>
+                      )}
+                    </>
                   );
                 })()}
               </div>
-            )}
 
-            {/* Dynamic Fields for Email / Meeting */}
-            {editChannel === 'Email' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={editEmailAddress}
-                    onChange={(e) => setEditEmailAddress(e.target.value)}
-                    placeholder="e.g. client@company.com..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    Email Subject
-                  </label>
-                  <input
-                    type="text"
-                    value={editEmailSubject}
-                    onChange={(e) => setEditEmailSubject(e.target.value)}
-                    placeholder="e.g. Revised Quotation for Ref #1234..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:border-blue-500 focus:outline-none font-medium"
-                  />
-                </div>
-              </div>
-            )}
-
-            {(editChannel === 'Meeting' || editChannel === 'Site Visit') && (
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Location / Meeting Link
-                </label>
-                <input
-                  type="text"
-                  value={editLocationOrLink}
-                  onChange={(e) => setEditLocationOrLink(e.target.value)}
-                  placeholder="e.g. Client Office / Google Meet link..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:border-blue-500 focus:outline-none font-medium"
-                />
-              </div>
-            )}
-
-            {/* Status, Outcome & Purpose */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Status
-                </label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value as CallStatus)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-semibold focus:border-blue-500 focus:outline-none"
-                >
-                  <option value="Completed">Completed</option>
-                  <option value="Scheduled / Planned">Scheduled / Planned</option>
-                  <option value="No Answer">No Answer</option>
-                  <option value="Busy">Busy</option>
-                  <option value="Invalid Number">Invalid Number</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Outcome / Result
-                </label>
-                <select
-                  value={editOutcome}
-                  onChange={(e) => setEditOutcome(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:border-blue-500 focus:outline-none"
-                >
-                  <option value="">-- Select Outcome --</option>
-                  {SYSTEM_CALL_OUTCOMES.map((oc) => (
-                    <option key={oc} value={oc}>
-                      {oc}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Interaction Purpose
-                </label>
-                <select
-                  value={editPurpose}
-                  onChange={(e) => setEditPurpose(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 font-semibold focus:border-blue-500 focus:outline-none cursor-pointer"
-                >
-                  {editPurpose && !SYSTEM_CALL_PURPOSES.includes(editPurpose) && (
-                    <option value={editPurpose}>{editPurpose}</option>
-                  )}
-                  {SYSTEM_CALL_PURPOSES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Next Follow-Up Date */}
-            {(() => {
-              const isFollowupEncouraged =
-                editStatus === 'No Answer' ||
-                editStatus === 'Busy' ||
-                editStatus === 'Scheduled' ||
-                editStatus === 'Scheduled / Planned' ||
-                editOutcome === 'Call Back Later' ||
-                editOutcome === 'Line Busy' ||
-                editOutcome === 'No Answer' ||
-                editOutcome === 'Follow-Up Scheduled';
-              const isFollowupMissing = isFollowupEncouraged && !editNextFollowupDate;
-
-              return (
-                <div>
-                  <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
-                    <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4 text-blue-400" />
-                      <span>Next Follow-Up Date</span>
-                      {isFollowupMissing && (
-                        <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1 bg-amber-950/80 px-2 py-0.5 rounded-md border border-amber-500/50 animate-pulse">
-                          <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
-                          <span>Required for {editStatus === 'Busy' || editStatus === 'No Answer' ? editStatus : editOutcome || 'this disposition'}</span>
-                        </span>
-                      )}
-                    </label>
-                    {editNextFollowupDate && (
-                      <button
-                        type="button"
-                        onClick={() => setEditNextFollowupDate('')}
-                        className="text-[10px] text-slate-400 hover:text-rose-300 font-semibold cursor-pointer"
-                      >
-                        Clear Date
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="datetime-local"
-                    value={editNextFollowupDate}
-                    onChange={(e) => setEditNextFollowupDate(e.target.value)}
-                    style={{ colorScheme: 'dark' }}
-                    className={`[color-scheme:dark] w-full px-3 py-2 rounded-xl bg-slate-950 text-xs font-mono transition-all focus:outline-none ${
-                      isFollowupMissing
-                        ? 'border-2 border-amber-500/80 ring-2 ring-amber-500/30 bg-amber-950/20 text-amber-100'
-                        : editNextFollowupDate
-                        ? 'border-2 border-blue-500/80 bg-blue-950/20 text-blue-100 font-bold'
-                        : 'border border-slate-800 text-slate-100 focus:border-blue-500'
-                    }`}
-                  />
-
-                  {/* Quick Set Buttons */}
-                  {isFollowupMissing && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] text-slate-400 font-medium">Quick Set:</span>
-                      {[
-                        { label: '+1 Day', days: 1 },
-                        { label: '+2 Days', days: 2 },
-                        { label: '+3 Days', days: 3 },
-                        { label: '+1 Week', days: 7 }
-                      ].map((btn) => (
-                        <button
-                          key={btn.label}
-                          type="button"
-                          onClick={() => {
-                            const d = new Date();
-                            d.setDate(d.getDate() + btn.days);
-                            d.setHours(9, 0, 0, 0);
-                            const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-                            setEditNextFollowupDate(local.toISOString().slice(0, 16));
-                          }}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-bold transition cursor-pointer"
+              {/* Company Lines Selector in View Mode */}
+              {(() => {
+                const companyPhones = getCompanyPhones(linkedCompany);
+                if (companyPhones.length === 0) return null;
+                return (
+                  <div className="mt-3 pt-2 border-t border-slate-800/80">
+                    <span className="text-[10px] font-semibold text-slate-400 block mb-1">Company Direct Lines:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {companyPhones.map((ph, idx) => (
+                        <a
+                          key={`v_cp_${idx}`}
+                          href={`tel:${ph.number}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[10px] px-2 py-0.5 rounded bg-blue-950/60 hover:bg-blue-900 text-blue-300 font-mono border border-blue-800/60 transition flex items-center gap-1"
+                          title={`Call ${ph.label || 'Company Line'}: ${ph.number}`}
                         >
-                          {btn.label}
-                        </button>
+                          <span className="text-slate-400 font-normal">{ph.label || 'Main'}:</span>
+                          <span className="font-bold">{ph.number}</span>
+                        </a>
                       ))}
                     </div>
-                  )}
-
-                  {/* Persistent Date Confirmation Badge */}
-                  {editNextFollowupDate && (
-                    <div className="mt-2 flex items-center justify-between px-3 py-1.5 rounded-lg bg-blue-950/80 border border-blue-500/60 text-blue-200 text-xs font-mono font-bold shadow-xs">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                        <span>Scheduled: {new Date(editNextFollowupDate).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-                      <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    </div>
-                  )}
-
-                  {/* Follow-Up Intent / Reason Input Field */}
-                  {editNextFollowupDate && (
-                    <div className="mt-2.5">
-                      <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                        Follow-up Intent / Agenda
-                      </label>
-                      <input
-                        type="text"
-                        value={editFollowupIntent}
-                        onChange={(e) => setEditFollowupIntent(e.target.value)}
-                        placeholder="e.g. Check on PO approval, Send revised quote..."
-                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none font-medium"
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Requirement Notes */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-blue-400" />
-                <span>Requirement Notes &amp; Activity Log</span>
-              </label>
-              <textarea
-                value={editRequirementNotes}
-                onChange={(e) => setEditRequirementNotes(e.target.value)}
-                rows={4}
-                placeholder="Type detailed notes..."
-                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs font-sans placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-              />
+                  </div>
+                );
+              })()}
             </div>
           </div>
-        ) : (
-          <div className="p-6 space-y-5 flex-1 overflow-y-auto">
-            {/* Outcome & Purpose Banner */}
-            {(entry.outcome || entry.purpose) && (
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-2">
-                  {entry.purpose && (
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                        Interaction Purpose
-                      </span>
-                      <span className="inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold bg-blue-950/80 text-blue-200 border border-blue-800/80">
-                        {entry.purpose}
-                      </span>
-                    </div>
-                  )}
-                  {entry.outcome && (
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                        Logged Outcome / Result
-                      </span>
-                      <div>{getOutcomeBadge(entry.outcome)}</div>
-                    </div>
-                  )}
-                </div>
 
-                {entry.next_followup_date && (
-                  <div className="sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-1">
-                      Next Follow-Up Scheduled
-                    </span>
-                    <span className="text-xs font-bold text-slate-200 flex items-center sm:justify-end gap-1.5 font-mono">
-                      <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{new Date(entry.next_followup_date).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
-                    </span>
-                  </div>
-                )}
+          {/* Geography & Linked Enquiry Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400">Geography / Region:</span>
+              <span className="text-xs font-bold text-slate-200 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                {entry.geography || 'Dubai, UAE'}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400">Linked Proposal / Enquiry:</span>
+              {entry.enquiry_quote_ref ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (entry.enquiry_id && onOpenEnquiry) {
+                      onClose();
+                      onOpenEnquiry(entry.enquiry_id);
+                    }
+                  }}
+                  className="text-xs font-bold text-purple-300 hover:text-purple-200 hover:underline flex items-center gap-1 cursor-pointer font-mono"
+                >
+                  <FileText className="w-3.5 h-3.5 text-purple-400" />
+                  <span>{entry.enquiry_quote_ref}</span>
+                </button>
+              ) : (
+                <span className="text-xs text-slate-500 italic">None linked</span>
+              )}
+            </div>
+          </div>
+
+          {/* Requirement Notes & Discussion Transcript */}
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <FileText className="w-4 h-4 text-blue-400" />
+              <span>Requirement Notes &amp; Activity Log</span>
+            </label>
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-sans whitespace-pre-wrap leading-relaxed min-h-[90px]">
+              {entry.requirement_notes || (
+                <span className="text-slate-500 italic">No detailed notes logged for this interaction.</span>
+              )}
+            </div>
+          </div>
+
+          {/* AI Executive Summary Preview */}
+          {entry.ai_summary && (
+            <div className="p-4 rounded-xl bg-blue-950/30 border border-blue-800/50 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-blue-300">
+                <Sparkles className="w-4 h-4 text-blue-400" />
+                <span>AI Executive Summary</span>
               </div>
-            )}
+              <p className="text-xs text-blue-100/90 leading-relaxed whitespace-pre-wrap">{entry.ai_summary}</p>
+            </div>
+          )}
 
-            {/* Company & Contact Details Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Company Box */}
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/80 hover:border-slate-700 transition shadow-xs group">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Target Company</span>
-                  </span>
-                  {(() => {
-                    const targetCompanyId = entry.company_id || linkedCompany?.id;
-                    if (!targetCompanyId) return null;
-                    return (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onOpenCompany360) {
-                            onClose();
-                            onOpenCompany360(targetCompanyId);
-                          }
-                        }}
-                        className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer hover:underline"
-                        title="Open 360° Company Intelligence Dashboard"
-                      >
-                        <span>Company 360°</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    );
-                  })()}
+          {/* WhatsApp Message Draft Preview */}
+          {entry.whatsapp_draft && (
+            <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-800/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  <span>WhatsApp Draft Preview</span>
                 </div>
-
-                <div className="font-bold text-slate-100 text-sm">
-                  {linkedCompany ? (
-                    linkedCompany.display_name || linkedCompany.canonical_name
-                  ) : entry.company_name ? (
-                    entry.company_name
-                  ) : entry.unlinked_name ? (
-                    <span className="text-amber-300 font-bold">{entry.unlinked_name} <span className="text-xs font-normal text-amber-400/80">(Unsaved Lead)</span></span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(entry.whatsapp_draft!);
+                    setCopiedDraft(true);
+                    setTimeout(() => setCopiedDraft(false), 2000);
+                  }}
+                  className="text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1"
+                >
+                  {copiedDraft ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span>Copied!</span>
+                    </>
                   ) : (
-                    'Unspecified Target / Lead'
+                    <>
+                      <Copy className="w-3 h-3 text-slate-400" />
+                      <span>Copy Draft</span>
+                    </>
                   )}
-                </div>
-
-                {!entry.company_id && (
-                  <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-slate-900 border border-blue-500/40 flex flex-wrap items-center justify-between gap-2 shadow-xs">
-                    <div>
-                      <div className="text-xs font-bold text-blue-200 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <span>Unsaved Lead Record</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Convert this lead into a permanent CRM Company & Contact</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowConvertModal(true)}
-                      className="px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white text-xs font-extrabold rounded-lg shadow-md flex items-center gap-1.5 transition cursor-pointer"
-                    >
-                      <span>🚀 Convert to CRM Client</span>
-                    </button>
-                  </div>
-                )}
-
-                {linkedCompany && (
-                  <div className="mt-2 text-xs text-slate-400 space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span>
-                        {linkedCompany.city ? `${linkedCompany.city}, ` : ''}{linkedCompany.country}
-                      </span>
-                    </div>
-                    {linkedCompany.general_phone && (
-                      <div className="flex items-center gap-1.5 text-slate-300 font-mono">
-                        <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                        <span>{linkedCompany.general_phone}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                </button>
               </div>
-
-              {/* Contact Box */}
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/80 hover:border-slate-700 transition shadow-xs">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2 flex items-center gap-1">
-                  <User className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Contact Person</span>
-                </span>
-
-                <div className="font-bold text-slate-100 text-sm">
-                  {entry.contact_name || entry.unlinked_name || 'No Personnel Contact Assigned'}
-                </div>
-
-                <div className="mt-2 text-xs text-slate-300 space-y-1">
-                  {(() => {
-                    const phoneVal = entry.contact_phone || entry.unlinked_contact_info || linkedContact?.mobile || linkedContact?.landline;
-                    const emailVal = linkedContact?.email;
-
-                    return (
-                      <>
-                        {phoneVal ? (
-                          <div className="flex items-center gap-1.5 font-mono text-blue-300 font-medium">
-                            <Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                            <a
-                              href={`tel:${phoneVal}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="hover:underline"
-                            >
-                              {phoneVal}
-                            </a>
-                          </div>
-                        ) : (
-                          <div className="text-slate-500 text-xs italic">No phone logged</div>
-                        )}
-
-                        {emailVal && (
-                          <div className="flex items-center gap-1.5 text-slate-300 truncate">
-                            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <a
-                              href={`mailto:${emailVal}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="hover:underline truncate"
-                            >
-                              {emailVal}
-                            </a>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-
-                {/* Company Lines Selector in View Mode */}
-                {(() => {
-                  const companyPhones = getCompanyPhones(linkedCompany);
-                  if (companyPhones.length === 0) return null;
-                  return (
-                    <div className="mt-3 pt-2 border-t border-slate-800/80">
-                      <span className="text-[10px] font-semibold text-slate-400 block mb-1">Company Direct Lines:</span>
-                      <div className="flex flex-wrap gap-1">
-                        {companyPhones.map((ph, idx) => (
-                          <a
-                            key={`v_cp_${idx}`}
-                            href={`tel:${ph.number}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-[10px] px-2 py-0.5 rounded bg-blue-950/60 hover:bg-blue-900 text-blue-300 font-mono border border-blue-800/60 transition flex items-center gap-1"
-                            title={`Call ${ph.label || 'Company Line'}: ${ph.number}`}
-                          >
-                            <span className="text-slate-400 font-normal">{ph.label || 'Main'}:</span>
-                            <span className="font-bold">{ph.number}</span>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
+              <div className="text-xs text-emerald-100/90 font-sans leading-relaxed whitespace-pre-wrap bg-slate-950/80 p-3 rounded-lg border border-emerald-900/50">
+                {entry.whatsapp_draft}
               </div>
             </div>
-
-            {/* Geography & Linked Enquiry Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-400">Geography / Region:</span>
-                <span className="text-xs font-bold text-slate-200 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
-                  {entry.geography || 'Dubai, UAE'}
-                </span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-400">Linked Proposal / Enquiry:</span>
-                {entry.enquiry_quote_ref ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (entry.enquiry_id && onOpenEnquiry) {
-                        onClose();
-                        onOpenEnquiry(entry.enquiry_id);
-                      }
-                    }}
-                    className="text-xs font-bold text-purple-300 hover:text-purple-200 hover:underline flex items-center gap-1 cursor-pointer font-mono"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-purple-400" />
-                    <span>{entry.enquiry_quote_ref}</span>
-                  </button>
-                ) : (
-                  <span className="text-xs text-slate-500 italic">None linked</span>
-                )}
-              </div>
-            </div>
-
-            {/* Requirement Notes & Discussion Transcript */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-blue-400" />
-                <span>Requirement Notes &amp; Activity Log</span>
-              </label>
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-sans whitespace-pre-wrap leading-relaxed min-h-[90px]">
-                {entry.requirement_notes || (
-                  <span className="text-slate-500 italic">No detailed notes logged for this interaction.</span>
-                )}
-              </div>
-            </div>
-
-            {/* AI Executive Summary Preview */}
-            {entry.ai_summary && (
-              <div className="p-4 rounded-xl bg-blue-950/30 border border-blue-800/50 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-300">
-                  <Sparkles className="w-4 h-4 text-blue-400" />
-                  <span>AI Executive Summary</span>
-                </div>
-                <p className="text-xs text-blue-100/90 leading-relaxed whitespace-pre-wrap">{entry.ai_summary}</p>
-              </div>
-            )}
-
-            {/* WhatsApp Message Draft Preview */}
-            {entry.whatsapp_draft && (
-              <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-800/50 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
-                    <MessageSquare className="w-4 h-4 text-emerald-400" />
-                    <span>WhatsApp Draft Preview</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(entry.whatsapp_draft!);
-                      setCopiedDraft(true);
-                      setTimeout(() => setCopiedDraft(false), 2000);
-                    }}
-                    className="text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1"
-                  >
-                    {copiedDraft ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-400" />
-                        <span>Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3 text-slate-400" />
-                        <span>Copy Draft</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-                <div className="text-xs text-emerald-100/90 font-sans leading-relaxed whitespace-pre-wrap bg-slate-950/80 p-3 rounded-lg border border-emerald-900/50">
-                  {entry.whatsapp_draft}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Full Audit Metadata Footer */}
         <div className="px-6 py-2.5 bg-slate-950/90 border-t border-slate-800/80 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2 shrink-0">
@@ -1210,95 +549,75 @@ export default function CallLogDetailModal({
 
         {/* Modal Footer Controls */}
         <div className="p-4 bg-slate-950 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-3 shrink-0">
-          {isEditing ? (
-            <div className="flex items-center justify-end space-x-2 ml-auto">
+          <div className="flex items-center space-x-2">
+            {!entry.company_id && (
               <button
                 type="button"
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                onClick={() => setShowConvertModal(true)}
+                className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-md transition cursor-pointer"
               >
-                Cancel
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>🚀 Convert to CRM Client</span>
               </button>
+            )}
+
+            {onCreateEnquiryFromCall && (
               <button
                 type="button"
-                onClick={handleSaveEdit}
-                disabled={isSaving}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-md transition cursor-pointer disabled:opacity-50"
+                onClick={() => {
+                  onClose();
+                  onCreateEnquiryFromCall(entry);
+                }}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-xs transition cursor-pointer"
               >
-                <Save className="w-4 h-4" />
-                <span>{isSaving ? 'Saving...' : 'Save Activity Log'}</span>
+                <PlusCircle className="w-4 h-4" />
+                <span>+ Convert to Proposal</span>
               </button>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center space-x-2">
-                {!entry.company_id && (
-                  <button
-                    type="button"
-                    onClick={() => setShowConvertModal(true)}
-                    className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-md transition cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>🚀 Convert to CRM Client</span>
-                  </button>
-                )}
+            )}
 
-                {onCreateEnquiryFromCall && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onCreateEnquiryFromCall(entry);
-                    }}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-xs transition cursor-pointer"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    <span>+ Convert to Proposal</span>
-                  </button>
-                )}
+            {onLogFollowup && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onLogFollowup(entry);
+                }}
+                className="px-3.5 py-2 bg-blue-950/80 hover:bg-blue-900 text-blue-200 border border-blue-800/80 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition cursor-pointer"
+              >
+                <Clock className="w-4 h-4 text-blue-400" />
+                <span>Schedule Follow-Up</span>
+              </button>
+            )}
+          </div>
 
-                {onLogFollowup && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onLogFollowup(entry);
-                    }}
-                    className="px-3.5 py-2 bg-blue-950/80 hover:bg-blue-900 text-blue-200 border border-blue-800/80 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition cursor-pointer"
-                  >
-                    <Clock className="w-4 h-4 text-blue-400" />
-                    <span>Schedule Follow-Up</span>
-                  </button>
-                )}
-              </div>
+          {canEditOrDeleteRecord(currentUser, entry) && (
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(entry);
+                }}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition cursor-pointer"
+              >
+                <Edit2 className="w-3.5 h-3.5 text-slate-400" />
+                <span>Edit Log</span>
+              </button>
 
-              {canEditOrDeleteRecord(currentUser, entry) && (
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={startEditing}
-                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition cursor-pointer"
-                  >
-                    <Edit2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Edit Log</span>
-                  </button>
-
-                  {entry.id && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onDelete(entry.id!);
-                        onClose();
-                      }}
-                      className="px-3 py-2 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-bold rounded-xl flex items-center space-x-1 transition cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                      <span>Delete</span>
-                    </button>
-                  )}
-                </div>
+              {entry.id && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDelete(entry.id!);
+                    onClose();
+                  }}
+                  className="px-3 py-2 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-bold rounded-xl flex items-center space-x-1 transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Delete</span>
+                </button>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -1322,3 +641,4 @@ export default function CallLogDetailModal({
     </div>
   );
 }
+

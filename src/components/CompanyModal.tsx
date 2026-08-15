@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { CustomLabelSelect, PHONE_LABEL_DEFAULT_OPTIONS, EMAIL_LABEL_DEFAULT_OPTIONS } from './CustomLabelSelect';
-import { Company, Contact, Enquiry, UserProfile, LegalSuffix, Workspace, getContactPhones, getContactEmails, getCompanyPhones, getCompanyEmails, LabeledPhone, LabeledEmail, PhoneCategory, DropdownOption, CallLogEntry, Salesperson, ContactMethod } from '../types';
+import { Company, Contact, Enquiry, UserProfile, LegalSuffix, Workspace, getContactPhones, getContactEmails, getCompanyPhones, getCompanyEmails, LabeledPhone, LabeledEmail, PhoneCategory, DropdownOption, CallLogEntry, Salesperson, ContactMethod, isSamePhoneNumber } from '../types';
 import { getReferenceId } from '../utils/refId';
 import { recordAuditLog } from '../utils/auditLogger';
 import { CompanyRepository } from '../services/repositories/CompanyRepository';
-import ContactModal from './ContactModal';
+import ContactModal, { normalizePhoneKey, getLineRestriction } from './ContactModal';
 import ContactDetailModal from './ContactDetailModal';
 import CallLogDetailModal from './CallLogDetailModal';
 import { db } from '../firebase';
@@ -106,6 +106,15 @@ function formatHistoryDate(dateStr?: string): string {
   } catch (e) {
     return dateStr;
   }
+}
+
+export function sanitizeWhatsAppNumber(phone: string): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('05') && digits.length === 10) {
+    return '971' + digits.substring(1);
+  }
+  return digits;
 }
 
 export default function CompanyModal({
@@ -248,8 +257,7 @@ export default function CompanyModal({
 
     companies.forEach((c) => {
       if (c.general_phone) {
-        const numTrim = c.general_phone.trim();
-        const restriction = c.restricted_lines?.[c.general_phone] || c.restricted_lines?.[numTrim] || (c.is_dnc || c.temperature === 'DNC' ? 'DNC' : undefined);
+        const restriction = getLineRestriction(c.restricted_lines, c.general_phone, c.is_dnc || c.temperature === 'DNC');
         list.push({
           id: `comp_phone_${c.id}`,
           number: c.general_phone,
@@ -267,8 +275,7 @@ export default function CompanyModal({
       const comp = companies.find((c) => c.id === ct.company_id);
       const loc = comp ? `${comp.city}, ${comp.country}` : 'UAE';
       if (ct.mobile) {
-        const numTrim = ct.mobile.trim();
-        const restriction = ct.restricted_lines?.[ct.mobile] || ct.restricted_lines?.[numTrim] || comp?.restricted_lines?.[ct.mobile] || comp?.restricted_lines?.[numTrim] || (ct.is_dnc || comp?.is_dnc ? 'DNC' : undefined);
+        const restriction = getLineRestriction(ct.restricted_lines, ct.mobile) || getLineRestriction(comp?.restricted_lines, ct.mobile, ct.is_dnc || comp?.is_dnc);
         list.push({
           id: `ct_mob_${ct.id}`,
           number: ct.mobile,
@@ -283,8 +290,7 @@ export default function CompanyModal({
         });
       }
       if (ct.landline) {
-        const numTrim = ct.landline.trim();
-        const restriction = ct.restricted_lines?.[ct.landline] || ct.restricted_lines?.[numTrim] || comp?.restricted_lines?.[ct.landline] || comp?.restricted_lines?.[numTrim] || (ct.is_dnc || comp?.is_dnc ? 'DNC' : undefined);
+        const restriction = getLineRestriction(ct.restricted_lines, ct.landline) || getLineRestriction(comp?.restricted_lines, ct.landline, ct.is_dnc || comp?.is_dnc);
         list.push({
           id: `ct_land_${ct.id}`,
           number: ct.landline,
@@ -532,19 +538,20 @@ export default function CompanyModal({
   const [editingRestrictedLines, setEditingRestrictedLines] = useState<Record<string, 'DNC' | 'Invalid'>>({});
 
   const togglePhoneRestriction = (phoneVal: string) => {
-    const trimmed = phoneVal.trim();
-    if (!trimmed) return;
+    const normKey = normalizePhoneKey(phoneVal);
+    if (!normKey) return;
 
     setEditingRestrictedLines((prev) => {
-      const current = prev[trimmed] || prev[phoneVal];
+      const current = prev[normKey] || prev[phoneVal.trim()] || prev[phoneVal];
       const nextMap = { ...prev };
 
       if (!current) {
-        nextMap[trimmed] = 'Invalid';
+        nextMap[normKey] = 'Invalid';
       } else if (current === 'Invalid') {
-        nextMap[trimmed] = 'DNC';
+        nextMap[normKey] = 'DNC';
       } else {
-        delete nextMap[trimmed];
+        delete nextMap[normKey];
+        delete nextMap[phoneVal.trim()];
         delete nextMap[phoneVal];
       }
       return nextMap;
@@ -646,7 +653,17 @@ export default function CompanyModal({
     setCity(comp.city);
     setGeneralPhone(comp.general_phone || comp.phone || '');
     setGeneralEmail(comp.general_email || comp.email || '');
-    setEditingRestrictedLines(comp.restricted_lines ? { ...comp.restricted_lines } : {});
+    if (comp.restricted_lines) {
+      const normMap: Record<string, 'DNC' | 'Invalid'> = {};
+      Object.entries(comp.restricted_lines).forEach(([k, v]) => {
+        const normK = normalizePhoneKey(k);
+        if (normK) normMap[normK] = v;
+        normMap[k.trim()] = v;
+      });
+      setEditingRestrictedLines(normMap);
+    } else {
+      setEditingRestrictedLines({});
+    }
 
     const existingPhones = getCompanyPhones(comp);
     const mappedPhones: ContactMethod[] = existingPhones.map((p) => ({
@@ -726,11 +743,11 @@ export default function CompanyModal({
     const validPhones = companyPhones.filter((p) => p.value.trim() !== '');
     const validEmails = companyEmails.filter((e) => e.value.trim() !== '');
 
-    const legacyPhones = validPhones.map((p) => ({ id: p.id, label: p.label, number: p.value }));
-    const legacyEmails = validEmails.map((e) => ({ id: e.id, label: e.label, email: e.value }));
+    const legacyPhones = validPhones.map((p) => ({ id: p.id, label: p.label, number: p.value, value: p.value }));
+    const legacyEmails = validEmails.map((e) => ({ id: e.id, label: e.label, email: e.value, value: e.value }));
 
-    const primaryPhoneVal = validPhones[0]?.value || generalPhone.trim();
-    const primaryEmailVal = validEmails[0]?.value || generalEmail.trim();
+    const primaryPhoneVal = validPhones[0]?.value ? validPhones[0].value.trim() : '';
+    const primaryEmailVal = validEmails[0]?.value ? validEmails[0].value.trim() : '';
 
     const computedCanonicalName = computeCanonicalName(displayName) || canonicalName.trim().toLowerCase();
     const searchTerms = generateCompanySearchTerms(displayName, city, legacyPhones.length > 0 ? legacyPhones : [{ number: primaryPhoneVal }]);
@@ -999,14 +1016,28 @@ export default function CompanyModal({
       throw new Error("Critical Error: Active workspace context lost. Cannot save record.");
     }
 
+    const mobVal = contactMobile.trim();
+    const landVal = contactLandline.trim();
+    const emVal = contactEmail.trim();
+
+    const contactPhonesList = [
+      ...(mobVal ? [{ id: 'ct_m1', label: 'Mobile', value: mobVal, number: mobVal }] : []),
+      ...(landVal ? [{ id: 'ct_l1', label: 'Landline', value: landVal, number: landVal }] : [])
+    ];
+    const contactEmailsList = emVal ? [{ id: 'ct_e1', label: 'Work', value: emVal, email: emVal }] : [];
+
     const rawContact: Omit<Contact, 'id'> = {
       workspace_id: activeWorkspace.id,
       company_id: selectedCompanyId,
       full_name: contactName.trim(),
       designation: contactDesignation.trim(),
-      mobile: contactMobile.trim(),
-      landline: contactLandline.trim(),
-      email: contactEmail.trim(),
+      mobile: mobVal,
+      landline: landVal,
+      phone: mobVal || landVal,
+      email: emVal,
+      phones: contactPhonesList as any,
+      emails: contactEmailsList as any,
+      handles: [],
       is_primary: isPrimary,
       created_by_uid: user?.uid || '',
       created_by_name: user?.full_name || user?.username || user?.email || 'Unknown User',
@@ -1017,6 +1048,50 @@ export default function CompanyModal({
     };
 
     try {
+      // PART 2 UNASSIGNED SYNC: Splice / remove bound phone/email from the company's unassigned pool
+      const targetComp = companies.find((c) => c.id === selectedCompanyId);
+      if (targetComp) {
+        const compPhones = getCompanyPhones(targetComp);
+        const compEmails = getCompanyEmails(targetComp);
+
+        const assignedPhoneVals = [mobVal, landVal].filter(Boolean);
+        const assignedEmailVal = emVal.toLowerCase();
+
+        const remainingPhones = compPhones.filter(
+          (p) => !assignedPhoneVals.some((ap) => isSamePhoneNumber(p.value || p.number, ap))
+        );
+        const remainingEmails = compEmails.filter(
+          (e) => (e.value || e.email || '').trim().toLowerCase() !== assignedEmailVal
+        );
+
+        if (remainingPhones.length !== compPhones.length || remainingEmails.length !== compEmails.length) {
+          const updatedCompany: Company = {
+            ...targetComp,
+            phones: remainingPhones as any,
+            general_phones: remainingPhones as any,
+            general_phone: remainingPhones[0]?.value || remainingPhones[0]?.number || '',
+            emails: remainingEmails as any,
+            general_emails: remainingEmails as any,
+            general_email: remainingEmails[0]?.value || remainingEmails[0]?.email || '',
+            updatedAt: new Date().toISOString()
+          };
+
+          await safeUpdateDoc('companies', targetComp.id!, {
+            phones: remainingPhones,
+            general_phones: remainingPhones,
+            general_phone: remainingPhones[0]?.value || remainingPhones[0]?.number || '',
+            emails: remainingEmails,
+            general_emails: remainingEmails,
+            general_email: remainingEmails[0]?.value || remainingEmails[0]?.email || '',
+            updatedAt: new Date().toISOString()
+          });
+          await CompanyRepository.updateCompany(targetComp.id!, updatedCompany);
+          if (setCompanies) {
+            setCompanies((prev) => prev.map((c) => (c.id === targetComp.id ? updatedCompany : c)));
+          }
+        }
+      }
+
       // If setting as primary, we must disable other primary flags for this company
       if (isPrimary) {
         const batch = writeBatch(db);
@@ -1280,6 +1355,27 @@ export default function CompanyModal({
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
   const companyContacts = contacts.filter((c) => c.company_id === selectedCompanyId);
   const companyEnquiries = enquiries.filter((e) => e.company_id === selectedCompanyId);
+
+  const recentCompanyLogs = useMemo(() => {
+    if (!selectedCompany) return [];
+    const compId = selectedCompany.id;
+    const compName = (selectedCompany.display_name || '').toLowerCase();
+
+    return (callLogs || [])
+      .filter((cl) => {
+        if (cl.is_deleted) return false;
+        return (
+          cl.company_id === compId ||
+          (cl.company_name && cl.company_name.toLowerCase() === compName)
+        );
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.createdAt || a.date || 0).getTime();
+        const timeB = new Date(b.createdAt || b.date || 0).getTime();
+        return timeB - timeA;
+      })
+      .slice(0, 5);
+  }, [callLogs, selectedCompany]);
 
   const formatted_aliases_on_save = (canonical: string, rawInput: string) => {
     return rawInput
@@ -1795,12 +1891,10 @@ export default function CompanyModal({
                   <span className="text-[10px] text-slate-400 block uppercase font-mono font-bold">Company Phone Numbers</span>
                   {getCompanyPhones(selectedCompany).length > 0 ? (
                     getCompanyPhones(selectedCompany).map((ph, idx) => {
-                      const cleanNum = ph.number ? ph.number.replace(/[^0-9]/g, '') : '';
+                      const cleanNum = ph.number ? sanitizeWhatsAppNumber(ph.number) : '';
                       const phoneVal = ph.number || '';
                       const phoneTrim = phoneVal.trim();
-                      const restriction = selectedCompany.restricted_lines?.[phoneVal] ||
-                                          selectedCompany.restricted_lines?.[phoneTrim] ||
-                                          (selectedCompany.is_dnc ? 'DNC' : undefined);
+                      const restriction = getLineRestriction(selectedCompany.restricted_lines, phoneVal, selectedCompany.is_dnc);
                       const isRestricted = Boolean(restriction);
                       const badgeText = restriction === 'DNC' ? 'DNC' : 'INVALID';
 
@@ -1952,7 +2046,7 @@ export default function CompanyModal({
                     title="Add Personnel Contact"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>+ Add Contact</span>
+                    <span>Add Contact</span>
                   </button>
                 )}
               </div>
@@ -2012,14 +2106,10 @@ export default function CompanyModal({
 
                         <div className="space-y-1 text-xs pt-2 border-t border-slate-200/60 w-full text-slate-600 font-sans">
                           {cPhones.map((ph, pIdx) => {
-                            const cleanNum = ph.number ? ph.number.replace(/[^0-9]/g, '') : '';
+                            const cleanNum = ph.number ? sanitizeWhatsAppNumber(ph.number) : '';
                             const phoneVal = ph.number || '';
                             const phoneTrim = phoneVal.trim();
-                            const restriction = c.restricted_lines?.[phoneVal] ||
-                                                c.restricted_lines?.[phoneTrim] ||
-                                                selectedCompany.restricted_lines?.[phoneVal] ||
-                                                selectedCompany.restricted_lines?.[phoneTrim] ||
-                                                (c.is_dnc ? 'DNC' : undefined);
+                            const restriction = getLineRestriction(c.restricted_lines, phoneVal) || getLineRestriction(selectedCompany.restricted_lines, phoneVal, c.is_dnc || selectedCompany.is_dnc);
                             const isRestricted = Boolean(restriction);
                             const badgeText = restriction === 'DNC' ? 'DNC' : 'INVALID';
 
@@ -2123,6 +2213,81 @@ export default function CompanyModal({
               ) : (
                 <div className="py-6 text-center text-slate-400 font-sans text-xs">
                   No linked personnel registered for this account yet.
+                </div>
+              )}
+            </div>
+
+            {/* Recent Interactions Section */}
+            <div className="space-y-3 pt-4 border-t border-slate-200">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-slate-800 flex items-center space-x-2 font-sans">
+                  <History className="w-4 h-4 text-blue-500" />
+                  <span>Recent Interactions ({recentCompanyLogs.length})</span>
+                </h4>
+                {onOpenActivityDrawer && selectedCompany && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenActivityDrawer({
+                        companyId: selectedCompany.id,
+                        companyName: selectedCompany.display_name
+                      });
+                    }}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Log Interaction</span>
+                  </button>
+                )}
+              </div>
+
+              {recentCompanyLogs.length > 0 ? (
+                <div className="space-y-2">
+                  {recentCompanyLogs.map((log) => {
+                    const operatorName = log.handled_by_team_member_name || log.logged_by || 'System';
+                    return (
+                      <div
+                        key={log.id}
+                        className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition hover:border-slate-300"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 font-bold font-mono">
+                            <PhoneCall className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <span className="font-bold text-slate-900 font-mono">
+                                {formatHistoryDate(log.date || log.createdAt)}
+                              </span>
+                              <span className="text-[11px] text-slate-500">
+                                by <strong className="text-slate-700">{operatorName}</strong>
+                              </span>
+                            </div>
+                            {log.requirement_notes && (
+                              <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 font-sans">
+                                {log.requirement_notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            {log.status || 'Scheduled'}
+                          </span>
+                          {log.outcome && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700 border border-slate-300">
+                              {log.outcome}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-4 text-center text-slate-400 font-sans text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200 p-4">
+                  No recent interactions found.
                 </div>
               )}
             </div>
@@ -2368,7 +2533,7 @@ export default function CompanyModal({
                   className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition shadow-sm flex items-center space-x-1 shrink-0"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>+ Add Contact</span>
+                  <span>Add Contact</span>
                 </button>
               )}
 
@@ -2997,12 +3162,11 @@ export default function CompanyModal({
                       className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>+ Add Phone</span>
+                      <span>Add Phone</span>
                     </button>
                   </div>
                   {companyPhones.map((ph, idx) => {
-                    const phoneVal = ph.value.trim();
-                    const currentRestriction = editingRestrictedLines[phoneVal] || editingRestrictedLines[ph.value];
+                    const currentRestriction = getLineRestriction(editingRestrictedLines, ph.value);
 
                     return (
                       <div key={ph.id || idx} className="flex items-center space-x-2">
@@ -3080,7 +3244,7 @@ export default function CompanyModal({
                       className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>+ Add Email</span>
+                      <span>Add Email</span>
                     </button>
                   </div>
                   {companyEmails.map((em, idx) => (

@@ -27,6 +27,15 @@ import { safeDeleteDoc, safeSetDoc } from '../firebase';
 import { CompanyRepository } from '../services/repositories/CompanyRepository';
 import { recordAuditLog } from '../utils/auditLogger';
 
+function sanitizeWhatsAppNumber(phone: string): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('05') && digits.length === 10) {
+    return '971' + digits.substring(1);
+  }
+  return digits;
+}
+
 interface Company360ModalProps {
   companyId: string | null;
   companies: Company[];
@@ -453,7 +462,7 @@ export default function Company360Modal({
                   className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition flex items-center space-x-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>+ Add Contact Person</span>
+                  <span>Add Contact Person</span>
                 </button>
               </div>
 
@@ -462,7 +471,7 @@ export default function Company360Modal({
                   <Users2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                   <p className="text-xs font-bold text-slate-600">No contacts registered for this company yet.</p>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Click "+ Add Contact Person" above to create and link personnel.
+                    Click "Add Contact Person" above to create and link personnel.
                   </p>
                 </div>
               ) : (
@@ -528,7 +537,7 @@ export default function Company360Modal({
                           {cPhones.map((p, pIdx) => {
                             const phoneVal = p.value || p.number || '';
                             const phoneTrim = phoneVal.trim();
-                            const cleanPhone = phoneVal.replace(/[^0-9]/g, '');
+                            const cleanPhone = sanitizeWhatsAppNumber(phoneVal);
                             const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}` : '';
 
                             const restriction = contact.restricted_lines?.[phoneVal] ||
