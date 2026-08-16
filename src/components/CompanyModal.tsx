@@ -610,12 +610,14 @@ export default function CompanyModal({
     setGeneralEmail('');
     setCompanyPhones([{ id: generateCmId(), label: 'Landline', value: '' }]);
     setCompanyEmails([{ id: generateCmId(), label: 'Work', value: '' }]);
+    setEditingRestrictedLines({});
     setRelationship('Prospect');
     setTemperature('Cold');
     setNotes('');
     setAliasesInput('');
     setDuplicateMatchResult(null);
     setPendingBypass(false);
+    setIsSavingCompany(false);
   };
 
   const handleOpenAddCompany = () => {
@@ -705,8 +707,12 @@ export default function CompanyModal({
         const comp = companies.find((c) => c.id === initialSelectedCompanyId);
         if (comp) {
           handleOpenEditCompany(comp);
+        } else {
+          closeCompanyModal();
         }
       }
+    } else {
+      closeCompanyModal();
     }
   }, [initialSelectedCompanyId, initialOpenEdit, companyEditTrigger]);
 
@@ -3114,11 +3120,12 @@ export default function CompanyModal({
                     <select
                       value={temperature}
                       onChange={(e) => setTemperature(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none font-sans font-semibold"
+                      className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-sm text-slate-100 focus:outline-none font-sans font-semibold cursor-pointer"
                     >
-                      {(companyTemperatures || []).map((t) => (
-                        <option key={t.id} value={t.name}>{t.name}</option>
-                      ))}
+                      <option value="Cold">Cold ❄️</option>
+                      <option value="Warm">Warm 🌤️</option>
+                      <option value="Hot">Hot 🔥</option>
+                      <option value="DNC">DNC 🚫</option>
                     </select>
                   </div>
                 </div>
@@ -3294,14 +3301,23 @@ export default function CompanyModal({
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isSavingCompany || !activeWorkspace?.id}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center space-x-2 cursor-pointer shadow-md"
-                >
-                  {isSavingCompany && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{isSavingCompany ? 'Saving Record...' : 'Save Canonical Record'}</span>
-                </button>
+                <div className="flex items-center space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeCompanyModal}
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-sm transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingCompany || !activeWorkspace?.id}
+                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center space-x-2 cursor-pointer shadow-md"
+                  >
+                    {isSavingCompany && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span>{isSavingCompany ? 'Saving Record...' : 'Save Canonical Record'}</span>
+                  </button>
+                </div>
               </form>
           </div>
         </div>

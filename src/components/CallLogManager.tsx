@@ -677,13 +677,11 @@ export default function CallLogManager({
 
   const openFastQueueLogger = (entry: CallLogEntry) => {
     setSelectedEntry(entry);
-    setFastOutcome(entry?.outcome || 'Reached - Interested');
-    setFastNextFollowup('');
-    setFastNotes('');
-    setFastCompanyName(entry ? getResolvedCompanyName(entry) : '');
-    setFastContactName(entry?.contact_name || '');
-    setFastContactPhone(entry?.contact_phone || entry?.unlinked_contact_info || '');
-    setShowFastQueueDrawer(true);
+    if (onOpenActivityDrawer) {
+      onOpenActivityDrawer({ existingLog: entry, logToEdit: entry });
+    } else {
+      setSelectedDetailEntry(entry);
+    }
   };
 
   const handleSaveFastQueueLog = async (e: React.FormEvent) => {
@@ -2098,187 +2096,7 @@ export default function CallLogManager({
         </div>
       )}
 
-      {/* FAST IN-QUEUE LOGGING DRAWER / MODAL */}
-      {showFastQueueDrawer && selectedEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 w-full max-w-lg overflow-hidden flex flex-col text-slate-100">
-            <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 text-white flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold">
-                  <Zap className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-slate-100">Fast Outcome Logger</h3>
-                  <p className="text-xs text-slate-400">
-                    Log call outcome &amp; auto-update queue status
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowFastQueueDrawer(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveFastQueueLog} className="p-6 space-y-4">
-              {/* Missing Lead Guard: Inline Editable Lead Fields */}
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  <span>Linked Lead / Account</span>
-                  {(!fastCompanyName || fastCompanyName === 'Direct Client') && (
-                    <span className="text-amber-400 text-[11px] font-bold">+ Tag Lead on the Fly</span>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] text-slate-500 block mb-0.5">Company Name</label>
-                    <input
-                      type="text"
-                      value={fastCompanyName}
-                      onChange={(e) => setFastCompanyName(e.target.value)}
-                      placeholder="[ + Add Company Name ]"
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700/80 rounded-lg text-xs font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 block mb-0.5">Contact Person</label>
-                    <input
-                      type="text"
-                      value={fastContactName}
-                      onChange={(e) => setFastContactName(e.target.value)}
-                      placeholder="Contact Name..."
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700/80 rounded-lg text-xs font-semibold text-slate-100 focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Call Outcome - Uniform 1-Tap Pill Grid */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  Call Outcome (1-Tap Selection) *
-                </label>
-                
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { label: 'Connected', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
-                    { label: 'Reached - Interested', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
-                    { label: 'Deal / Order Won', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
-                    { label: 'Proposal Sent', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30' },
-                    { label: 'Callback Requested', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
-                    { label: 'Quote Follow-Up', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
-                    { label: 'Awaiting Specs', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' },
-                    { label: 'No Answer', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
-                    { label: 'Busy', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
-                    { label: 'Call Dropped / Disconnected', color: 'bg-amber-500/10 text-amber-200 border-amber-500/30 hover:bg-amber-500/20' },
-                    { label: 'Cannot Be Reached / Unreachable', color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' },
-                    { label: 'Dead / Invalid Number', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30' },
-                    { label: 'Not Interested', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30' },
-                    { label: 'DNC / Opt-Out', color: 'bg-rose-600/30 text-rose-200 border-rose-600/50 hover:bg-rose-600/40' }
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => setFastOutcome(item.label)}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition cursor-pointer ${item.color} ${
-                        fastOutcome === item.label ? 'ring-2 ring-blue-500 scale-105 shadow-xs font-bold' : 'opacity-80'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Smart Date Toggle for Next Follow-up */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Next Follow-up Date
-                </label>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setFastNextFollowup(getOffsetDateString(1))}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
-                      fastNextFollowup === getOffsetDateString(1)
-                        ? 'bg-blue-600 text-white border-blue-500 font-bold'
-                        : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
-                    }`}
-                  >
-                    Tomorrow
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFastNextFollowup(getOffsetDateString(7))}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
-                      fastNextFollowup === getOffsetDateString(7)
-                        ? 'bg-blue-600 text-white border-blue-500 font-bold'
-                        : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
-                    }`}
-                  >
-                    Next Week
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFastNextFollowup('')}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
-                      !fastNextFollowup
-                        ? 'bg-slate-800 text-slate-200 border-slate-700 font-bold'
-                        : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'
-                    }`}
-                  >
-                    None
-                  </button>
-                </div>
-                <input
-                  type="date"
-                  value={fastNextFollowup}
-                  onChange={(e) => setFastNextFollowup(e.target.value)}
-                  style={{ colorScheme: 'dark' }}
-                  className="[color-scheme:dark] w-full px-3 py-1.5 bg-slate-950 border border-slate-800 text-slate-100 rounded-xl text-xs font-mono focus:border-blue-500 focus:outline-none"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Setting a follow-up date automatically adds the next item into your Queue.
-                </p>
-              </div>
-
-              {/* Short Note / Feedback */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Short Call Note / Feedback
-                </label>
-                <textarea
-                  rows={3}
-                  value={fastNotes}
-                  onChange={(e) => setFastNotes(e.target.value)}
-                  placeholder="e.g. Customer requested technical specs for 8 inch RO membranes..."
-                  className="w-full p-3 text-xs bg-slate-950 text-slate-100 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowFastQueueDrawer(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={fastSaving}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>{fastSaving ? 'Saving...' : 'Save & Complete'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* FAST IN-QUEUE LOGGING DRAWER / MODAL - DEPRECATED IN FAVOR OF QUICKACTIVITYDRAWER */}
 
       {/* FULL LOG / SCHEDULE CALL MODAL DEPRECATED IN FAVOR OF QUICK ACTIVITY DRAWER */}
       {false && (
@@ -3324,7 +3142,6 @@ export default function CallLogManager({
         onClose={() => {
           setSelectedDetailEntry(null);
           setShowLogModal(false);
-          setShowFastQueueDrawer(false);
         }}
         callLogs={callLogs}
         activeWorkspace={activeWorkspace}
@@ -3341,12 +3158,10 @@ export default function CallLogManager({
           }
           setSelectedDetailEntry(updatedEntry);
           setShowLogModal(false);
-          setShowFastQueueDrawer(false);
         }}
         onEdit={(entry) => {
           setSelectedDetailEntry(null);
           setShowLogModal(false);
-          setShowFastQueueDrawer(false);
           if (onOpenActivityDrawer) {
             onOpenActivityDrawer({ existingLog: entry, logToEdit: entry });
           }
@@ -3365,14 +3180,12 @@ export default function CallLogManager({
             }
             setSelectedDetailEntry(null);
             setShowLogModal(false);
-            setShowFastQueueDrawer(false);
             triggerToast('Call log entry deleted', 'info');
           }
         }}
         onOpenCompany360={(companyId) => {
           setSelectedDetailEntry(null);
           setShowLogModal(false);
-          setShowFastQueueDrawer(false);
           setSelected360CompanyId(companyId);
         }}
         onLogFollowup={(entry) => {
@@ -3392,7 +3205,6 @@ export default function CallLogManager({
           setLogFormEnquiryId(entry.enquiry_id || '');
           setResolutionState({ matchedType: 'none', message: '' });
           setShowInlineCompanyCreate(false);
-          setShowFastQueueDrawer(false);
           setShowLogModal(true);
         }}
         companies={workspaceCompanies}

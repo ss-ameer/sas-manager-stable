@@ -2,6 +2,36 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.69.0] - 2026-08-16
+
+### Added & Refactored
+- **V2 Surgical Strike 4: Core Architecture Overhaul (Scheduling vs. Logging)**:
+  - **Part 1 - Deprecated Fast Outcome Logger (`CallLogManager.tsx`)**: Completely removed `<FastOutcomeLogger />` / `<FastQueueDrawer />` modal rendering and re-wired all queue triggers (`openFastQueueLogger`) to explicitly launch `QuickActivityDrawer` with `{ existingLog: entry, logToEdit: entry }`.
+  - **Part 2 - Decoupling Engine (`QuickActivityDrawer.tsx`)**: Introduced `isCompletingScheduledTask` branch in submission logic. When completing a scheduled task, `QuickActivityDrawer` mutates the original scheduled task record to `status: 'Completed'` (or `'Cancelled'`) to clear the overdue queue, and generates a BRAND NEW activity log payload document for the newly executed activity.
+
+## [0.68.2] - 2026-08-16
+
+### Added & Fixed
+- **V2 Surgical Strike 3: Express Lead Company Saves (`QuickActivityDrawer.tsx`)**:
+  - **Part 1 - Company Line Call Button (`QuickActivityDrawer.tsx`)**: Added green "Call" button (`bg-emerald-600/20 text-emerald-300`) inside the New Company Line Details input row next to `selectedContactPhone`, wired directly to `href="tel:${selectedContactPhone.replace(/[^\d+]/g, '')}"`.
+  - **Part 2 - Company Line Persistence (`QuickActivityDrawer.tsx`)**: Explicitly wired `CompanyRepository.updateCompany` and `CompanyRepository.saveCompany` during activity log submission to persist newly created company phone lines into the company record in Firestore and local state safely without overwriting existing lines.
+
+## [0.68.1] - 2026-08-16
+
+### Fixed & Refactored
+- **V2 Surgical Strike 2: State Leaks & Dead Button Wiring (`CompanyModal.tsx`, `QuickActivityDrawer.tsx`, `CallLogDetailModal.tsx`)**:
+  - **Part 1 - Company Modal State Leak (`CompanyModal.tsx`)**: Enhanced `closeCompanyModal()` and prop `useEffect` listeners to explicitly reset all localized form states (name, legal suffix, phones, emails, restricted line states, temperature, relationship, notes, aliases) upon modal closure via "X", Cancel, or prop clearing.
+  - **Part 2 - View Previous Logs Wiring (`QuickActivityDrawer.tsx`)**: Added `onOpen360`, `onInspectCompany`, and `onOpenCompanyModal` props and wired both `[View Previous Logs]` click handlers to open the company 360 inspection view when `selectedCompanyId` is valid.
+  - **Part 3 - Dead Schedule Follow-Up Button (`CallLogDetailModal.tsx`)**: Unwrapped and wired the "Schedule Follow-Up" footer button to call `onClose()` and seamlessly trigger `onLogFollowup(entry)` or hand off `onEdit(entry)` to the activity drawer.
+
+## [0.68.0] - 2026-08-16
+
+### Added & Refactored
+- **V2 Surgical Strike 1: Global UI & UX Polish (`src/components/layout/PageHeader.tsx`, `src/components/QuickActivityDrawer.tsx`, `src/components/CompanyModal.tsx`)**:
+  - **Part 1 - The Sticky Header (`PageHeader.tsx`)**: Added `sticky top-0 z-50` styling with solid non-transparent background to ensure sub-headers remain locked to the top during table scrolling without transparency bleed.
+  - **Part 2 - Contact Display Text Cleanup (`QuickActivityDrawer.tsx`)**: Stripped redundant phone numbers from the Contact Person `<select>` dropdown options, displaying strictly name and role (e.g. `John Doe (Tester)`) since phone numbers are handled in the adjacent field.
+  - **Part 3 - Global Temperature Standardization (`CompanyModal.tsx`)**: Refactored the "Temperature (Heat Level)" selector inside the Canonical Company form to use standardized options with emojis (`Cold ❄️`, `Warm 🌤️`, `Hot 🔥`, and `DNC 🚫`).
+
 ## [0.67.1] - 2026-08-15
 
 ### Fixed & Visual Polish

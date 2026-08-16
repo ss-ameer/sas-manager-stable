@@ -1717,6 +1717,8 @@ export default function App() {
         setCompanies={setCompanies}
         setContacts={setContacts}
         setCallLogs={setCallLogs}
+        onOpen360={(companyId) => setSelected360CompanyId(companyId)}
+        onInspectCompany={(companyId) => setSelected360CompanyId(companyId)}
         onSaveSuccess={() => {
           setIsActivityDrawerOpen(false);
           triggerToast('Activity logged successfully!', 'success');

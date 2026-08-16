@@ -1,5 +1,73 @@
 # Development Ledger
 
+## Session: 2026-08-16 (V2 Surgical Strike 4: Core Architecture Overhaul - Scheduling vs. Logging)
+
+### Goals
+- Deprecate Fast Outcome Logger in `CallLogManager.tsx` and re-wire queue triggers to open `QuickActivityDrawer`.
+- Implement Decoupling Engine in `QuickActivityDrawer.tsx` so completing a scheduled task mutates the original scheduled task to 'Completed'/'Cancelled' and creates a BRAND NEW document for the performed activity.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CallLogManager.tsx` | Removed FastOutcomeLogger modal JSX and re-wired `openFastQueueLogger` to launch `QuickActivityDrawer`. |
+| `/src/components/QuickActivityDrawer.tsx` | Implemented `isCompletingScheduledTask` decoupling logic in `handleSubmit` to mark scheduled task completed and create a new activity log document. |
+| `/package.json` | Bumped version to `0.69.0`. |
+| `/CHANGELOG.md` | Logged version `0.69.0` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
+## Session: 2026-08-16 (V2 Surgical Strike 3: Express Lead Company Saves)
+
+### Goals
+- Replicate green Call button in New Company Line input row inside `QuickActivityDrawer.tsx`.
+- Explicitly invoke `CompanyRepository.updateCompany` during submission to persist newly created company phone lines into Firestore and local state safely without overwriting existing lines.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/QuickActivityDrawer.tsx` | Added green Call button next to line phone input in New Company Line details section; explicitly invoked `CompanyRepository.updateCompany` when appending new company lines. |
+| `/package.json` | Bumped version to `0.68.2`. |
+| `/CHANGELOG.md` | Logged version `0.68.2` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
+## Session: 2026-08-16 (V2 Surgical Strike 2: State Leaks & Dead Button Wiring)
+
+### Goals
+- Flush all localized form states in `CompanyModal.tsx` on modal closure or prop reset to prevent state leaks.
+- Wire `[View Previous Logs]` text link in `QuickActivityDrawer.tsx` to open Company 360 view when company ID is valid.
+- Wire "Schedule Follow-Up" button in `CallLogDetailModal.tsx` to call `onClose()` and trigger `onLogFollowup` or hand off `onEdit` to activity drawer.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CompanyModal.tsx` | Enhanced `closeCompanyModal()` and prop `useEffect` listeners to explicitly clear all form states and added a Cancel button in the modal footer. |
+| `/src/components/QuickActivityDrawer.tsx` | Added `onOpen360`, `onInspectCompany`, and `onOpenCompanyModal` props and wired `[View Previous Logs]` click handlers. |
+| `/src/App.tsx` | Passed `onOpen360` prop to `QuickActivityDrawer` to trigger Company 360 inspection. |
+| `/src/components/CallLogDetailModal.tsx` | Unwrapped and wired "Schedule Follow-Up" footer button to call `onClose()` and trigger `onLogFollowup` or `onEdit`. |
+| `/package.json` | Bumped version to `0.68.1`. |
+| `/CHANGELOG.md` | Logged version `0.68.1` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
+## Session: 2026-08-16 (V2 Surgical Strike 1: Global UI & UX Polish)
+
+### Goals
+- Make PageHeader wrapper sticky with `sticky top-0 z-50` and opaque background to lock headers during page/table scrolling.
+- Strip phone numbers from Contact Person `<select>` dropdown options in `QuickActivityDrawer.tsx`, displaying strictly name and role.
+- Standardize Temperature (Heat Level) selector options in `CompanyModal.tsx` to strictly use `Cold ❄️`, `Warm 🌤️`, `Hot 🔥`, and `DNC 🚫`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/layout/PageHeader.tsx` | Applied `sticky top-0 z-50` with solid non-transparent background to header wrapper. |
+| `/src/components/QuickActivityDrawer.tsx` | Stripped `phonePart` from Contact Person select dropdown options, leaving name and designation. |
+| `/src/components/CompanyModal.tsx` | Standardized temperature dropdown options in Canonical Company form to `Cold ❄️`, `Warm 🌤️`, `Hot 🔥`, and `DNC 🚫`. |
+| `/package.json` | Bumped version to `0.68.0`. |
+| `/CHANGELOG.md` | Logged version `0.68.0` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
 ## Session: 2026-08-15 (Surgical Strike 5.1: The Final Sweep)
 
 ### Goals

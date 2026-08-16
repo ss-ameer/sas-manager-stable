@@ -81,6 +81,9 @@ export interface QuickActivityDrawerProps {
   onUpdateCompany?: (company: Company) => void;
   onUpdateContact?: (contact: Contact) => void;
   onSave?: (log: CallLogEntry) => void;
+  onOpen360?: (companyId: string) => void;
+  onInspectCompany?: (companyId: string) => void;
+  onOpenCompanyModal?: (companyId: string) => void;
 }
 
 type ActivityChannel = 'Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Site Visit';
@@ -273,7 +276,10 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   setCallLogs,
   onUpdateCompany,
   onUpdateContact,
-  onSave
+  onSave,
+  onOpen360,
+  onInspectCompany,
+  onOpenCompanyModal
 }) => {
   const [channel, setChannel] = useState<ActivityChannel>(initialChannel || 'Call');
   const [outcome, setOutcome] = useState<string>('Meeting Booked');
@@ -1073,8 +1079,14 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 const existingPhones = getCompanyPhones(targetComp);
                 if (!existingPhones.some((p) => isSamePhoneNumber(p.number || p.value, phoneTrim))) {
                   const tagLabel = mainlineTag.trim() || 'Front Desk';
-                  const newPhoneObj = { id: `phone_${Date.now()}`, label: tagLabel, number: phoneTrim };
+                  const newPhoneObj = {
+                    id: `phone_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                    label: tagLabel,
+                    number: phoneTrim,
+                    value: phoneTrim
+                  };
                   updatedComp.phones = [...(updatedComp.phones || []), newPhoneObj];
+                  updatedComp.general_phones = [...(updatedComp.general_phones || []), newPhoneObj];
                   compUpdated = true;
                 }
               }
@@ -1088,8 +1100,14 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 }
                 const existingEmails = getCompanyEmails(targetComp);
                 if (!existingEmails.some((e) => (e.email || e.value || '').toLowerCase() === emailTrim)) {
-                  const newEmailObj = { id: `email_${Date.now()}`, label: 'Main', email: selectedContactEmail.trim() };
+                  const newEmailObj = {
+                    id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                    label: 'Main',
+                    email: selectedContactEmail.trim(),
+                    value: selectedContactEmail.trim()
+                  };
                   updatedComp.emails = [...(updatedComp.emails || []), newEmailObj];
+                  updatedComp.general_emails = [...(updatedComp.general_emails || []), newEmailObj];
                   compUpdated = true;
                 }
               }
@@ -1106,6 +1124,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
               if (compUpdated) {
                 updatedComp.updatedAt = nowIso;
                 await safeSetDoc('companies', selectedCompanyId, updatedComp);
+                await CompanyRepository.updateCompany(selectedCompanyId, updatedComp);
                 await CompanyRepository.saveCompany(updatedComp);
                 if (setCompanies) {
                   setCompanies((prev) => prev.map((c) => (c.id === selectedCompanyId ? updatedComp : c)));
@@ -1134,8 +1153,15 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 const phoneTrim = selectedContactPhone.trim();
                 const existingPhones = getCompanyPhones(targetComp);
                 if (!existingPhones.some((p) => isSamePhoneNumber(p.number || p.value, phoneTrim))) {
-                  const newPhoneObj = { id: `phone_${Date.now()}`, label: 'Direct Line', number: phoneTrim };
+                  const tagLabel = isAddingNewCompanyLine ? (mainlineTag.trim() || 'Front Desk') : 'Direct Line';
+                  const newPhoneObj = {
+                    id: `phone_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                    label: tagLabel,
+                    number: phoneTrim,
+                    value: phoneTrim
+                  };
                   updatedComp.phones = [...(updatedComp.phones || []), newPhoneObj];
+                  updatedComp.general_phones = [...(updatedComp.general_phones || []), newPhoneObj];
                   compUpdated = true;
                 }
               }
@@ -1145,8 +1171,14 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 const emailTrim = selectedContactEmail.trim().toLowerCase();
                 const existingEmails = getCompanyEmails(targetComp);
                 if (!existingEmails.some((e) => (e.email || e.value || '').toLowerCase() === emailTrim)) {
-                  const newEmailObj = { id: `email_${Date.now()}`, label: 'Direct', email: selectedContactEmail.trim() };
+                  const newEmailObj = {
+                    id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                    label: 'Direct',
+                    email: selectedContactEmail.trim(),
+                    value: selectedContactEmail.trim()
+                  };
                   updatedComp.emails = [...(updatedComp.emails || []), newEmailObj];
+                  updatedComp.general_emails = [...(updatedComp.general_emails || []), newEmailObj];
                   compUpdated = true;
                 }
               }
@@ -1163,6 +1195,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
               if (compUpdated) {
                 updatedComp.updatedAt = nowIso;
                 await safeSetDoc('companies', selectedCompanyId, updatedComp);
+                await CompanyRepository.updateCompany(selectedCompanyId, updatedComp);
                 await CompanyRepository.saveCompany(updatedComp);
                 if (setCompanies) {
                   setCompanies((prev) => prev.map((c) => (c.id === selectedCompanyId ? updatedComp : c)));
@@ -1531,12 +1564,18 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
       }
 
       const activeLog = existingLog || logToEdit;
+      const isCompletingScheduledTask = Boolean(
+        activeLog &&
+        (activeLog.status === 'Scheduled / Planned' ||
+         activeLog.status === 'Scheduled' ||
+         activeLog.status?.toLowerCase().includes('scheduled'))
+      );
+
       let finalStatus: CallStatus = status || 'Completed';
       let completedAtIso: string | undefined = undefined;
 
-      const isPrevScheduled = activeLog?.status === 'Scheduled' || activeLog?.status === 'Scheduled / Planned';
-      const isCurScheduled = finalStatus === 'Scheduled' || finalStatus === 'Scheduled / Planned';
-      if (finalStatus === 'Completed' || (isPrevScheduled && !isCurScheduled)) {
+      const isCurScheduled = finalStatus === 'Scheduled' || finalStatus === 'Scheduled / Planned' || finalStatus?.toLowerCase().includes('scheduled');
+      if (finalStatus === 'Completed' || (isCompletingScheduledTask && !isCurScheduled)) {
         finalStatus = 'Completed';
         completedAtIso = nowIso;
       }
@@ -1580,7 +1619,49 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
         ...(isDncOptOut ? { dnc: true, opt_out: true } : {})
       };
 
-      if (activeLog?.id) {
+      if (isCompletingScheduledTask && activeLog && activeLog.id) {
+        // 1. Mutate original scheduled task record to status: 'Completed' (or 'Canceled')
+        const isCanceledOutcome =
+          outcome?.toLowerCase().includes('cancel') ||
+          status?.toLowerCase().includes('cancel') ||
+          outcome === 'Cancelled' ||
+          status === 'Cancelled';
+        const scheduledStatus: CallStatus = isCanceledOutcome ? 'Cancelled' : 'Completed';
+
+        const completedScheduledEntry: CallLogEntry = {
+          ...activeLog,
+          status: scheduledStatus,
+          completedAt: nowIso,
+          updatedAt: nowIso,
+          last_modified_by_uid: userUid,
+          last_modified_by_name: userName
+        };
+
+        await safeSetDoc('activity_logs', activeLog.id, completedScheduledEntry);
+        await safeSetDoc('call_logs', activeLog.id, completedScheduledEntry);
+        await CallLogRepository.save(completedScheduledEntry);
+
+        // 2. Generate BRAND NEW activity log payload for the call outcome just logged
+        const newId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const newEntry: CallLogEntry = {
+          ...payload,
+          id: newId
+        };
+        await safeSetDoc('activity_logs', newId, newEntry);
+        await safeSetDoc('call_logs', newId, newEntry);
+        await CallLogRepository.save(newEntry);
+
+        if (setCallLogs) {
+          setCallLogs((prev) => [
+            newEntry,
+            ...prev.map((log) => (log.id === activeLog.id ? completedScheduledEntry : log)).filter((log) => log.id !== newId)
+          ]);
+        }
+        if (onSave) {
+          onSave(newEntry);
+        }
+      } else if (activeLog?.id) {
+        // Normal historical log edit: update existing document
         const updatedEntry: CallLogEntry = {
           ...activeLog,
           ...payload,
@@ -1600,6 +1681,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
           onSave(updatedEntry);
         }
       } else {
+        // Brand new log (no logToEdit / existingLog)
         const newId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         const newEntry: CallLogEntry = {
           ...payload,
@@ -1802,7 +1884,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          // Context link reserved for log drawer view
+                          if (selectedCompanyId) {
+                            if (onOpen360) onOpen360(selectedCompanyId);
+                            else if (onInspectCompany) onInspectCompany(selectedCompanyId);
+                            else if (onOpenCompanyModal) onOpenCompanyModal(selectedCompanyId);
+                          }
                         }}
                         className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 hover:underline transition cursor-pointer"
                       >
@@ -1864,7 +1950,11 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              // Context link reserved for log drawer view
+                              if (selectedCompanyId) {
+                                if (onOpen360) onOpen360(selectedCompanyId);
+                                else if (onInspectCompany) onInspectCompany(selectedCompanyId);
+                                else if (onOpenCompanyModal) onOpenCompanyModal(selectedCompanyId);
+                              }
                             }}
                             className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 hover:underline transition cursor-pointer"
                           >
@@ -2116,10 +2206,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                   const res = (mobTrim && (c.restricted_lines?.[c.mobile] || c.restricted_lines?.[mobTrim] || selComp?.restricted_lines?.[c.mobile] || selComp?.restricted_lines?.[mobTrim])) || (c.is_dnc ? 'DNC' : undefined);
                                   const badge = res === 'DNC' ? ' 🚫 [DNC]' : res === 'Invalid' ? ' ⚠️ [Invalid]' : res ? ` ⚠️ [${res}]` : '';
                                   const desigPart = c.designation ? ` (${c.designation.trim()})` : '';
-                                  const phonePart = cleanMobile ? ` — ${cleanMobile}` : '';
                                   return (
                                     <option key={c.id} value={c.id}>
-                                      {c.full_name}{desigPart}{phonePart}{badge}
+                                      {c.full_name}{desigPart}{badge}
                                     </option>
                                   );
                                 })}
@@ -2150,14 +2239,29 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                   <label className="block text-[11px] font-medium text-amber-200/80 mb-1">
                                     Line Phone Number <span className="text-amber-400">*</span>
                                   </label>
-                                  <input
-                                    type="text"
-                                    value={selectedContactPhone}
-                                    onChange={(e) => setSelectedContactPhone(e.target.value)}
-                                    placeholder="Enter line phone number (e.g. +971 4 123 4567)..."
-                                    className="w-full rounded-lg bg-slate-950 border border-amber-500/50 px-3 py-2 text-xs text-amber-100 font-mono placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400"
-                                    autoFocus
-                                  />
+                                  <div className="flex items-center gap-1.5 w-full">
+                                    <input
+                                      type="text"
+                                      value={selectedContactPhone}
+                                      onChange={(e) => setSelectedContactPhone(e.target.value)}
+                                      placeholder="Enter line phone number (e.g. +971 4 123 4567)..."
+                                      className="flex-1 min-w-0 rounded-lg bg-slate-950 border border-amber-500/50 px-3 py-2 text-xs text-amber-100 font-mono placeholder-slate-500 focus:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-400"
+                                      autoFocus
+                                    />
+                                    {selectedContactPhone.trim() && (
+                                      <a
+                                        href={`tel:${selectedContactPhone.replace(/[^\d+]/g, '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/40 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                                        title={`Call ${selectedContactPhone}`}
+                                      >
+                                        <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                        <span>Call</span>
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
                                 <div>
                                   <label className="block text-[11px] font-medium text-amber-200/80 mb-1">

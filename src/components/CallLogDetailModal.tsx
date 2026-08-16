@@ -575,19 +575,21 @@ export default function CallLogDetailModal({
               </button>
             )}
 
-            {onLogFollowup && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                if (onLogFollowup) {
                   onLogFollowup(entry);
-                }}
-                className="px-3.5 py-2 bg-blue-950/80 hover:bg-blue-900 text-blue-200 border border-blue-800/80 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition cursor-pointer"
-              >
-                <Clock className="w-4 h-4 text-blue-400" />
-                <span>Schedule Follow-Up</span>
-              </button>
-            )}
+                } else if (onEdit) {
+                  onEdit(entry);
+                }
+              }}
+              className="px-3.5 py-2 bg-blue-950/80 hover:bg-blue-900 text-blue-200 border border-blue-800/80 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition cursor-pointer"
+            >
+              <Clock className="w-4 h-4 text-blue-400" />
+              <span>Schedule Follow-Up</span>
+            </button>
           </div>
 
           {canEditOrDeleteRecord(currentUser, entry) && (
