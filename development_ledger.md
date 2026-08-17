@@ -1,5 +1,22 @@
 # Development Ledger
 
+## Session: 2026-08-17 (V4 Surgical Strike 1: Contextual UI Engine)
+
+### Goals
+- Define dynamic configuration dictionaries for statuses (`channelStatuses`) and outcome presets (`channelPresets`) across all interaction channels ('Call', 'WhatsApp', 'Email', 'Meeting', 'Site Visit').
+- Dynamically format section labels using `{interactionChannel.toUpperCase()}` ("STATUS / DISPOSITION", "OUTCOME", "PURPOSE").
+- Map status buttons and one-tap outcome preset chips dynamically based on selected channel.
+- Implement channel switching auto-default logic to reset invalid status choices to the new channel's default item.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/QuickActivityDrawer.tsx` | Added `channelStatuses` & `channelPresets` records, updated labels to use `{interactionChannel.toUpperCase()}`, mapped status buttons and presets dynamically, and added channel reset logic. |
+| `/package.json` | Bumped version to `0.71.0`. |
+| `/CHANGELOG.md` | Added version `0.71.0` release notes. |
+| `/development_ledger.md` | Recorded development goals and modifications for V4 Surgical Strike 1. |
+
 ## Session: 2026-08-17 (V3 Surgical Strike 2: Modal Z-Index Dominance)
 
 ### Goals

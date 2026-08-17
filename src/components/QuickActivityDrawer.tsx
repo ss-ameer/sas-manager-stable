@@ -117,6 +117,22 @@ export const SYSTEM_CALL_PURPOSES_TAXONOMY = [
   'Relationship / Account Mgmt'
 ];
 
+export const channelStatuses: Record<ActivityChannel, string[]> = {
+  Call: ['Completed Log', 'Scheduled / Planned', 'No Answer', 'Busy', 'Invalid Number'],
+  WhatsApp: ['Message Sent', 'Scheduled / Planned', 'Read / Seen', 'Invalid Number', 'Blocked'],
+  Email: ['Email Sent', 'Scheduled / Planned', 'Bounced / Failed', 'Opened / Replied'],
+  Meeting: ['Conducted', 'Scheduled / Planned', 'No Show', 'Rescheduled', 'Cancelled'],
+  'Site Visit': ['Conducted', 'Scheduled / Planned', 'No Show', 'Rescheduled', 'Cancelled']
+};
+
+export const channelPresets: Record<ActivityChannel, string[]> = {
+  Call: ['Connected', 'Interested / Send Quote', 'Left Voicemail', 'Call Back Later', 'Call Dropped', 'Meeting Scheduled', 'Not Interested'],
+  WhatsApp: ['Sent Intro / Profile', 'Sent Quote', 'Awaiting Reply', 'Number Invalid / No WA', 'Follow-up Sent'],
+  Email: ['Sent Profile', 'Sent Quotation', 'Awaiting Reply', 'Bounced / Undeliverable', 'Auto-Reply Received'],
+  Meeting: ['Met Decision Maker', 'Gatekeeper Only / Dropped Profile', 'Rescheduled on Site', 'Site Inspected', 'Deal Closed'],
+  'Site Visit': ['Met Decision Maker', 'Gatekeeper Only / Dropped Profile', 'Rescheduled on Site', 'Site Inspected', 'Deal Closed']
+};
+
 export const getOutcomesForStatus = (st: CallStatus | string): string[] => {
   if (st === 'Completed') {
     return [
@@ -282,9 +298,35 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   onOpenCompanyModal
 }) => {
   const [channel, setChannel] = useState<ActivityChannel>(initialChannel || 'Call');
+  const interactionChannel = channel;
   const [outcome, setOutcome] = useState<string>('Meeting Booked');
   const [status, setStatus] = useState<CallStatus>(initialStatus || 'Completed');
   const [purpose, setPurpose] = useState<string>('Discovery / Validation');
+
+  const handleChannelSelect = (newChannel: ActivityChannel) => {
+    setChannel(newChannel);
+    const available = channelStatuses[newChannel] || [];
+    if (available.length > 0 && !available.includes(status)) {
+      const defaultStatus = available[0] as CallStatus;
+      setStatus(defaultStatus);
+      const allowed = getOutcomesForStatus(defaultStatus);
+      if (!allowed.includes(outcome)) {
+        setOutcome(allowed[0]);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const available = channelStatuses[interactionChannel] || [];
+    if (available.length > 0 && !available.includes(status)) {
+      const defaultStatus = available[0] as CallStatus;
+      setStatus(defaultStatus);
+      const allowed = getOutcomesForStatus(defaultStatus);
+      if (!allowed.includes(outcome)) {
+        setOutcome(allowed[0]);
+      }
+    }
+  }, [interactionChannel, status, outcome]);
   const currentAllowedOutcomes = useMemo(() => getOutcomesForStatus(status), [status]);
   const [notes, setNotes] = useState<string>('');
   const [activityDate, setActivityDate] = useState<string>(() => getLocalDateTimeString());
@@ -911,16 +953,31 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
     return d.toISOString().split('T')[0];
   };
 
-  const handleApplyPreset = (chip: PresetChip) => {
-    setActiveChipId(chip.id);
-    if (chip.channel) setChannel(chip.channel);
-    setOutcome(chip.outcome);
-    setNotes(chip.notes);
-
-    if (chip.followUpDays !== null) {
-      setFollowupDate(getOffsetDateString(chip.followUpDays));
+  const handleApplyPreset = (chip: PresetChip | string) => {
+    if (typeof chip === 'string') {
+      setActiveChipId(chip);
+      setOutcome(chip);
+      const matchingChip = PRESET_CHIPS.find((c) => c.label === chip || c.outcome === chip);
+      if (matchingChip) {
+        if (matchingChip.channel) handleChannelSelect(matchingChip.channel);
+        if (matchingChip.notes) setNotes(matchingChip.notes);
+        if (matchingChip.followUpDays !== null) {
+          setFollowupDate(getOffsetDateString(matchingChip.followUpDays));
+        } else {
+          setFollowupDate('');
+        }
+      }
     } else {
-      setFollowupDate('');
+      setActiveChipId(chip.id);
+      if (chip.channel) handleChannelSelect(chip.channel);
+      setOutcome(chip.outcome);
+      setNotes(chip.notes);
+
+      if (chip.followUpDays !== null) {
+        setFollowupDate(getOffsetDateString(chip.followUpDays));
+      } else {
+        setFollowupDate('');
+      }
     }
   };
 
@@ -3007,7 +3064,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setChannel(item.id as ActivityChannel)}
+                      onClick={() => handleChannelSelect(item.id as ActivityChannel)}
                       className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-xs font-medium transition-all ${
                         isSelected
                           ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
@@ -3022,24 +3079,18 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
               </div>
             </div>
 
-            {/* Call Status / Disposition Toggle */}
+            {/* Dynamic Status / Disposition Toggle */}
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                Call Status / Disposition
+                {interactionChannel.toUpperCase()} STATUS / DISPOSITION
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                {[
-                  { id: 'Completed', label: 'Completed Log' },
-                  { id: 'Scheduled / Planned', label: 'Scheduled / Planned' },
-                  { id: 'No Answer', label: 'No Answer' },
-                  { id: 'Busy', label: 'Busy' },
-                  { id: 'Invalid Number', label: 'Invalid Number' }
-                ].map((st) => (
+                {(channelStatuses[interactionChannel] || []).map((st) => (
                   <button
-                    key={st.id}
+                    key={st}
                     type="button"
                     onClick={() => {
-                      const newStatus = st.id as CallStatus;
+                      const newStatus = st as CallStatus;
                       setStatus(newStatus);
                       const allowed = getOutcomesForStatus(newStatus);
                       if (!allowed.includes(outcome)) {
@@ -3047,12 +3098,12 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                       }
                     }}
                     className={`py-2 px-2 rounded-lg text-xs font-medium transition-all text-center ${
-                      status === st.id || (st.id === 'Scheduled / Planned' && status === 'Scheduled')
+                      status === st || (st === 'Scheduled / Planned' && status === 'Scheduled')
                         ? 'bg-slate-800 text-blue-400 border border-blue-500/40 shadow-xs'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                     }`}
                   >
-                    {st.label}
+                    {st}
                   </button>
                 ))}
               </div>
@@ -3062,7 +3113,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Call Outcome
+                  {interactionChannel.toUpperCase()} OUTCOME
                 </label>
                 <select
                   value={outcome}
@@ -3082,7 +3133,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Call Purpose
+                  {interactionChannel.toUpperCase()} PURPOSE
                 </label>
                 <select
                   value={purpose}
@@ -3110,20 +3161,20 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                 <span className="text-[10px] text-slate-500">Auto-fills notes & follow-up</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {PRESET_CHIPS.map((chip) => {
-                  const isActive = activeChipId === chip.id;
+                {(channelPresets[interactionChannel] || []).map((preset) => {
+                  const isActive = activeChipId === preset || outcome === preset;
                   return (
                     <button
-                      key={chip.id}
+                      key={preset}
                       type="button"
-                      onClick={() => handleApplyPreset(chip)}
+                      onClick={() => handleApplyPreset(preset)}
                       className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border ${
                         isActive
                           ? 'bg-blue-600 text-white border-blue-400 shadow-xs'
                           : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800 hover:border-slate-700'
                       }`}
                     >
-                      {chip.label}
+                      {preset}
                     </button>
                   );
                 })}

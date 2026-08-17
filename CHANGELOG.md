@@ -2,6 +2,14 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.71.0] - 2026-08-17
+
+### Added & Refactored
+- **V4 Surgical Strike 1: Contextual UI Engine (`QuickActivityDrawer.tsx`)**:
+  - **Part 1 — Dynamic Configuration Dictionaries**: Defined `channelStatuses` and `channelPresets` records mapping distinct status lists and one-tap outcome presets for `Call`, `WhatsApp`, `Email`, `Meeting`, and `Site Visit`.
+  - **Part 2 — Dynamic Labels & Rendering**: Refactored status buttons, outcome dropdowns, purpose selectors, and one-tap outcome preset chips to render dynamic uppercase labels (`{interactionChannel.toUpperCase()} STATUS / DISPOSITION`, `{interactionChannel.toUpperCase()} OUTCOME`, `{interactionChannel.toUpperCase()} PURPOSE`) and iterate cleanly over channel-specific configuration dictionaries.
+  - **Part 3 — Channel Switching Auto-Default**: Injected channel selection logic and reactive effect to automatically reset `status` to the channel's default first item whenever the interaction channel is changed and the previous status is invalid for the new channel.
+
 ## [0.70.1] - 2026-08-17
 
 ### Fixed & Refactored
