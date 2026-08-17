@@ -1,5 +1,30 @@
 # Development Ledger
 
+## Session: 2026-08-17 (V3 Surgical Strike 1: Mobile Responsiveness Core)
+
+### Goals
+- Introduce mobile menu state in `App.tsx` and drill `isOpen`/`onClose` to `Sidebar` and `onOpenMobileMenu` to all screen views.
+- Implement responsive off-canvas drawer layout with backdrop blur and mobile close button in `Sidebar.tsx`.
+- Add responsive hamburger toggle button (`md:hidden`) to `PageHeader.tsx` and wire to `onOpenSidebar`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/App.tsx` | Added `isMobileMenuOpen` state, mobile hamburger button to header, passed `isOpen`/`onClose` to `Sidebar`, and drilled `onOpenMobileMenu` to all 7 active tab screens. |
+| `/src/components/Sidebar.tsx` | Added `isOpen` and `onClose` props, responsive mobile off-canvas drawer with backdrop blur overlay, close `X` button, and auto-dismiss on tab select. |
+| `/src/components/layout/PageHeader.tsx` | Added `onOpenSidebar` prop, imported `Menu`, and rendered responsive mobile hamburger trigger button on far left of header. |
+| `/src/components/Dashboard.tsx` | Accepted `onOpenMobileMenu` and passed `onOpenSidebar={onOpenMobileMenu}` to `PageHeader`. |
+| `/src/components/CallLogManager.tsx` | Accepted `onOpenMobileMenu` and passed `onOpenSidebar={onOpenMobileMenu}` to `PageHeader`. |
+| `/src/components/EnquiryList.tsx` | Accepted `onOpenMobileMenu` and passed `onOpenSidebar={onOpenMobileMenu}` to `PageHeader`. |
+| `/src/components/CompanyModal.tsx` | Accepted `onOpenMobileMenu` and passed `onOpenSidebar={onOpenMobileMenu}` to `PageHeader`. |
+| `/src/components/SalespersonProfiles.tsx` | Accepted `onOpenMobileMenu` and passed `onOpenSidebar={onOpenMobileMenu}` to `PageHeader`. |
+| `/src/components/ProductManager.tsx` | Accepted `onOpenMobileMenu` and passed `onOpenSidebar={onOpenMobileMenu}` to `PageHeader`. |
+| `/src/components/SettingsHub.tsx` | Accepted `onOpenMobileMenu` and passed `onOpenSidebar={onOpenMobileMenu}` to `PageHeader`. |
+| `/package.json` | Bumped version to `0.70.0`. |
+| `/CHANGELOG.md` | Added version `0.70.0` entry. |
+| `/development_ledger.md` | Logged development session goals and modifications. |
+
 ## Session: 2026-08-16 (V2 Surgical Strike 6.2: Queue UI Overhaul)
 
 ### Goals

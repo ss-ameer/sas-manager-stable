@@ -28,7 +28,7 @@ import { EnquiryRepository } from './services/repositories/EnquiryRepository';
 import { CompanyRepository } from './services/repositories/CompanyRepository';
 import { CallLogRepository } from './services/repositories/CallLogRepository';
 import { MetadataRepository } from './services/repositories/MetadataRepository';
-import { ShieldCheck, HelpCircle, CheckCircle2, AlertCircle, Info, X, User, Clock } from 'lucide-react';
+import { ShieldCheck, HelpCircle, CheckCircle2, AlertCircle, Info, X, User, Clock, Menu } from 'lucide-react';
 import { BRAND_CONFIG } from './config';
 import { motion, AnimatePresence } from 'motion/react';
 import { seedStandardProductsIfNeeded, migrateExistingData, backfillMissingWorkspaceIds } from './utils/migration';
@@ -241,6 +241,14 @@ export default function App() {
   const [showEnquiryForm, setShowEnquiryForm] = useState(false);
   const [enquiryToEdit, setEnquiryToEdit] = useState<Enquiry | null>(null);
   const [showTrashBinModal, setShowTrashBinModal] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Global mobile menu open trigger listener
+  useEffect(() => {
+    const handleOpenMobileSidebar = () => setIsMobileMenuOpen(true);
+    window.addEventListener('open-mobile-sidebar', handleOpenMobileSidebar);
+    return () => window.removeEventListener('open-mobile-sidebar', handleOpenMobileSidebar);
+  }, []);
 
   // Strict Zero-Trust Audit: Block "Lingering State" Context Leaks on Workspace Switch
   useEffect(() => {
@@ -249,6 +257,7 @@ export default function App() {
     setShowEnquiryForm(false);
     setSelected360CompanyId(null);
     setIsActivityDrawerOpen(false);
+    setIsMobileMenuOpen(false);
   }, [activeWorkspaceId]);
 
   // Quick Activity Drawer State
@@ -1263,13 +1272,24 @@ export default function App() {
         onSelectWorkspace={setActiveWorkspaceId}
         onOpenWorkspaceManager={() => setShowWorkspaceModal(true)}
         onOpenTrashBin={() => setShowTrashBinModal(true)}
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Panel Area */}
       <main className="flex-1 h-screen overflow-y-auto flex flex-col">
         {/* Top Header Bar with Cloud Sync Hub */}
-        <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs shrink-0">
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs shrink-0">
           <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              title="Open Navigation Menu"
+              aria-label="Open Navigation Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 font-mono flex items-center gap-1.5 flex-wrap">
               <span>Workspace</span>
               <span>/</span>
@@ -1369,6 +1389,7 @@ export default function App() {
                 setActivityDrawerContext(ctx || {});
                 setIsActivityDrawerOpen(true);
               }}
+              onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
             />
           )}
 
@@ -1379,6 +1400,7 @@ export default function App() {
             salespersons={workspaceSalespersons}
             onSelectEnquiry={setSelectedEnquiryId}
             user={user}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
         )}
 
@@ -1403,6 +1425,7 @@ export default function App() {
               setActivityDrawerContext(context);
               setIsActivityDrawerOpen(true);
             }}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
         )}
 
@@ -1431,6 +1454,7 @@ export default function App() {
               setActivityDrawerContext(context);
               setIsActivityDrawerOpen(true);
             }}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
         )}
 
@@ -1446,6 +1470,7 @@ export default function App() {
             setCallLogs={setCallLogs}
             activeWorkspace={activeWorkspace}
             currentUser={user}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
         )}
 
@@ -1457,6 +1482,7 @@ export default function App() {
             user={user} 
             setProducts={setProducts}
             activeWorkspace={activeWorkspace}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
         )}
 
@@ -1502,6 +1528,7 @@ export default function App() {
             setAllowUserSalespersonSelection={setAllowUserSalespersonSelection}
             triggerToast={triggerToast}
             workspaces={visibleWorkspaces}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
         )}
         </div>

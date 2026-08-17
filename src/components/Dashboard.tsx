@@ -55,6 +55,7 @@ interface DashboardProps {
   callLogs?: CallLogEntry[];
   contacts?: Contact[];
   user?: UserProfile | null;
+  onOpenMobileMenu?: () => void;
   onOpenActivityDrawer?: (context: {
     companyId?: string;
     companyName?: string;
@@ -77,7 +78,8 @@ export default function Dashboard({
   callLogs = [],
   contacts = [],
   user,
-  onOpenActivityDrawer
+  onOpenActivityDrawer,
+  onOpenMobileMenu
 }: DashboardProps) {
   // 1. Pipeline value totals
   const totalPipelineActive = enquiries
@@ -500,6 +502,7 @@ export default function Dashboard({
         icon={BarChart3}
         badge={{ text: 'Active Workspace', variant: 'blue' }}
         currentUser={user}
+        onOpenSidebar={onOpenMobileMenu}
       >
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 flex items-center space-x-2.5 shadow-2xs shrink-0">
           <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />

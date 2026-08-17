@@ -87,6 +87,7 @@ interface CompanyModalProps {
     existingLog?: any;
     logToEdit?: any;
   }) => void;
+  onOpenMobileMenu?: () => void;
 }
 
 function formatHistoryDate(dateStr?: string): string {
@@ -137,7 +138,8 @@ export default function CompanyModal({
   initialSelectedCompanyId,
   initialOpenEdit,
   companyEditTrigger,
-  onOpenActivityDrawer
+  onOpenActivityDrawer,
+  onOpenMobileMenu
 }: CompanyModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
@@ -1398,6 +1400,7 @@ export default function CompanyModal({
         icon={Building2}
         badge={{ text: `${companies.length} Companies`, variant: 'blue' }}
         currentUser={user}
+        onOpenSidebar={onOpenMobileMenu}
         primaryAction={{
           label: 'New Company Profile',
           icon: Plus,

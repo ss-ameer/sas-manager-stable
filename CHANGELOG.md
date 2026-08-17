@@ -2,6 +2,14 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.70.0] - 2026-08-17
+
+### Added & Refactored
+- **V3 Surgical Strike 1: Mobile Responsiveness Core (`App.tsx`, `Sidebar.tsx`, `PageHeader.tsx`, Active Screen Views)**:
+  - **Part 1 - Mobile State & Drilling (`App.tsx`)**: Introduced `isMobileMenuOpen` state in `App.tsx` with global event listener support and reset triggers; passed `isOpen` and `onClose` to `<Sidebar />`; drilled `onOpenMobileMenu` prop to all active tab screens (`Dashboard`, `CallLogManager`, `EnquiryList`, `CompanyModal`, `SalespersonProfiles`, `ProductManager`, `SettingsHub`).
+  - **Part 2 - Mobile Off-Canvas Drawer (`Sidebar.tsx`)**: Refactored `Sidebar` to support responsive mobile off-canvas drawer with `fixed inset-0 z-[200]` backdrop blur overlay and dismiss close button (`X`), while keeping the static desktop sidebar layout for `md:` and above.
+  - **Part 3 - Hamburger Menu Toggle (`PageHeader.tsx`)**: Added `onOpenSidebar` prop and injected a responsive mobile hamburger button (`Menu`) on the header's left side, hidden on desktop (`md:hidden`) and active on mobile screens.
+
 ## [0.69.3] - 2026-08-16
 
 ### Enhanced & Refactored

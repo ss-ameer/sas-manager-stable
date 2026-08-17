@@ -17,7 +17,8 @@ import {
   Phone,
   Layers,
   ChevronDown,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +30,8 @@ interface SidebarProps {
   onSelectWorkspace: (id: string) => void;
   onOpenWorkspaceManager: () => void;
   onOpenTrashBin?: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export default function Sidebar({
@@ -39,7 +42,9 @@ export default function Sidebar({
   activeWorkspace,
   onSelectWorkspace,
   onOpenWorkspaceManager,
-  onOpenTrashBin
+  onOpenTrashBin,
+  isOpen = false,
+  onClose
 }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, role: 'Viewer' },
@@ -68,18 +73,35 @@ export default function Sidebar({
     }
   };
 
-  return (
-    <aside id="sidebar-layout" className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen shrink-0 sticky top-0">
+  const handleTabClick = (tabId: string) => {
+    onTabChange(tabId);
+    if (onClose) onClose();
+  };
+
+  const sidebarContent = (
+    <div className="flex flex-col h-full bg-white">
       {/* Brand Header */}
-      <div className="p-5 border-b border-slate-200">
-        <div className="flex items-center space-x-2.5 mb-1">
-          <span className="text-lg font-black text-slate-900 tracking-wider font-sans uppercase">
-            {BRAND_CONFIG.appName}
-          </span>
+      <div className="p-5 border-b border-slate-200 flex items-start justify-between">
+        <div>
+          <div className="flex items-center space-x-2.5 mb-1">
+            <span className="text-lg font-black text-slate-900 tracking-wider font-sans uppercase">
+              {BRAND_CONFIG.appName}
+            </span>
+          </div>
+          <div className="text-[10px] text-slate-400 font-mono uppercase tracking-widest">
+            Technical Component Sales Registry
+          </div>
         </div>
-        <div className="text-[10px] text-slate-400 font-mono uppercase tracking-widest">
-          Technical Component Sales Registry
-        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="md:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+            aria-label="Close navigation"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Workspace Switcher Header Block */}
@@ -90,7 +112,10 @@ export default function Sidebar({
             <span>Active Workspace</span>
           </div>
           <button
-            onClick={onOpenWorkspaceManager}
+            onClick={() => {
+              onOpenWorkspaceManager();
+              if (onClose) onClose();
+            }}
             className="text-[10px] text-blue-400 hover:text-blue-300 font-bold hover:underline"
           >
             Manage
@@ -106,6 +131,7 @@ export default function Sidebar({
               } else {
                 onSelectWorkspace(e.target.value);
               }
+              if (onClose) onClose();
             }}
             className="w-full bg-slate-800 text-white font-bold text-xs px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none truncate pr-8"
           >
@@ -161,7 +187,7 @@ export default function Sidebar({
           return (
             <button
               key={item.id}
-              onClick={() => onTabChange(item.id)}
+              onClick={() => handleTabClick(item.id)}
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition duration-150 ${
                 isActive
                   ? 'bg-slate-900 text-white shadow'
@@ -182,7 +208,10 @@ export default function Sidebar({
       <div className="p-3 border-t border-slate-200 space-y-1">
         {onOpenTrashBin && (
           <button
-            onClick={onOpenTrashBin}
+            onClick={() => {
+              onOpenTrashBin();
+              if (onClose) onClose();
+            }}
             className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition duration-150"
           >
             <Trash2 className="w-4 h-4 text-slate-400" />
@@ -197,7 +226,33 @@ export default function Sidebar({
           <span className="font-sans">Sign Out</span>
         </button>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Persistent Sidebar */}
+      <aside id="sidebar-layout" className="hidden md:flex w-64 border-r border-slate-200 flex-col h-screen shrink-0 sticky top-0 bg-white">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Off-Canvas Drawer */}
+      {isOpen && (
+        <div
+          id="mobile-sidebar-backdrop"
+          className="md:hidden fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-sm flex"
+          onClick={onClose}
+        >
+          <aside
+            id="mobile-sidebar-drawer"
+            className="w-72 max-w-[85vw] bg-white h-full flex flex-col shadow-2xl animate-in slide-in-from-left duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
 

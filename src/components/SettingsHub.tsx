@@ -106,6 +106,7 @@ interface SettingsHubProps {
   setAllowUserSalespersonSelection?: (allow: boolean) => void;
   triggerToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
   workspaces?: Workspace[];
+  onOpenMobileMenu?: () => void;
 }
 
 export default function SettingsHub({
@@ -148,7 +149,8 @@ export default function SettingsHub({
   allowUserSalespersonSelection = false,
   setAllowUserSalespersonSelection,
   triggerToast,
-  workspaces = []
+  workspaces = [],
+  onOpenMobileMenu
 }: SettingsHubProps) {
   const [activeSubTab, setActiveSubTab] = useState<'dropdowns' | 'users' | 'api_db' | 'simulator' | 'invites' | 'cloud' | 'account' | 'docs'>('dropdowns');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -466,6 +468,7 @@ export default function SettingsHub({
         icon={Settings}
         badge={{ text: `Role: ${effectiveRole}`, variant: isAdmin ? 'blue' : 'amber' }}
         currentUser={user}
+        onOpenSidebar={onOpenMobileMenu}
       />
 
       <PageBody maxWidth="max-w-7xl">

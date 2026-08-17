@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, Menu } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { isSuperAdmin } from '../../utils/permissions';
 
@@ -30,6 +30,7 @@ export interface PageHeaderProps {
   children?: React.ReactNode;
   currentUser?: UserProfile | null;
   onOpenSuperAdminConsole?: () => void;
+  onOpenSidebar?: () => void;
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
@@ -42,7 +43,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   className = '',
   children,
   currentUser,
-  onOpenSuperAdminConsole
+  onOpenSuperAdminConsole,
+  onOpenSidebar
 }) => {
   const clicksRef = useRef<number[]>([]);
 
@@ -88,35 +90,50 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   return (
     <div className={`sticky top-0 z-40 w-full px-6 py-5 lg:px-8 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs ${className}`}>
       <div className="max-w-7xl mx-auto w-full flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Left Info Column (Secret 5-click trigger) */}
-        <div
-          onClick={handleTitleClick}
-          title="Secret Trigger: Click 5 times or press Ctrl+Shift+Alt+G for God Mode Console"
-          className="flex items-start sm:items-center space-x-3.5 min-w-0 cursor-pointer select-none group"
-        >
-          {Icon && (
-            <div className="p-2.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800/60 rounded-xl text-blue-600 dark:text-blue-400 shrink-0 shadow-2xs group-hover:border-purple-500/50 transition">
-              <Icon className="w-6 h-6" />
+        {/* Left Info Column with Mobile Hamburger & Secret 5-click trigger */}
+        <div className="flex items-center space-x-3.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenSidebar) onOpenSidebar();
+              else window.dispatchEvent(new CustomEvent('open-mobile-sidebar'));
+            }}
+            className="md:hidden p-2 -ml-1 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer shrink-0"
+            title="Open Navigation Menu"
+            aria-label="Open Navigation Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <div
+            onClick={handleTitleClick}
+            title="Secret Trigger: Click 5 times or press Ctrl+Shift+Alt+G for God Mode Console"
+            className="flex items-start sm:items-center space-x-3.5 min-w-0 cursor-pointer select-none group flex-1"
+          >
+            {Icon && (
+              <div className="p-2.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800/60 rounded-xl text-blue-600 dark:text-blue-400 shrink-0 shadow-2xs group-hover:border-purple-500/50 transition">
+                <Icon className="w-6 h-6" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white dark:font-extrabold tracking-tight truncate group-hover:text-purple-400 transition">
+                  {title}
+                </h1>
+                {badge && (
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                      badgeClasses[badge.variant || 'blue']
+                    }`}
+                  >
+                    {badge.text}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">
+                {subtitle}
+              </p>
             </div>
-          )}
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white dark:font-extrabold tracking-tight truncate group-hover:text-purple-400 transition">
-                {title}
-              </h1>
-              {badge && (
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                    badgeClasses[badge.variant || 'blue']
-                  }`}
-                >
-                  {badge.text}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">
-              {subtitle}
-            </p>
           </div>
         </div>
 

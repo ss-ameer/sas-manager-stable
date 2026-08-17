@@ -38,6 +38,7 @@ interface EnquiryListProps {
   onDeleteEnquiry: (id: string) => void;
   onBulkDeleteEnquiries: (ids: string[]) => void;
   user: any;
+  onOpenMobileMenu?: () => void;
   onOpenActivityDrawer?: (context: {
     companyId?: string;
     companyName?: string;
@@ -62,6 +63,7 @@ export default function EnquiryList({
   onDeleteEnquiry,
   onBulkDeleteEnquiries,
   user,
+  onOpenMobileMenu,
   onOpenActivityDrawer
 }: EnquiryListProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -463,6 +465,7 @@ export default function EnquiryList({
         icon={FileText}
         badge={{ text: `${enquiries.length} Proposals`, variant: 'blue' }}
         currentUser={user}
+        onOpenSidebar={onOpenMobileMenu}
         primaryAction={
           isEditable
             ? {

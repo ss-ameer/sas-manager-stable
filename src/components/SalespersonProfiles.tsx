@@ -38,6 +38,7 @@ interface SalespersonProfilesProps {
   setCallLogs?: React.Dispatch<React.SetStateAction<CallLogEntry[]>>;
   activeWorkspace?: Workspace;
   currentUser?: UserProfile;
+  onOpenMobileMenu?: () => void;
 }
 
 export default function SalespersonProfiles({
@@ -50,7 +51,8 @@ export default function SalespersonProfiles({
   callLogs = [],
   setCallLogs,
   activeWorkspace,
-  currentUser
+  currentUser,
+  onOpenMobileMenu
 }: SalespersonProfilesProps) {
   const [selectedSalespersonId, setSelectedSalespersonId] = useState<string | null>(salespersons[0]?.id || salespersons[0]?.initials || null);
   const [enquirySearchQuery, setEnquirySearchQuery] = useState('');
@@ -605,6 +607,7 @@ export default function SalespersonProfiles({
         icon={Users2}
         badge={{ text: `${deduplicatedSalespersons.length} Reps Active`, variant: 'blue' }}
         currentUser={currentUser}
+        onOpenSidebar={onOpenMobileMenu}
         primaryAction={{
           label: 'Add Team Member',
           icon: Plus,

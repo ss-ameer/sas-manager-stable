@@ -143,6 +143,7 @@ interface CallLogManagerProps {
     logToEdit?: any;
   }) => void;
   onEditCompany?: (company: Company) => void;
+  onOpenMobileMenu?: () => void;
 }
 
 export default function CallLogManager({
@@ -165,7 +166,8 @@ export default function CallLogManager({
   setEnquiries,
   onSelectEnquiry,
   onOpenActivityDrawer,
-  onEditCompany
+  onEditCompany,
+  onOpenMobileMenu
 }: CallLogManagerProps) {
   const [subTab, setSubTab] = useState<'queue' | 'log'>(initialSubTab);
   const [queueTimeframe, setQueueTimeframe] = useState<'today' | 'upcoming' | 'all'>('today');
@@ -1289,6 +1291,7 @@ export default function CallLogManager({
         icon={PhoneCall}
         badge={{ text: activeWorkspace.name, variant: 'blue' }}
         currentUser={user}
+        onOpenSidebar={onOpenMobileMenu}
         primaryAction={{
           label: '+ Log / Schedule New Call',
           icon: Plus,

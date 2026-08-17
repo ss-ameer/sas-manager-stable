@@ -26,9 +26,10 @@ interface ProductManagerProps {
   user: any;
   setProducts?: React.Dispatch<React.SetStateAction<Product[]>>;
   activeWorkspace?: Workspace;
+  onOpenMobileMenu?: () => void;
 }
 
-export default function ProductManager({ products, productCategories: propCategories, units: propUnits, user, setProducts, activeWorkspace }: ProductManagerProps) {
+export default function ProductManager({ products, productCategories: propCategories, units: propUnits, user, setProducts, activeWorkspace, onOpenMobileMenu }: ProductManagerProps) {
   const [searchInput, setSearchInput] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
 
@@ -251,6 +252,7 @@ export default function ProductManager({ products, productCategories: propCatego
         icon={Package}
         badge={{ text: `${products.length} Products`, variant: 'blue' }}
         currentUser={user}
+        onOpenSidebar={onOpenMobileMenu}
         primaryAction={
           isEditable
             ? {
