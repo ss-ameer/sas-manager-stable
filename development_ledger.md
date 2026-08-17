@@ -1,5 +1,21 @@
 # Development Ledger
 
+## Session: 2026-08-16 (V2 Surgical Strike 5: Sticky Header Overflow Override)
+
+### Goals
+- Ensure main content area is explicitly configured as the scrolling container with `h-screen` and `overflow-y-auto` in `App.tsx`.
+- Update `PageHeader.tsx` outermost wrapper to `sticky top-0 z-[100] w-full` to float above sticky columns and table headers.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/App.tsx` | Configured layout outer wrapper with `h-screen overflow-hidden` and `<main>` with `h-screen overflow-y-auto flex flex-col flex-1`. |
+| `/src/components/layout/PageHeader.tsx` | Updated outermost div classes to `sticky top-0 z-[100] w-full`. |
+| `/package.json` | Bumped version to `0.69.1`. |
+| `/CHANGELOG.md` | Added version `0.69.1` entry. |
+| `/development_ledger.md` | Logged development session goals and modifications. |
+
 ## Session: 2026-08-16 (V2 Surgical Strike 4: Core Architecture Overhaul - Scheduling vs. Logging)
 
 ### Goals

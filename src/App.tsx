@@ -1252,7 +1252,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex bg-slate-50 text-slate-900 min-h-screen">
+    <div className="flex bg-slate-50 text-slate-900 h-screen overflow-hidden">
       {/* Sidebar Navigation */}
       <Sidebar
         currentTab={currentTab}
@@ -1266,7 +1266,7 @@ export default function App() {
       />
 
       {/* Main Panel Area */}
-      <main className="flex-1 overflow-y-auto flex flex-col">
+      <main className="flex-1 h-screen overflow-y-auto flex flex-col">
         {/* Top Header Bar with Cloud Sync Hub */}
         <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs shrink-0">
           <div className="flex items-center space-x-2">

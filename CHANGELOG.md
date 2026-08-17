@@ -2,6 +2,13 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.69.1] - 2026-08-16
+
+### Fixed & Enhanced
+- **V2 Surgical Strike 5: Sticky Header Overflow Override (`App.tsx` & `PageHeader.tsx`)**:
+  - **Part 1 - The Scroll Container (`App.tsx`)**: Ensured outer application layout container uses `h-screen overflow-hidden` and the main `<main>` panel is configured as the explicit scrolling container with `h-screen overflow-y-auto flex flex-col flex-1` to prevent parent overflow restrictions from breaking CSS sticky behavior.
+  - **Part 2 - Header Z-Index (`PageHeader.tsx`)**: Updated `PageHeader` outermost wrapper classes to `sticky top-0 z-[100] w-full` so page headers consistently float above table headers, sticky columns, and interactive list items across all tabs.
+
 ## [0.69.0] - 2026-08-16
 
 ### Added & Refactored
