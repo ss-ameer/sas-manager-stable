@@ -2,6 +2,14 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.70.1] - 2026-08-17
+
+### Fixed & Refactored
+- **V3 Surgical Strike 2: Modal Z-Index Dominance**:
+  - **Part 1 — Dial Down Header (`PageHeader.tsx`)**: Reduced outermost `sticky top-0` header z-index from `z-40` to `z-20` so scrolling page titles surrender cleanly to modal overlays.
+  - **Part 2 — Elevate Diagnostic Modal (`CloudSyncHub.tsx`)**: Elevated System Health / Diagnostics Hub (`Local Memory Cache Diagnostics`) backdrop from `z-50` to `z-[100]`.
+  - **Part 3 — Elevate Core Modals (`CompanyModal.tsx`, `QuickActivityDrawer.tsx`, `CallLogDetailModal.tsx`)**: Upgraded outermost fixed backdrops from `z-50` to `z-[100]` to permanently prevent header clipping.
+
 ## [0.70.0] - 2026-08-17
 
 ### Added & Refactored

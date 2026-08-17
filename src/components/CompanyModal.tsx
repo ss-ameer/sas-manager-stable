@@ -3003,7 +3003,7 @@ export default function CompanyModal({
 
       {/* MODAL: ADD COMPANY WITH DUPLICATE FUZZY WARNING */}
       {showAddCompany && (
-        <div id="company-form-modal" className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div id="company-form-modal" className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[100] flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-2xl relative animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0 bg-slate-950/50">
@@ -3345,7 +3345,7 @@ export default function CompanyModal({
 
       {/* MODAL: MERGE canonical companies */}
       {showMerge && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[100] flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <button
               onClick={() => {

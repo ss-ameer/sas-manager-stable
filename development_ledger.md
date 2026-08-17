@@ -1,5 +1,25 @@
 # Development Ledger
 
+## Session: 2026-08-17 (V3 Surgical Strike 2: Modal Z-Index Dominance)
+
+### Goals
+- Dial down `PageHeader.tsx` sticky header z-index from `z-40` to `z-20`.
+- Elevate System Health / Diagnostics Hub (`CloudSyncHub.tsx`) modal backdrop from `z-50` to `z-[100]`.
+- Elevate core modal backdrops in `CompanyModal.tsx`, `QuickActivityDrawer.tsx`, and `CallLogDetailModal.tsx` to `z-[100]`.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/layout/PageHeader.tsx` | Reduced sticky top header wrapper z-index from `z-40` to `z-20`. |
+| `/src/components/CloudSyncHub.tsx` | Elevated System Health & Diagnostics Hub modal backdrop from `z-50` to `z-[100]`. |
+| `/src/components/CompanyModal.tsx` | Upgraded add company form modal and merge modal backdrops from `z-50` to `z-[100]`. |
+| `/src/components/QuickActivityDrawer.tsx` | Upgraded slide-over activity drawer backdrop from `z-50` to `z-[100]`. |
+| `/src/components/CallLogDetailModal.tsx` | Upgraded call log detail modal backdrop from `z-50` to `z-[100]`. |
+| `/package.json` | Bumped version to `0.70.1`. |
+| `/CHANGELOG.md` | Logged version `0.70.1` entry. |
+| `/development_ledger.md` | Logged development session goals and modifications. |
+
 ## Session: 2026-08-17 (V3 Surgical Strike 1: Mobile Responsiveness Core)
 
 ### Goals

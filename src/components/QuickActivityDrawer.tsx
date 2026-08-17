@@ -1774,7 +1774,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/70 backdrop-blur-xs flex justify-end">
+      <div className="fixed inset-0 z-[100] overflow-hidden bg-slate-950/70 backdrop-blur-xs flex justify-end">
         {/* Backdrop click to close */}
         <div className="absolute inset-0" onClick={onClose} />
 
