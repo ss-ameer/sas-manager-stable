@@ -1,5 +1,36 @@
 # Development Ledger
 
+## Session: 2026-08-16 (V2 Surgical Strike 6.2: Queue UI Overhaul)
+
+### Goals
+- Inject universal schedule date/time badge into every scheduled card in Operator Call Queue.
+- Update queue item action button label from 'Fast Log Call Outcome' to 'Log / Reschedule'.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CallLogManager.tsx` | Injected `formatOverdueDisplayDate(item.date)` badge in queue cards and updated action button label to 'Log / Reschedule'. |
+| `/package.json` | Bumped version to `0.69.3`. |
+| `/CHANGELOG.md` | Added version `0.69.3` entry. |
+| `/development_ledger.md` | Logged development session goals and modifications. |
+
+## Session: 2026-08-16 (V2 Surgical Strike 6.1: Z-Index & Navigation Polish)
+
+### Goals
+- Dial down `PageHeader` outermost wrapper z-index from `z-[100]` to `z-40` so sticky page headers stay behind modal overlays (`z-50`).
+- Ensure `[View Previous Logs]` button click handlers in `QuickActivityDrawer` call `onClose()` to dismiss drawer when opening company profile modals.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/layout/PageHeader.tsx` | Changed outermost wrapper z-index class from `z-[100]` to `z-40`. |
+| `/src/components/QuickActivityDrawer.tsx` | Added `onClose()` call to `[View Previous Logs]` button click handlers. |
+| `/package.json` | Bumped version to `0.69.2`. |
+| `/CHANGELOG.md` | Logged version `0.69.2` release notes. |
+| `/development_ledger.md` | Logged development session goals and modifications table. |
+
 ## Session: 2026-08-16 (V2 Surgical Strike 5: Sticky Header Overflow Override)
 
 ### Goals

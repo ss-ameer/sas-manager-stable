@@ -2,6 +2,20 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.69.3] - 2026-08-16
+
+### Enhanced & Refactored
+- **V2 Surgical Strike 6.2: Queue UI Overhaul (`CallLogManager.tsx`)**:
+  - **Part 1 - Inject Universal Schedule Dates**: Injected a universal schedule date/time badge (`formatOverdueDisplayDate(item.date)`) into every single scheduled item card in the Operator Call Queue so target dates are universally visible across all scheduled states.
+  - **Part 2 - Deprecate 'Fast Log' Button Text**: Updated the primary queue item action button label from `"Fast Log Call Outcome"` to `"Log / Reschedule"` while maintaining the lightning bolt icon (`Zap`).
+
+## [0.69.2] - 2026-08-16
+
+### Fixed & Polish
+- **V2 Surgical Strike 6.1: Z-Index & Navigation Polish (`PageHeader.tsx` & `QuickActivityDrawer.tsx`)**:
+  - **Part 1 - Z-Index Dial Down (`PageHeader.tsx`)**: Dialed down `PageHeader` outermost wrapper z-index from `z-[100]` to `z-40`, ensuring sticky headers stay above table data headers while remaining behind modal overlays (`z-50`).
+  - **Part 2 - Drawer Auto-Close (`QuickActivityDrawer.tsx`)**: Added `onClose()` calls inside the `[View Previous Logs]` button click handlers so the Quick Activity Drawer automatically closes when opening Company Inspection / 360 view modals.
+
 ## [0.69.1] - 2026-08-16
 
 ### Fixed & Enhanced

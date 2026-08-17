@@ -1888,6 +1888,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                             if (onOpen360) onOpen360(selectedCompanyId);
                             else if (onInspectCompany) onInspectCompany(selectedCompanyId);
                             else if (onOpenCompanyModal) onOpenCompanyModal(selectedCompanyId);
+                            onClose();
                           }
                         }}
                         className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 hover:underline transition cursor-pointer"
@@ -1954,6 +1955,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                                 if (onOpen360) onOpen360(selectedCompanyId);
                                 else if (onInspectCompany) onInspectCompany(selectedCompanyId);
                                 else if (onOpenCompanyModal) onOpenCompanyModal(selectedCompanyId);
+                                onClose();
                               }
                             }}
                             className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 hover:underline transition cursor-pointer"
