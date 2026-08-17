@@ -1647,7 +1647,7 @@ export default function CallLogManager({
                           className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center space-x-2"
                         >
                           <Zap className="w-4 h-4 text-amber-400" />
-                          <span>Log / Reschedule</span>
+                          <span>Execute Task</span>
                         </button>
                       </>
                     ) : (
@@ -3148,6 +3148,19 @@ export default function CallLogManager({
         onClose={() => {
           setSelectedDetailEntry(null);
           setShowLogModal(false);
+        }}
+        onScheduleFollowUp={() => {
+          const viewingLog = selectedDetailEntry;
+          setSelectedDetailEntry(null);
+          setShowLogModal(false);
+          if (onOpenActivityDrawer) {
+            onOpenActivityDrawer({
+              companyId: viewingLog?.company_id || undefined,
+              contactId: viewingLog?.contact_id || undefined,
+              existingLog: null,
+              logToEdit: null
+            });
+          }
         }}
         callLogs={callLogs}
         activeWorkspace={activeWorkspace}

@@ -2,6 +2,14 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.72.1] - 2026-08-17
+
+### Added & Refactored
+- **V5 Surgical Strike 1.1: Queue UI & Follow-Up Wiring**:
+  - **Part 1 — Queue Action Label Clarification (`src/components/CallLogManager.tsx`)**: Renamed the queue action button label from `"Log / Reschedule"` to `"Execute Task"`.
+  - **Part 2 — Follow-Up Wiring (`src/components/CallLogDetailModal.tsx` & `src/components/CallLogManager.tsx`)**: Added `onScheduleFollowUp` prop to `CallLogDetailModalProps`, wired the footer Schedule Follow-Up button to execute it, and passed the handler from `CallLogManager` to open the activity drawer for a new task pre-filled with company/contact context.
+
+
 ## [0.72.0] - 2026-08-17
 
 ### Added & Refactored

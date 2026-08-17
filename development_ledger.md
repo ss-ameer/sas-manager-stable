@@ -1,5 +1,23 @@
 # Development Ledger
 
+## Session: 2026-08-17 (V5 Surgical Strike 1.1: Queue UI & Follow-Up Wiring)
+
+### Goals
+- Clarify queue action button text from `"Log / Reschedule"` to `"Execute Task"`.
+- Add `onScheduleFollowUp` prop to `CallLogDetailModal` and wire footer button to trigger it.
+- Pass `onScheduleFollowUp` in `CallLogManager` to clear viewing modal state and open activity drawer for a new task for the company/contact context.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/components/CallLogManager.tsx` | Renamed queue button to "Execute Task" and passed `onScheduleFollowUp` prop to `CallLogDetailModal`. |
+| `/src/components/CallLogDetailModal.tsx` | Added `onScheduleFollowUp` to props interface and wired Schedule Follow-Up button `onClick`. |
+| `/package.json` | Bumped version to `0.72.1`. |
+| `/CHANGELOG.md` | Added release notes for version `0.72.1`. |
+| `/development_ledger.md` | Recorded session goals and modifications for V5 Surgical Strike 1.1. |
+
+
 ## Session: 2026-08-17 (V4 Surgical Strike 2: Logic Decoupling & Advanced Dropdowns)
 
 ### Goals

@@ -41,6 +41,7 @@ interface CallLogDetailModalProps {
   onOpenEnquiry?: (enquiryId: string) => void;
   onCreateEnquiryFromCall?: (entry: CallLogEntry) => void;
   onLogFollowup?: (entry: CallLogEntry) => void;
+  onScheduleFollowUp?: () => void;
   companies: Company[];
   contacts: Contact[];
   enquiries: Enquiry[];
@@ -60,6 +61,7 @@ export default function CallLogDetailModal({
   onOpenEnquiry,
   onCreateEnquiryFromCall,
   onLogFollowup,
+  onScheduleFollowUp,
   companies,
   contacts,
   enquiries,
@@ -577,7 +579,7 @@ export default function CallLogDetailModal({
 
             <button
               type="button"
-              onClick={() => {
+              onClick={onScheduleFollowUp ? onScheduleFollowUp : () => {
                 onClose();
                 if (onLogFollowup) {
                   onLogFollowup(entry);
