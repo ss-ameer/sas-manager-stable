@@ -451,6 +451,8 @@ export function normalizeAttributes(attributes: any): ProductAttribute[] {
   return [];
 }
 
+export type ActivityChannel = 'Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Site Visit';
+
 export type CallStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'Follow-Up Required' | 'No Answer / Voicemail' | 'Invalid Number' | string;
 
 export type CallOutcome =

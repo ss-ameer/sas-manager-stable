@@ -2,6 +2,14 @@
 
 All notable changes to the Enquiry Manager will be documented in this file.
 
+## [0.72.0] - 2026-08-17
+
+### Added & Refactored
+- **V4 Surgical Strike 2: Logic Decoupling & Advanced Dropdowns**:
+  - **Part 1 — Central Logic Engine (`src/utils/activityLogic.ts`)**: Created utility file exporting `getPurposesForChannel(channel)` and `getOutcomesForStatus(status)` as single source of truth for channel purposes and status outcomes.
+  - **Part 2 — Drawer Wiring (`src/components/QuickActivityDrawer.tsx`)**: Replaced hardcoded option mappings in PURPOSE and OUTCOME `<select>` dropdowns with calls to `getPurposesForChannel` and `getOutcomesForStatus`.
+  - **Part 3 — State Sanitization**: Updated channel/status selection handlers and reactive effects to sanitize `purpose` and `outcome` state on switch, preventing invalid cached option selections.
+
 ## [0.71.0] - 2026-08-17
 
 ### Added & Refactored

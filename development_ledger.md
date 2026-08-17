@@ -1,5 +1,23 @@
 # Development Ledger
 
+## Session: 2026-08-17 (V4 Surgical Strike 2: Logic Decoupling & Advanced Dropdowns)
+
+### Goals
+- Extract channel purpose and outcome mapping logic into a standalone utility engine `src/utils/activityLogic.ts`.
+- Wire PURPOSE and OUTCOME `<select>` elements in `QuickActivityDrawer.tsx` to use `getPurposesForChannel` and `getOutcomesForStatus`.
+- Guarantee state sanitization on channel or status changes so `purpose` and `outcome` dropdowns never display stale or invalid options.
+
+### Modifications
+
+| File Path | Change Description |
+| :--- | :--- |
+| `/src/utils/activityLogic.ts` | Created logic engine exporting `getPurposesForChannel` and `getOutcomesForStatus`. |
+| `/src/types.ts` | Exported `ActivityChannel` type. |
+| `/src/components/QuickActivityDrawer.tsx` | Wired dropdowns to `activityLogic.ts` utilities and updated state sanitization handlers. |
+| `/package.json` | Bumped version to `0.72.0`. |
+| `/CHANGELOG.md` | Added version `0.72.0` release notes. |
+| `/development_ledger.md` | Recorded development goals and modifications table for V4 Surgical Strike 2. |
+
 ## Session: 2026-08-17 (V4 Surgical Strike 1: Contextual UI Engine)
 
 ### Goals

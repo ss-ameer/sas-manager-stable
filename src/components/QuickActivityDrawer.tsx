@@ -38,6 +38,7 @@ import {
   Enquiry,
   CallLogEntry,
   CallStatus,
+  ActivityChannel,
   getContactPhones,
   getCompanyPhones,
   getContactEmails,
@@ -51,6 +52,9 @@ import { generateNextRefId } from '../utils/refId';
 import { CustomLabelSelect, PHONE_LABEL_DEFAULT_OPTIONS, EMAIL_LABEL_DEFAULT_OPTIONS } from './CustomLabelSelect';
 import GeminiKeyModal from './GeminiKeyModal';
 import { SYSTEM_CALL_PURPOSES } from '../utils/defaults';
+import { getPurposesForChannel, getOutcomesForStatus } from '../utils/activityLogic';
+
+export { getPurposesForChannel, getOutcomesForStatus };
 
 export interface QuickActivityDrawerProps {
   isOpen: boolean;
@@ -86,7 +90,7 @@ export interface QuickActivityDrawerProps {
   onOpenCompanyModal?: (companyId: string) => void;
 }
 
-type ActivityChannel = 'Call' | 'WhatsApp' | 'Email' | 'Meeting' | 'Site Visit';
+export type { ActivityChannel };
 
 interface PresetChip {
   id: string;
@@ -131,53 +135,6 @@ export const channelPresets: Record<ActivityChannel, string[]> = {
   Email: ['Sent Profile', 'Sent Quotation', 'Awaiting Reply', 'Bounced / Undeliverable', 'Auto-Reply Received'],
   Meeting: ['Met Decision Maker', 'Gatekeeper Only / Dropped Profile', 'Rescheduled on Site', 'Site Inspected', 'Deal Closed'],
   'Site Visit': ['Met Decision Maker', 'Gatekeeper Only / Dropped Profile', 'Rescheduled on Site', 'Site Inspected', 'Deal Closed']
-};
-
-export const getOutcomesForStatus = (st: CallStatus | string): string[] => {
-  if (st === 'Completed') {
-    return [
-      'Meeting Booked',
-      'Quote Requested',
-      'Information Gathered',
-      'Interested (Follow-up)',
-      'Has Provider (Future Nurture)',
-      'Gatekeeper Reached / Blocked',
-      'Call Back Later',
-      'Not Interested',
-      'Disqualified',
-      'Contact Left Company'
-    ];
-  }
-  if (st === 'No Answer' || st === 'Busy') {
-    return [
-      'Left Voicemail',
-      'Unreachable'
-    ];
-  }
-  if (st === 'Invalid Number') {
-    return [
-      'Dead Line / Disconnected'
-    ];
-  }
-  if (st === 'Scheduled' || st === 'Scheduled / Planned') {
-    return [
-      'Follow-Up Scheduled',
-      'Meeting Booked',
-      'Call Back Later'
-    ];
-  }
-  return [
-    'Meeting Booked',
-    'Quote Requested',
-    'Information Gathered',
-    'Interested (Follow-up)',
-    'Has Provider (Future Nurture)',
-    'Gatekeeper Reached / Blocked',
-    'Call Back Later',
-    'Not Interested',
-    'Disqualified',
-    'Contact Left Company'
-  ];
 };
 
 const PRESET_CHIPS: PresetChip[] = [
@@ -306,28 +263,41 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
   const handleChannelSelect = (newChannel: ActivityChannel) => {
     setChannel(newChannel);
     const available = channelStatuses[newChannel] || [];
+    let activeStatus = status;
     if (available.length > 0 && !available.includes(status)) {
-      const defaultStatus = available[0] as CallStatus;
-      setStatus(defaultStatus);
-      const allowed = getOutcomesForStatus(defaultStatus);
-      if (!allowed.includes(outcome)) {
-        setOutcome(allowed[0]);
-      }
+      activeStatus = available[0] as CallStatus;
+      setStatus(activeStatus);
+    }
+
+    const validPurposes = getPurposesForChannel(newChannel);
+    if (!validPurposes.includes(purpose)) {
+      setPurpose(validPurposes[0]);
+    }
+
+    const validOutcomes = getOutcomesForStatus(activeStatus);
+    if (!validOutcomes.includes(outcome)) {
+      setOutcome(validOutcomes[0]);
     }
   };
 
   useEffect(() => {
     const available = channelStatuses[interactionChannel] || [];
+    let activeStatus = status;
     if (available.length > 0 && !available.includes(status)) {
-      const defaultStatus = available[0] as CallStatus;
-      setStatus(defaultStatus);
-      const allowed = getOutcomesForStatus(defaultStatus);
-      if (!allowed.includes(outcome)) {
-        setOutcome(allowed[0]);
-      }
+      activeStatus = available[0] as CallStatus;
+      setStatus(activeStatus);
     }
-  }, [interactionChannel, status, outcome]);
-  const currentAllowedOutcomes = useMemo(() => getOutcomesForStatus(status), [status]);
+
+    const validPurposes = getPurposesForChannel(interactionChannel);
+    if (!validPurposes.includes(purpose)) {
+      setPurpose(validPurposes[0]);
+    }
+
+    const validOutcomes = getOutcomesForStatus(activeStatus);
+    if (!validOutcomes.includes(outcome)) {
+      setOutcome(validOutcomes[0]);
+    }
+  }, [interactionChannel, status, purpose, outcome]);
   const [notes, setNotes] = useState<string>('');
   const [activityDate, setActivityDate] = useState<string>(() => getLocalDateTimeString());
   const [followupDate, setFollowupDate] = useState<string>('');
@@ -3120,12 +3090,9 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   onChange={(e) => setOutcome(e.target.value)}
                   className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-semibold cursor-pointer"
                 >
-                  {outcome && !currentAllowedOutcomes.includes(outcome) && (
-                    <option value={outcome}>{outcome}</option>
-                  )}
-                  {currentAllowedOutcomes.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
+                  {getOutcomesForStatus(status).map((o) => (
+                    <option key={o} value={o}>
+                      {o}
                     </option>
                   ))}
                 </select>
@@ -3140,10 +3107,7 @@ export const QuickActivityDrawer: React.FC<QuickActivityDrawerProps> = ({
                   onChange={(e) => setPurpose(e.target.value)}
                   className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-semibold cursor-pointer"
                 >
-                  {purpose && !SYSTEM_CALL_PURPOSES_TAXONOMY.includes(purpose) && (
-                    <option value={purpose}>{purpose}</option>
-                  )}
-                  {SYSTEM_CALL_PURPOSES_TAXONOMY.map((p) => (
+                  {getPurposesForChannel(interactionChannel).map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>
